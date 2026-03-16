@@ -1,0 +1,26 @@
+# Build outputs
+bin/
+obj/
+
+# IDE
+.vs/
+*.user
+
+# Secrets / environment-specific config
+appsettings.Development.json
+appsettings.Production.json
+appsettings.*.json
+!appsettings.json
+
+# Logs
+*.log
+
+# Claude Code hooks dependencies
+.claude/hooks/node_modules/
+
+# IDE
+.idea/
+
+# Windows artifacts
+nul
+.claude/settings.local.json
