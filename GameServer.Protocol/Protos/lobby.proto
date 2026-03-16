@@ -1,0 +1,13 @@
+syntax = "proto3";
+package dhnet;
+option csharp_namespace = "GameServer.Protocol";
+
+message ReqLobbyChat {
+  string message = 1;
+}
+
+message NotiLobbyChat {
+  uint64 player_id   = 1;
+  string player_name = 2;
+  string message     = 3;
+}

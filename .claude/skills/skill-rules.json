@@ -1,0 +1,101 @@
+{
+  "skills": {
+    "dev-docs": {
+      "type": "workflow",
+      "enforcement": "block",
+      "priority": "critical",
+      "promptTriggers": {
+        "keywords": [
+          "새 기능", "새 작업", "새로운 기능", "구현해줘", "만들어줘", "추가해줘",
+          "시작할게", "시작하자", "시작하려고", "개발 시작",
+          "new feature", "implement", "start working", "새 프로젝트"
+        ],
+        "intentPatterns": [
+          ".*새.*기능.*구현.*",
+          ".*새.*작업.*시작.*",
+          ".*(?:만들어|구현해|개발해).*줘.*",
+          ".*시작.*하려.*고.*",
+          ".*feature.*implement.*"
+        ]
+      }
+    },
+    "dev-docs-update": {
+      "type": "workflow",
+      "enforcement": "block",
+      "priority": "critical",
+      "promptTriggers": {
+        "keywords": [
+          "저장해줘", "저장하자", "문서 업데이트", "컨텍스트 저장",
+          "세션 끝", "마무리", "작업 완료", "오늘 작업 끝",
+          "save", "update docs", "context save", "session end"
+        ],
+        "intentPatterns": [
+          ".*저장.*해줘.*",
+          ".*문서.*업데이트.*",
+          ".*작업.*완료.*저장.*",
+          ".*오늘.*마무리.*"
+        ]
+      }
+    },
+    "csharp-dotnetty-gameserver": {
+      "type": "domain",
+      "enforcement": "block",
+      "priority": "critical",
+      "promptTriggers": {
+        "keywords": [
+          "dotnetty",
+          "channel",
+          "handler",
+          "pipeline",
+          "protobuf",
+          "protocol buffer",
+          "게임 서버",
+          "game server",
+          "session",
+          "세션",
+          "lobby",
+          "로비",
+          "room",
+          "룸",
+          "player",
+          "플레이어",
+          "async",
+          "비동기",
+          "network",
+          "네트워크"
+        ],
+        "intentPatterns": [
+          ".*dotnetty.*핸들러.*",
+          ".*channel.*handler.*",
+          ".*protobuf.*메시지.*",
+          ".*게임.*서버.*구현.*",
+          ".*로비.*룸.*시스템.*",
+          ".*세션.*관리.*",
+          ".*플레이어.*동기화.*",
+          ".*비동기.*네트워크.*"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "**/*.cs",
+          "**/*.proto",
+          "**/Handlers/**/*.cs",
+          "**/Session/**/*.cs",
+          "**/Network/**/*.cs",
+          "**/Lobby/**/*.cs",
+          "**/Room/**/*.cs",
+          "**/Player/**/*.cs"
+        ],
+        "contentPatterns": [
+          "IChannelHandler",
+          "ChannelHandlerContext",
+          "SimpleChannelInboundHandler",
+          "MessageToMessageDecoder",
+          "IMessage",
+          "async Task",
+          "ConcurrentDictionary"
+        ]
+      }
+    }
+  }
+}

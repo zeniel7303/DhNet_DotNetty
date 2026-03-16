@@ -1,0 +1,27 @@
+syntax = "proto3";
+package dhnet;
+option csharp_namespace = "GameServer.Protocol";
+
+import "Protos/login.proto";
+import "Protos/lobby.proto";
+import "Protos/room.proto";
+import "Protos/heartbeat.proto";
+
+message GamePacket {
+  oneof payload {
+    ReqLogin      req_login       = 1;
+    ResLogin      res_login       = 2;
+    ReqRoomEnter  req_room_enter  = 3;
+    ResRoomEnter  res_room_enter  = 4;
+    NotiRoomEnter noti_room_enter = 5;
+    ReqRoomChat   req_room_chat   = 6;
+    NotiRoomChat  noti_room_chat  = 7;
+    ReqRoomExit   req_room_exit   = 8;
+    ResRoomExit   res_room_exit   = 9;
+    NotiRoomExit  noti_room_exit  = 10;
+    ReqLobbyChat  req_lobby_chat  = 11;
+    NotiLobbyChat noti_lobby_chat = 12;
+    ReqHeartbeat  req_heartbeat   = 13;
+    ResHeartbeat  res_heartbeat   = 14;
+  }
+}

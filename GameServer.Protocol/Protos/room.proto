@@ -1,0 +1,14 @@
+syntax = "proto3";
+package dhnet;
+option csharp_namespace = "GameServer.Protocol";
+
+message ReqRoomEnter  {}
+message ResRoomEnter  { bool success = 1; }
+message NotiRoomEnter { uint64 player_id = 1; string player_name = 2; }
+
+message ReqRoomChat   { string message = 1; }
+message NotiRoomChat  { uint64 player_id = 1; string player_name = 2; string message = 3; }
+
+message ReqRoomExit   {}
+message ResRoomExit   {}
+message NotiRoomExit  { uint64 player_id = 1; string player_name = 2; }
