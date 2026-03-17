@@ -11,7 +11,7 @@ public class Lobby
 {
     private readonly Channel<Func<Task>> _jobChannel = Channel.CreateUnbounded<Func<Task>>();
     private readonly List<Player> _players = new();
-    private volatile int _playerCount;
+    private int _playerCount;
     public int PlayerCount => _playerCount;
 
     public Lobby() => _ = Task.Run(ProcessJobsAsync);
@@ -32,6 +32,12 @@ public class Lobby
     }
 
     private void DoAsync(Func<Task> job) => _jobChannel.Writer.TryWrite(job);
+
+    private static async Task SafeSendAsync(Player p, GamePacket packet)
+    {
+        try { await p.Session.SendAsync(packet); }
+        catch { /* 연결 해제된 클라이언트 무시 */ }
+    }
 
     public void Enter(Player player) => DoAsync(() =>
     {
@@ -75,6 +81,6 @@ public class Lobby
                 Message = message
             }
         };
-        await Task.WhenAll(_players.Select(p => p.Session.SendAsync(noti)));
+        await Task.WhenAll(_players.Select(p => SafeSendAsync(p, noti)));
     });
 }

@@ -12,13 +12,13 @@ public class Player
 {
     public ulong Id { get; }
     public string Name { get; }
-    public GameSession Session { get; }
+    public SessionComponent Session { get; }
     public Room? CurrentRoom { get; set; }
 
     private int _disconnected = 0;
     private readonly Dictionary<Type, IRouter> _routeTable;
 
-    public Player(GameSession session, string name = "")
+    public Player(SessionComponent session, string name = "")
     {
         Id = IdGenerators.Player.Next();
         Name = string.IsNullOrEmpty(name) ? "TempUser" + Id : name;
@@ -55,6 +55,12 @@ public class Player
         }
     }
 
+    // 워커 틱에서 처리 (핸드셰이크 완료 후 Disconnect) — Stage 4에서 EnqueueEvent로 교체 예정
+    public void DisconnectForNextTick() => _ = DisconnectAsync();
+
+    // 즉시 정리 (핸드셰이크 전 Disconnect, WorkerSystem 미등록 경로)
+    public void ImmediateFinalize() => _ = DisconnectAsync();
+
     public async Task DisconnectAsync()
     {
         if (Interlocked.Exchange(ref _disconnected, 1) == 1)
@@ -68,7 +74,10 @@ public class Player
         {
             LobbySystem.Instance.Lobby.Leave(this);
         }
+        
         PlayerSystem.Instance.Remove(this);
+        Session.DetachPlayer();
+        Session.Dispose();
 
         var logoutAt = DateTime.UtcNow;
         try

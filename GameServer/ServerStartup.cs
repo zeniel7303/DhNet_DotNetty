@@ -18,6 +18,7 @@ static class ServerStartup
             ?? throw new InvalidOperationException("appsettings.json에 'Database' 섹션이 없습니다.");
 
         PlayerSystem.Configure(gameSettings.MaxPlayers);
+        SessionSystem.Instance.StartSystem();
 
         var dbResult = await DatabaseSystem.Instance.InitializeAsync(dbSettings);
         IdGenerators.Player.Initialize(dbResult.MaxPlayerId);

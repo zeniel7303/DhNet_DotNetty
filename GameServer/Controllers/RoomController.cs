@@ -6,7 +6,7 @@ namespace GameServer.Controllers;
 
 public static class RoomController
 {
-    public static void HandleChat(GameSession session, ReqRoomChat req)
+    public static void HandleChat(SessionComponent session, ReqRoomChat req)
     {
         var player = session.Player;
         if (player?.CurrentRoom == null) return;
@@ -14,7 +14,7 @@ public static class RoomController
         player.CurrentRoom.Chat(player, req.Message);
     }
 
-    public static void HandleExit(GameSession session, ReqRoomExit req)
+    public static void HandleExit(SessionComponent session, ReqRoomExit req)
     {
         var player = session.Player;
         if (player?.CurrentRoom == null) return;

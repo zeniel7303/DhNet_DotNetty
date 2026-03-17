@@ -9,7 +9,7 @@ public sealed class BaseWorker<T> where T : BaseComponent
 
     private readonly int _intervalMs;
     private Thread? _thread;
-    private volatile bool _running;
+    private bool _running;
 
     private sealed class WorkerItem(T item)
     {
