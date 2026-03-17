@@ -18,7 +18,7 @@ public class Room
     private const int MaxPlayers = 2;
     private readonly Channel<Func<Task>> _jobChannel = Channel.CreateUnbounded<Func<Task>>();
     private readonly List<Player> _players = new();
-    private volatile int _reservedCount = 0;
+    private int _reservedCount;
 
     // CAS 패턴 — lock 없이 원자적으로 슬롯 예약
     public bool TryReserve()
@@ -61,26 +61,45 @@ public class Room
 
     private void DoAsync(Func<Task> job) => _jobChannel.Writer.TryWrite(job);
 
+    private static async Task SafeSendAsync(Player p, GamePacket packet)
+    {
+        try
+        {
+            await p.Session.SendAsync(packet);
+        }
+        catch
+        {
+            /* 연결 해제된 클라이언트 무시 */ 
+        }
+    }
+
     public void Enter(Player player) => DoAsync(async () =>
     {
         if (!player.Session.Channel.Active)
         {
             ReleaseSlot();
+            
             GameLogger.Warn($"Room:{RoomId}", $"입장 취소 (연결 해제): {player.Name}");
             return;
         }
+        
         if (_players.Count >= MaxPlayers)
         {
             ReleaseSlot();
+            
             GameLogger.Warn($"Room:{RoomId}", $"입장 거부 (정원 초과 safety net): {player.Name}");
+            
             LobbySystem.Instance.Lobby.Enter(player);
+            
             await player.Session.SendAsync(new GamePacket
                 { ResRoomEnter = new ResRoomEnter { Success = false } });
+            
             return;
         }
+        
         _players.Add(player);
         player.CurrentRoom = this;
-        bool successSent = false;
+        
         try
         {
             GameLogger.Info($"Room:{RoomId}", $"입장: {player.Name} ({_players.Count}/{MaxPlayers})");
@@ -93,23 +112,35 @@ public class Room
             }).FireAndForget("Room");
             await player.Session.SendAsync(new GamePacket
                 { ResRoomEnter = new ResRoomEnter { Success = true } });
-            successSent = true;
-            var noti = new GamePacket
-                { NotiRoomEnter = new NotiRoomEnter { PlayerId = player.Id, PlayerName = player.Name } };
-            await Task.WhenAll(_players.Where(p => p != player).Select(p => p.Session.SendAsync(noti)));
         }
         catch (Exception ex)
         {
+            // 클라이언트에게 성공 응답을 보내기 전 실패 → 롤백 안전
             _players.Remove(player);
             player.CurrentRoom = null;
+            
             ReleaseSlot();
+            
             GameLogger.Warn($"Room:{RoomId}", $"입장 처리 중 오류, 롤백: {player.Name} — {ex.Message}");
+            
             LobbySystem.Instance.Lobby.Enter(player);
-            if (!successSent)
-            {
-                _ = player.Session.SendAsync(new GamePacket
-                    { ResRoomEnter = new ResRoomEnter { Success = false } });
-            }
+            _ = player.Session.SendAsync(new GamePacket
+                { ResRoomEnter = new ResRoomEnter { Success = false } });
+            
+            return;
+        }
+
+        // 성공 응답 전송 완료 — 이후 예외는 롤백 없이 경고만
+        try
+        {
+            var noti = new GamePacket
+                { NotiRoomEnter = new NotiRoomEnter { PlayerId = player.Id, PlayerName = player.Name } };
+            
+            await Task.WhenAll(_players.Where(p => p != player).Select(p => SafeSendAsync(p, noti)));
+        }
+        catch (Exception ex)
+        {
+            GameLogger.Warn($"Room:{RoomId}", $"NotiRoomEnter 브로드캐스트 일부 실패: {ex.Message}");
         }
     });
 
@@ -119,9 +150,12 @@ public class Room
         {
             return;
         }
+        
         ReleaseSlot();
         player.CurrentRoom = null;
+        
         GameLogger.Info($"Room:{RoomId}", $"퇴장: {player.Name} (disconnect={isDisconnect}, 잔여 {_players.Count}명)");
+        
         DatabaseSystem.Instance.GameLog.RoomLogs.InsertAsync(new RoomLogRow
         {
             player_id  = player.Id,
@@ -129,14 +163,18 @@ public class Room
             action     = isDisconnect ? "disconnect" : "exit",
             created_at = DateTime.UtcNow
         }).FireAndForget("Room");
+        
         if (!isDisconnect)
         {
             LobbySystem.Instance.Lobby.Enter(player);
             await player.Session.SendAsync(new GamePacket { ResRoomExit = new ResRoomExit() });
         }
+        
         var noti = new GamePacket
             { NotiRoomExit = new NotiRoomExit { PlayerId = player.Id, PlayerName = player.Name } };
-        await Task.WhenAll(_players.Select(p => p.Session.SendAsync(noti)));
+        
+        await Task.WhenAll(_players.Select(p => SafeSendAsync(p, noti)));
+        
         if (_players.Count == 0)
         {
             LobbySystem.Instance.RemoveRoom(RoomId);
@@ -149,13 +187,15 @@ public class Room
         {
             NotiRoomChat = new NotiRoomChat { PlayerId = 0, PlayerName = "System", Message = message }
         };
+        
         return _jobChannel.Writer.TryWrite(async () =>
-            await Task.WhenAll(_players.Select(p => p.Session.SendAsync(noti))));
+            await Task.WhenAll(_players.Select(p => SafeSendAsync(p, noti))));
     }
 
     public void Chat(Player sender, string message) => DoAsync(async () =>
     {
         GameLogger.Info($"Room:{RoomId}", $"채팅: {sender.Name}: {message}");
+        
         DatabaseSystem.Instance.GameLog.ChatLogs.InsertAsync(new ChatLogRow
         {
             player_id  = sender.Id,
@@ -164,6 +204,7 @@ public class Room
             message    = message,
             created_at = DateTime.UtcNow
         }).FireAndForget("Room");
+        
         var noti = new GamePacket
         {
             NotiRoomChat = new NotiRoomChat
@@ -173,6 +214,7 @@ public class Room
                 Message = message
             }
         };
-        await Task.WhenAll(_players.Select(p => p.Session.SendAsync(noti)));
+        
+        await Task.WhenAll(_players.Select(p => SafeSendAsync(p, noti)));
     });
 }

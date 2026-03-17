@@ -10,7 +10,7 @@ namespace GameServer.Controllers;
 
 public static class LoginController
 {
-    public static async Task HandleAsync(GameSession session, ReqLogin req)
+    public static async Task HandleAsync(SessionComponent session, ReqLogin req)
     {
         if (session.Player != null)
         {
@@ -27,6 +27,7 @@ public static class LoginController
             });
             return;
         }
+
         var player = new Player(session, req.PlayerName);
         var loginAt = DateTime.UtcNow;
         var ip = session.Channel.RemoteAddress?.ToString();
@@ -51,15 +52,44 @@ public static class LoginController
             return;
         }
 
-        PlayerSystem.Instance.Add(player);
-        session.Player = player;
-        // Add↔session.Player 사이에 ChannelInactive가 발화하면 session.Player가 null이어서
-        // DisconnectAsync()가 호출되지 않는다. 채널이 이미 닫혔다면 수동으로 정리한다.
-        if (!session.Channel.Active)
+        // DB await 중 연결 해제 확인 (Interlocked 플래그 기준 — Channel.Active보다 신뢰성 높음)
+        if (session.IsDisconnected)
         {
-            _ = player.DisconnectAsync();
+            GameLogger.Warn("Login", $"로그인 중 연결 해제 (DB 완료 후): {player.Name}");
+            player.ImmediateFinalize();
             return;
         }
+
+        // PlayerCreated: SessionSystem이 AttachPlayer 수행
+        // PlayerGameEnter보다 먼저 큐에 적재 — FIFO 순서로 Attach 후 Add 보장
+        SessionSystem.Instance.EnqueuePlayerCreated(session, player);
+
+        // PlayerGameEnter: SessionSystem이 PlayerSystem.Add + SetEntryHandshakeCompleted 수행
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        session.SetPendingTcs(tcs);
+        SessionSystem.Instance.EnqueuePlayerGameEnter(session, tcs);
+
+        try
+        {
+            await tcs.Task;
+        }
+        catch (OperationCanceledException)
+        {
+            // CancelPendingTcs에 의한 취소 — InternalDisconnectSession이 player 정리 담당
+            GameLogger.Warn("Login", $"로그인 중 연결 해제 (PlayerGameEnter 대기 중): {player.Name}");
+            return;
+        }
+        catch (Exception ex)
+        {
+            GameLogger.Error("Login", $"PlayerGameEnter 오류: {player.Name}", ex);
+            player.ImmediateFinalize();
+            return;
+        }
+        finally
+        {
+            session.SetPendingTcs(null);
+        }
+
         LobbySystem.Instance.Lobby.Enter(player);
         GameLogger.Info("Login", $"로그인 성공: {player.Name} (Id={player.Id})");
         await session.SendAsync(new GamePacket

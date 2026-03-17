@@ -3,27 +3,26 @@ using DotNetty.Transport.Channels;
 using GameServer.Controllers;
 using GameServer.Protocol;
 using GameServer.Systems;
-using GameServer.Entities;
 
 namespace GameServer.Network;
 
 public class GameServerHandler : SimpleChannelInboundHandler<GamePacket>
 {
-    private GameSession? _session;
+    private SessionComponent? _session;
 
     public override void ChannelActive(IChannelHandlerContext ctx)
     {
-        _session = new GameSession(ctx.Channel);
-        GameSessionSystem.Instance.Register(_session);
+        _session = new SessionComponent(ctx.Channel);
+        SessionSystem.Instance.EnqueueAdd(_session);
         GameLogger.Info("연결", $"{ctx.Channel.RemoteAddress}");
     }
 
     public override void ChannelInactive(IChannelHandlerContext ctx)
     {
-        _ = _session?.Player?.DisconnectAsync();
         if (_session != null)
         {
-            GameSessionSystem.Instance.Unregister(_session);
+            // SessionSystem이 Disconnect 처리 전담 — IsEntryHandshakeCompleted에 따라 경로 분기
+            SessionSystem.Instance.EnqueueDisconnect(_session);
         }
         GameLogger.Info("해제", $"{ctx.Channel.RemoteAddress}");
         _session = null;
@@ -33,19 +32,23 @@ public class GameServerHandler : SimpleChannelInboundHandler<GamePacket>
     {
         if (_session == null) return;
 
-        var player = _session.Player;
-        if (player == null)
+        if (packet.PayloadCase == GamePacket.PayloadOneofCase.ReqLogin)
         {
-            if (packet.PayloadCase == GamePacket.PayloadOneofCase.ReqLogin)
-                _ = LoginController.HandleAsync(_session, packet.ReqLogin);
-            return;
+            _ = LoginController.HandleAsync(_session, packet.ReqLogin);
         }
-        player.Dispatch(packet);
+        else
+        {
+            var player = _session.Player;
+            if (player != null)
+            {
+                player.Dispatch(packet);
+            }
+        }
     }
 
     public override void ExceptionCaught(IChannelHandlerContext ctx, Exception ex)
     {
         GameLogger.Error("예외", ex.Message, ex);
-        ctx.CloseAsync();
+        _ = ctx.CloseAsync();
     }
 }

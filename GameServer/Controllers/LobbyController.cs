@@ -6,7 +6,7 @@ namespace GameServer.Controllers;
 
 public static class LobbyController
 {
-    public static void HandleChat(GameSession session, ReqLobbyChat req)
+    public static void HandleChat(SessionComponent session, ReqLobbyChat req)
     {
         var player = session.Player;
         if (player == null || player.CurrentRoom != null) return;
@@ -14,7 +14,7 @@ public static class LobbyController
         LobbySystem.Instance.Lobby.Chat(player, req.Message);
     }
 
-    public static void HandleRoomEnter(GameSession session, ReqRoomEnter req)
+    public static void HandleRoomEnter(SessionComponent session, ReqRoomEnter req)
     {
         var player = session.Player;
         if (player == null || player.CurrentRoom != null) return;
