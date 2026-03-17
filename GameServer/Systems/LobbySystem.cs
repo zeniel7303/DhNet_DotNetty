@@ -1,6 +1,7 @@
-using System.Collections.Concurrent;
 using Common.Logging;
-using GameServer.Entities;
+using GameServer.Component.Lobby;
+using GameServer.Component.Room;
+using GameServer.Protocol;
 
 namespace GameServer.Systems;
 
@@ -8,46 +9,49 @@ public class LobbySystem
 {
     public static readonly LobbySystem Instance = new();
 
-    public Lobby Lobby { get; } = new();
+    private LobbyComponent[] _lobbies = Array.Empty<LobbyComponent>();
 
-    private readonly ConcurrentDictionary<ulong, Room> _rooms = new();
-    private readonly object _roomLock = new();
-
-    public Room GetOrCreateRoom()
+    public void Initialize(int lobbyCount = 1, int lobbyCapacity = 100)
     {
-        // lock으로 "빈 방 탐색 + 신규 방 생성"을 원자적으로 처리 → TOCTOU 방지
-        lock (_roomLock)
-        {
-            foreach (var room in _rooms.Values)
-            {
-                if (room.TryReserve())
-                {
-                    return room;
-                }
-            }
+        _lobbies = Enumerable.Range(0, lobbyCount)
+            .Select(_ => new LobbyComponent(IdGenerators.Lobby.Next(), lobbyCapacity))
+            .ToArray();
 
-            var newRoom = new Room(IdGenerators.Room.Next());
-            _rooms.TryAdd(newRoom.RoomId, newRoom);
-            newRoom.TryReserve();
-            GameLogger.Info("LobbySystem", $"신규 Room 생성: RoomId={newRoom.RoomId}");
-            return newRoom;
-        }
+        foreach (var lobby in _lobbies)
+            lobby.Initialize();
+
+        GameLogger.Info("LobbySystem", $"로비 {lobbyCount}개 생성 완료 (capacity={lobbyCapacity})");
     }
 
-    public IReadOnlyList<Room> GetRooms() => _rooms.Values.ToList();
+    // 가득 차지 않은 로비 중 현재 인원이 가장 많은 로비 반환 — 소규모 접속 시 클러스터링
+    public LobbyComponent? GetDefaultLobby()
+        => _lobbies.Where(l => !l.IsFull).MaxBy(l => l.PlayerCount);
 
-    public Room? TryGetRoom(ulong roomId) =>
-        _rooms.TryGetValue(roomId, out var room) ? room : null;
+    public LobbyComponent? TryGetLobby(ulong lobbyId)
+        => Array.Find(_lobbies, l => l.LobbyId == lobbyId);
 
-    public void RemoveRoom(ulong roomId)
-    {
-        lock (_roomLock)
+    public LobbyInfo[] GetLobbyList()
+        => _lobbies.Select(l => new LobbyInfo
         {
-            if (_rooms.TryRemove(roomId, out var room))
-            {
-                room.Close();
-                GameLogger.Info("LobbySystem", $"Room 제거: RoomId={roomId}");
-            }
+            LobbyId     = l.LobbyId,
+            PlayerCount = l.PlayerCount,
+            MaxCapacity = l.MaxCapacity,
+            IsFull      = l.IsFull
+        }).ToArray();
+
+    public IReadOnlyList<RoomComponent> GetAllRooms()
+        => _lobbies.SelectMany(l => l.GetRooms()).ToList();
+
+    public RoomComponent? TryGetRoom(ulong roomId)
+    {
+        foreach (var lobby in _lobbies)
+        {
+            var room = lobby.TryGetRoom(roomId);
+            if (room != null) return room;
         }
+        return null;
     }
+
+    public int GetTotalPlayerCount()
+        => _lobbies.Sum(l => l.PlayerCount);
 }

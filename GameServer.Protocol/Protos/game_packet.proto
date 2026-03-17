@@ -23,5 +23,7 @@ message GamePacket {
     NotiLobbyChat noti_lobby_chat = 12;
     ReqHeartbeat  req_heartbeat   = 13;
     ResHeartbeat  res_heartbeat   = 14;
+    ReqLobbyList  req_lobby_list  = 15;
+    ResLobbyList  res_lobby_list  = 16;
   }
 }
