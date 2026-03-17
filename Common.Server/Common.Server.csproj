@@ -8,13 +8,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Dapper" Version="2.1.35" />
-        <PackageReference Include="MySqlConnector" Version="2.4.0" />
+        <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.0-rc.1.24431.7" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="9.0.0-rc.1.24431.7" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0-rc.1.24431.7" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\Common.Shared\Common.Shared.csproj" />
-        <ProjectReference Include="..\Common.Server\Common.Server.csproj" />
     </ItemGroup>
 
 </Project>
