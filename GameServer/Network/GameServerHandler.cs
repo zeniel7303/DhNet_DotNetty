@@ -3,6 +3,7 @@ using DotNetty.Transport.Channels;
 using GameServer.Controllers;
 using GameServer.Protocol;
 using GameServer.Systems;
+using GameServer.Entities;
 
 namespace GameServer.Network;
 
@@ -30,11 +31,16 @@ public class GameServerHandler : SimpleChannelInboundHandler<GamePacket>
 
     protected override void ChannelRead0(IChannelHandlerContext ctx, GamePacket packet)
     {
-        if (_session == null)
+        if (_session == null) return;
+
+        var player = _session.Player;
+        if (player == null)
         {
+            if (packet.PayloadCase == GamePacket.PayloadOneofCase.ReqLogin)
+                _ = LoginController.HandleAsync(_session, packet.ReqLogin);
             return;
         }
-        PacketRouter.Dispatch(_session, packet);
+        player.Dispatch(packet);
     }
 
     public override void ExceptionCaught(IChannelHandlerContext ctx, Exception ex)
