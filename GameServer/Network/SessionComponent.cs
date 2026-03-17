@@ -20,7 +20,7 @@ public class SessionComponent : IDisposable
     private int _disposed;
     private int _disconnectedFlag;
     private int _entryHandshakeCompleted;
-    private TaskCompletionSource? _pendingTcs;
+    private int _loginStarted;
 
     public SessionComponent(IChannel channel)
     {
@@ -40,11 +40,9 @@ public class SessionComponent : IDisposable
     public bool IsEntryHandshakeCompleted => _entryHandshakeCompleted == 1;
     public void SetEntryHandshakeCompleted() => Interlocked.Exchange(ref _entryHandshakeCompleted, 1);
 
-    // HandleAsync에서 PlayerGameEnter await 직전에 등록, finally에서 null로 해제
-    internal void SetPendingTcs(TaskCompletionSource? tcs) => Interlocked.Exchange(ref _pendingTcs, tcs);
-
-    // InternalDisconnectSession에서 호출 — 대기 중인 tcs를 취소하여 HandleAsync를 언블로킹
-    internal void CancelPendingTcs() => Interlocked.Exchange(ref _pendingTcs, null)?.TrySetCanceled();
+    // ReqLogin 중복 전송 시 LoginProcessor 병렬 실행 방지
+    // 첫 번째 호출만 true 반환 — 이후 호출은 false (로그인 이미 시작됨)
+    public bool TrySetLoginStarted() => Interlocked.CompareExchange(ref _loginStarted, 1, 0) == 0;
 
     public void Dispose()
     {

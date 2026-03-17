@@ -19,6 +19,34 @@ public abstract class BaseComponent : IDisposable
         _eventQueue.Enqueue(job);
     }
 
+    // 워커 스레드에서 action 실행 후 완료를 await할 수 있는 오버로드.
+    // finally로 TrySetResult 보장 — action 내부 예외나 DisconnectForNextTick 호출 시에도 호출자가 무한 대기하지 않음.
+    public Task EnqueueEventAsync(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        EnqueueEvent(() =>
+        {
+            try { action(); }
+            finally { tcs.TrySetResult(); }
+        });
+        return tcs.Task;
+    }
+
+    // 워커 스레드에서 func 실행 후 반환값을 await할 수 있는 오버로드.
+    // 예외 발생 시 TrySetException으로 전파 — 호출자에서 try/catch로 처리 가능.
+    public Task<T> EnqueueEventAsync<T>(Func<T> func)
+    {
+        ArgumentNullException.ThrowIfNull(func);
+        var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        EnqueueEvent(() =>
+        {
+            try { tcs.TrySetResult(func()); }
+            catch (Exception ex) { tcs.TrySetException(ex); }
+        });
+        return tcs.Task;
+    }
+
     public virtual void Update(float dt)
     {
         if (_disposed == 1)

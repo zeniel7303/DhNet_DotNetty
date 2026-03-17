@@ -95,23 +95,11 @@ public class SessionSystem
 
     private void ProcessEvent()
     {
-        var count = _eventQueue.Count;
-        if (count == 0)
+        while (_eventQueue.TryDequeue(out var eventData))
         {
-            return;
-        }
-
-        EventData? eventData;
-        for (var i = 0; i < count; ++i)
-        {
-            if (!_eventQueue.TryDequeue(out eventData))
-            {
-                break;
-            }
-
             try
             {
-                switch (eventData!.Type)
+                switch (eventData.Type)
                 {
                     case EventType.AddSession:
                         _sessions.TryAdd(eventData.Session.InstanceId, eventData.Session);
@@ -136,7 +124,7 @@ public class SessionSystem
             }
             catch (Exception ex)
             {
-                GameLogger.Error("SessionSystem", $"ProcessEvent 오류 ({eventData!.Type})", ex);
+                GameLogger.Error("SessionSystem", $"ProcessEvent 오류 ({eventData.Type})", ex);
             }
         }
     }
@@ -187,7 +175,12 @@ public class SessionSystem
 
     // Disconnect: 세션 제거 후 플레이어 정리 경로 선택
     // IsEntryHandshakeCompleted == true  → DisconnectForNextTick (워커 틱에서 처리)
-    // IsEntryHandshakeCompleted == false → ImmediateFinalize (즉시 정리) + PendingTcs 취소
+    // IsEntryHandshakeCompleted == false → ImmediateFinalize (즉시 정리)
+    //
+    // TCS 취소 경로:
+    //   InternalPlayerGameEnter가 이미 _sessions 존재 여부 + IsDisconnected를 검사하여 TrySetCanceled를 처리.
+    //   - Disconnect → PlayerGameEnter 순서: IsDisconnected == true → InternalPlayerGameEnter에서 Cancel
+    //   - PlayerGameEnter → Disconnect 순서: EntryHandshakeCompleted == true → DisconnectForNextTick
     private void InternalDisconnectSession(SessionComponent session)
     {
         _sessions.TryRemove(session.InstanceId, out _);
@@ -203,21 +196,19 @@ public class SessionSystem
         var player = session.Player;
         if (player == null)
         {
-            // PlayerCreated 이전 단계 — HandleAsync에서 tcs 대기 중일 수 있음
-            session.CancelPendingTcs();
+            // PlayerCreated 이전 단계 — 이후 InternalPlayerGameEnter에서 _sessions 미존재로 tcs 취소됨
             session.Dispose();
             return;
         }
 
         if (session.IsEntryHandshakeCompleted)
         {
-            // 정상 입장 완료 후 연결 해제 — 즉시 DisconnectAsync 처리
+            // 정상 입장 완료 후 연결 해제 — 워커 틱에서 DisconnectAsync 처리
             player.DisconnectForNextTick();
         }
         else
         {
-            // PlayerGameEnter 완료 전 연결 해제 — 즉시 정리
-            session.CancelPendingTcs();
+            // PlayerGameEnter 완료 전 연결 해제 — 이후 InternalPlayerGameEnter에서 IsDisconnected로 tcs 취소됨
             player.ImmediateFinalize();
         }
     }
