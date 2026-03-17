@@ -17,13 +17,16 @@ static class ServerStartup
         var dbSettings = config.GetSection("Database").Get<DatabaseSettings>()
             ?? throw new InvalidOperationException("appsettings.json에 'Database' 섹션이 없습니다.");
 
-        PlayerSystem.Configure(gameSettings.MaxPlayers);
+        PlayerSystem.Instance.Initialize(gameSettings.MaxPlayers);
         SessionSystem.Instance.StartSystem();
+        PlayerSystem.Instance.StartSystem();
 
         var dbResult = await DatabaseSystem.Instance.InitializeAsync(dbSettings);
         IdGenerators.Player.Initialize(dbResult.MaxPlayerId);
         IdGenerators.Room.Initialize(dbResult.MaxRoomId);
         GameLogger.Info("Server", $"IdGenerators 초기화: Player={dbResult.MaxPlayerId}, Room={dbResult.MaxRoomId}");
+
+        LobbySystem.Instance.Initialize(lobbyCount: 1, lobbyCapacity: gameSettings.MaxPlayers);
 
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) =>

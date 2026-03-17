@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Common.Logging;
 using DotNetty.Transport.Channels;
-using GameServer.Entities;
+using GameServer.Component.Player;
 using GameServer.Protocol;
 
 namespace GameServer.Network;
@@ -14,7 +14,7 @@ public class SessionComponent : IDisposable
     public IChannel Channel { get; }
     public bool IsConnected => Channel.Active;
 
-    public Player? Player { get; private set; }
+    public PlayerComponent? Player { get; private set; }
 
     private readonly ConcurrentQueue<GamePacket> _packetQueue = new();
     private int _disposed;
@@ -27,7 +27,7 @@ public class SessionComponent : IDisposable
         Channel = channel;
     }
 
-    public void AttachPlayer(Player player) => Player = player;
+    public void AttachPlayer(PlayerComponent player) => Player = player;
     public void DetachPlayer() => Player = null;
 
     public void EnqueuePacket(GamePacket packet) => _packetQueue.Enqueue(packet);

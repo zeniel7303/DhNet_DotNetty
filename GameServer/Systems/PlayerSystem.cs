@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
-using GameServer.Entities;
+using Common.Logging;
+using Common.Server.Component;
+using GameServer.Component.Player;
 
 namespace GameServer.Systems;
 
@@ -7,18 +9,36 @@ public class PlayerSystem
 {
     public static readonly PlayerSystem Instance = new();
 
-    private static int _maxPlayers = 100;
-    public static int MaxPlayers => _maxPlayers;
+    public int MaxPlayers { get; private set; } = 100;
 
-    public static void Configure(int maxPlayers) => _maxPlayers = maxPlayers;
-
-    private readonly ConcurrentDictionary<ulong, Player> _players = new();
+    private readonly WorkerSystem<PlayerComponent> _workers = new(workerCount: 2, intervalMs: 100);
+    private readonly ConcurrentDictionary<ulong, PlayerComponent> _players = new();
 
     public int Count => _players.Count;
 
-    public void Add(Player player) => _players.TryAdd(player.Id, player);
+    public void Add(PlayerComponent player)
+    {
+        if (!_players.TryAdd(player.PlayerId, player))
+        {
+            GameLogger.Error("PlayerSystem", $"중복 PlayerId 감지: {player.PlayerId} — workers 등록 건너뜀");
+            return;
+        }
+        _workers.Add(player);
+    }
 
-    public void Remove(Player player) => _players.TryRemove(player.Id, out _);
+    public void Remove(PlayerComponent player)
+    {
+        _players.TryRemove(player.PlayerId, out _);
+        _workers.Remove(player);
+        // worker 제거 후 Dispose 위임 — DisconnectForNextTick 경로에서 Dispose 자동 완결
+        player.Dispose();
+    }
 
-    public Player? TryGet(ulong id) => _players.TryGetValue(id, out var player) ? player : null;
+    public PlayerComponent? TryGet(ulong id) => _players.GetValueOrDefault(id);
+
+    public void Initialize(int maxPlayers) => MaxPlayers = maxPlayers;
+
+    public void StartSystem() => _workers.StartSystem();
+
+    public void Stop() => _workers.Stop();
 }

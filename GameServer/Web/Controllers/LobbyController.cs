@@ -11,7 +11,7 @@ public class LobbyController : ControllerBase
     [ProducesResponseType(typeof(LobbyDto), 200)]
     public IActionResult Get()
     {
-        var count = LobbySystem.Instance.Lobby.PlayerCount;
+        var count = LobbySystem.Instance.GetTotalPlayerCount();
         return Ok(new LobbyDto(count));
     }
 }

@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using Common.Logging;
-using GameServer.Entities;
+using GameServer.Component.Player;
 using GameServer.Network;
 
 namespace GameServer.Systems;
@@ -26,7 +26,7 @@ public class SessionSystem
         public static EventData OfRemove(SessionComponent s)
             => new(EventType.RemoveSession, s);
 
-        public static EventData OfPlayerCreated(SessionComponent s, Player p)
+        public static EventData OfPlayerCreated(SessionComponent s, PlayerComponent p)
             => new(EventType.PlayerCreated, s, p);
 
         public static EventData OfPlayerGameEnter(SessionComponent s, TaskCompletionSource tcs)
@@ -48,7 +48,7 @@ public class SessionSystem
     public void EnqueueRemove(SessionComponent session)
         => _eventQueue.Enqueue(EventData.OfRemove(session));
 
-    public void EnqueuePlayerCreated(SessionComponent session, Player player)
+    public void EnqueuePlayerCreated(SessionComponent session, PlayerComponent player)
         => _eventQueue.Enqueue(EventData.OfPlayerCreated(session, player));
 
     public void EnqueuePlayerGameEnter(SessionComponent session, TaskCompletionSource tcs)
@@ -122,7 +122,7 @@ public class SessionSystem
                         break;
 
                     case EventType.PlayerCreated:
-                        InternalPlayerCreated(eventData.Session, (Player)eventData.Data!);
+                        InternalPlayerCreated(eventData.Session, (PlayerComponent)eventData.Data!);
                         break;
 
                     case EventType.PlayerGameEnter:
@@ -143,7 +143,7 @@ public class SessionSystem
 
     // PlayerCreated: session에 player를 부착
     // 세션이 이미 제거된 경우(Disconnect 선처리) player를 즉시 정리하여 누수 방지
-    private void InternalPlayerCreated(SessionComponent session, Player player)
+    private void InternalPlayerCreated(SessionComponent session, PlayerComponent player)
     {
         if (_sessions.TryGetValue(session.InstanceId, out var target))
         {

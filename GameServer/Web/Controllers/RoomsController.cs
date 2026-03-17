@@ -13,7 +13,7 @@ public class RoomsController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<RoomDto>), 200)]
     public IActionResult Get()
     {
-        var rooms = LobbySystem.Instance.GetRooms()
+        var rooms = LobbySystem.Instance.GetAllRooms()
             .Select(r => new RoomDto(r.RoomId, r.Name, r.PlayerCount, r.Capacity))
             .ToList();
         return Ok(rooms);
