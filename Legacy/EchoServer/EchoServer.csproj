@@ -16,7 +16,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\Common\Common.csproj" />
+      <ProjectReference Include="..\..\Common.Shared\Common.Shared.csproj" />
+      <ProjectReference Include="..\..\Common.Server\Common.Server.csproj" />
       <ProjectReference Include="..\MemoryPack.DotNetty\MemoryPack.DotNetty.csproj" />
       <ProjectReference Include="..\MessagePack.DotNetty\MessagePack.DotNetty.csproj" />
     </ItemGroup>
