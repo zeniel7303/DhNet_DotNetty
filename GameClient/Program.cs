@@ -39,7 +39,12 @@ class Program
             GameLogger.ConsoleFilter = entry => entry.Tag == "Stats" || entry.Tag == "Config";
         }
 
-        var group = new MultithreadEventLoopGroup();
+        // 1000명 이상에서 EventLoop 스레드 수 자동 확장
+        int loopCount = config.ClientCount > 500
+            ? Math.Min(Environment.ProcessorCount * 4, 64)
+            : Environment.ProcessorCount * 2;
+        var group = new MultithreadEventLoopGroup(loopCount);
+        GameLogger.Info("Config", $"EventLoopGroup threads={loopCount}");
 
         // 5초마다 통계 출력 (다중 클라이언트 전용)
         if (multiClient)
@@ -65,7 +70,10 @@ class Program
         {
             var endpoint = new IPEndPoint(IPAddress.Parse(config.ServerHost), config.ServerPort);
 
-            var tasks = Enumerable.Range(0, config.ClientCount)
+            if (config.ClientCount >= 100 && config.ConnectDelayMs >= 10)
+            GameLogger.Info("Config", $"Tip: --clients {config.ClientCount}에서 --delay 5 를 권장합니다 (접속 분산)");
+
+        var tasks = Enumerable.Range(0, config.ClientCount)
                 .Select(i => ConnectClientAsync(group, endpoint, i, config, cts.Token))
                 .ToArray();
 
@@ -94,6 +102,13 @@ class Program
 
         if (token.IsCancellationRequested)
         {
+            return;
+        }
+
+        // reconnect-stress: 재접속 루프를 직접 관리
+        if (config.Scenario.Equals("reconnect-stress", StringComparison.OrdinalIgnoreCase))
+        {
+            await RunReconnectLoopAsync(group, endpoint, clientIndex, config, token);
             return;
         }
 
@@ -150,6 +165,86 @@ class Program
             {
                 ctx.Dispose(); // 연결 실패 시 ChannelInactive 미발생 → 직접 해제
             }
+        }
+    }
+
+    /// <summary>
+    /// reconnect-stress 전용: 접속 → 시나리오 실행 → 재접속을 반복하는 루프.
+    /// Bootstrap을 클라이언트당 1개 생성하고, 채널만 사이클마다 재생성합니다.
+    /// </summary>
+    private static async Task RunReconnectLoopAsync(
+        MultithreadEventLoopGroup group,
+        IPEndPoint endpoint,
+        int clientIndex,
+        LoadTestConfig config,
+        CancellationToken token)
+    {
+        // Thundering Herd 방지 (기존 ConnectClientAsync와 동일)
+        if (clientIndex > 0)
+        {
+            try { await Task.Delay(config.ConnectDelayMs * clientIndex, token); }
+            catch (OperationCanceledException) { return; }
+        }
+
+        var ctx      = new ClientContext { ClientIndex = clientIndex };
+        var scenario = new ReconnectStressScenario(
+            config.PlayerNamePrefix, config.ChatCount, config.RoomCycles, token);
+
+        // Bootstrap은 클라이언트당 1회 생성 후 재접속 시 재사용
+        var bootstrap = new Bootstrap();
+        bootstrap
+            .Group(group)
+            .Channel<TcpSocketChannel>()
+            .Option(ChannelOption.TcpNodelay, true)
+            .Handler(new ActionChannelInitializer<ISocketChannel>(ch =>
+            {
+                var pipeline = ch.Pipeline;
+                pipeline.AddLast("framing-enc",      new LengthFieldPrepender(2));
+                pipeline.AddLast("framing-dec",      new LengthFieldBasedFrameDecoder(ushort.MaxValue, 0, 2, 0, 2));
+                pipeline.AddLast("protobuf-decoder", new ProtobufDecoder(GamePacket.Parser));
+                pipeline.AddLast("protobuf-encoder", new ProtobufEncoder());
+                pipeline.AddLast("handler",          new GameClientHandler(ctx, scenario));
+            }));
+
+        try
+        {
+            while (!token.IsCancellationRequested && !scenario.IsFinished)
+            {
+                scenario.BeginCycle();
+                IChannel? channel = null;
+                try
+                {
+                    channel = await bootstrap.ConnectAsync(endpoint);
+                    // ChannelInactive(→ scenario.OnDisconnected → TCS.SetResult) 또는 취소까지 대기
+                    await scenario.WaitForDisconnectAsync().WaitAsync(token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    GameLogger.Error($"Client[{clientIndex}]", $"연결 실패: {ex.Message}", ex);
+                    LoadTestStats.IncrementErrors();
+                }
+                finally
+                {
+                    if (channel?.Active == true)
+                        await channel.CloseAsync();
+                }
+
+                if (token.IsCancellationRequested || scenario.IsFinished) break;
+
+                // 재접속 딜레이 + ±200ms jitter (접속 폭발 방지)
+                var jitter = Random.Shared.Next(-200, 201);
+                var delay  = Math.Max(100, config.ReconnectDelayMs + jitter);
+                try { await Task.Delay(delay, token).ConfigureAwait(false); }
+                catch (OperationCanceledException) { break; }
+            }
+        }
+        finally
+        {
+            ctx.Dispose();
         }
     }
 

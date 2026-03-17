@@ -14,6 +14,18 @@ public class ClientContext : IDisposable
     public bool RoomExitScheduled { get; set; }
     public int RoomEnterRetryCount { get; set; }
     public int RoomLoopCount { get; set; }
+    public int ReconnectCount { get; set; }
+    public int TotalRoomCycles { get; set; }
+
+    /// <summary>재접속 시 연결별 상태를 초기화합니다. 누적 카운터(ReconnectCount, TotalRoomCycles)는 유지됩니다.</summary>
+    public void ResetForReconnect()
+    {
+        PlayerId = 0;
+        PlayerName = string.Empty;
+        RoomEnterSent = false;
+        RoomExitScheduled = false;
+        RoomEnterRetryCount = 0;
+    }
 
     private Timer? _heartbeatTimer;
 
