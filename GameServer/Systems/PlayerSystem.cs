@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Common.Logging;
+using Common.Server;
 using Common.Server.Component;
 using GameServer.Component.Player;
 
@@ -9,7 +10,7 @@ public class PlayerSystem
 {
     public static readonly PlayerSystem Instance = new();
 
-    public int MaxPlayers { get; private set; } = 100;
+    public int MaxPlayers { get; private set; } = ServerConstants.MaxPlayers;
 
     private readonly WorkerSystem<PlayerComponent> _workers = new(workerCount: 2, intervalMs: 100);
     private readonly ConcurrentDictionary<ulong, PlayerComponent> _players = new();
