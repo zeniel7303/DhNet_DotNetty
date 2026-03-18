@@ -20,9 +20,9 @@ public record LoadTestConfig
     {
         int clientCount = 1000, connectDelay = 10, chatInterval = 1000, port = 7777;
         int reconnectDelay = 2000, roomCycles = 0, chatCount = 3;
-        string scenario = "room", host = "127.0.0.1", prefix = "Bot";
+        string scenario = "lobby-chat", host = "127.0.0.1", prefix = "Bot";
 
-        for (int i = 0; i < args.Length - 1; i++)
+        for (var i = 0; i < args.Length - 1; i++)
         {
             switch (args[i])
             {

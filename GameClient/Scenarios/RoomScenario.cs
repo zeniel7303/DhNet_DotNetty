@@ -76,7 +76,7 @@ public class RoomScenario : ILoadTestScenario
                 break;
 
             case GamePacket.PayloadOneofCase.NotiRoomChat:
-                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 채팅: {packet.NotiRoomChat.PlayerName}: {packet.NotiRoomChat.Message}");
+                LoadTestStats.IncrementChatReceived();
                 if (!ctx.RoomExitScheduled)
                 {
                     ctx.RoomExitScheduled = true;

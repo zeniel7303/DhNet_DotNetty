@@ -154,16 +154,14 @@ public class RoomComponent : BaseComponent
 
     public void Chat(PlayerComponent sender, string message)
     {
-        GameLogger.Info($"Room:{RoomId}", $"채팅: {sender.Name}: {message}");
-
-        DatabaseSystem.Instance.GameLog.ChatLogs.InsertAsync(new ChatLogRow
-        {
-            player_id  = sender.PlayerId,
-            room_id    = RoomId,
-            channel    = "room",
-            message    = message,
-            created_at = DateTime.UtcNow
-        }).FireAndForget("Room");
+        // DatabaseSystem.Instance.GameLog.ChatLogs.InsertAsync(new ChatLogRow
+        // {
+        //     player_id  = sender.PlayerId,
+        //     room_id    = RoomId,
+        //     channel    = "room",
+        //     message    = message,
+        //     created_at = DateTime.UtcNow
+        // }).FireAndForget("Room");
 
         var noti = new GamePacket
         {
