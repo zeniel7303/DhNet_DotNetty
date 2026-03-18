@@ -47,6 +47,10 @@ public class LobbyChatScenario : ILoadTestScenario
             ctx.PlayerName = packet.ResLogin.PlayerName;
             _ = StartPeriodicChatAsync(channel, ctx);
         }
+        else if (packet.PayloadCase == GamePacket.PayloadOneofCase.NotiLobbyChat)
+        {
+            LoadTestStats.IncrementChatReceived();
+        }
         else if (packet.PayloadCase == GamePacket.PayloadOneofCase.NotiSystem)
         {
             GameLogger.Info($"Client[{ctx.ClientIndex}]", $"[시스템] {packet.NotiSystem.Message}");
@@ -74,6 +78,7 @@ public class LobbyChatScenario : ILoadTestScenario
                     ReqLobbyChat = new ReqLobbyChat { Message = $"[{ctx.PlayerName}] lobby ping" }
                 });
                 LoadTestStats.IncrementSent();
+                LoadTestStats.IncrementChatSent();
             }
         }
         catch (OperationCanceledException)

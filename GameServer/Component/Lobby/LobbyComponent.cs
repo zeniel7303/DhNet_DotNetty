@@ -73,16 +73,14 @@ public class LobbyComponent : BaseComponent
 
     public void Chat(PlayerComponent sender, string message)
     {
-        GameLogger.Info($"Lobby:{LobbyId}", $"채팅: {sender.Name}: {message}");
-
-        DatabaseSystem.Instance.GameLog.ChatLogs.InsertAsync(new ChatLogRow
-        {
-            player_id  = sender.PlayerId,
-            room_id    = null,
-            channel    = $"lobby:{LobbyId}",
-            message    = message,
-            created_at = DateTime.UtcNow
-        }).FireAndForget("Lobby");
+        // DatabaseSystem.Instance.GameLog.ChatLogs.InsertAsync(new ChatLogRow
+        // {
+        //     player_id  = sender.PlayerId,
+        //     room_id    = null,
+        //     channel    = $"lobby:{LobbyId}",
+        //     message    = message,
+        //     created_at = DateTime.UtcNow
+        // }).FireAndForget("Lobby");
 
         var noti = new GamePacket
         {

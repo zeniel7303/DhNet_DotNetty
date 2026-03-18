@@ -69,7 +69,7 @@ public class RoomChatScenario : ILoadTestScenario
                 break;
 
             case GamePacket.PayloadOneofCase.NotiRoomChat:
-                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 채팅: {packet.NotiRoomChat.PlayerName}: {packet.NotiRoomChat.Message}");
+                LoadTestStats.IncrementChatReceived();
                 break;
 
             case GamePacket.PayloadOneofCase.NotiSystem:
@@ -104,6 +104,7 @@ public class RoomChatScenario : ILoadTestScenario
                     ReqRoomChat = new ReqRoomChat { Message = $"[{ctx.PlayerName}] room ping" }
                 });
                 LoadTestStats.IncrementSent();
+                LoadTestStats.IncrementChatSent();
             }
         }
         catch (OperationCanceledException)

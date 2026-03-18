@@ -97,11 +97,13 @@ public class ReconnectStressScenario : ILoadTestScenario
                 await channel.CloseAsync();
                 break;
 
-            case GamePacket.PayloadOneofCase.NotiRoomEnter:
             case GamePacket.PayloadOneofCase.NotiRoomChat:
-            case GamePacket.PayloadOneofCase.NotiRoomExit:
             case GamePacket.PayloadOneofCase.NotiLobbyChat:
-                // 브로드캐스트 수신 — 별도 처리 불필요
+                LoadTestStats.IncrementChatReceived();
+                break;
+
+            case GamePacket.PayloadOneofCase.NotiRoomEnter:
+            case GamePacket.PayloadOneofCase.NotiRoomExit:
                 break;
 
             case GamePacket.PayloadOneofCase.NotiSystem:
@@ -147,6 +149,7 @@ public class ReconnectStressScenario : ILoadTestScenario
                     ReqRoomChat = new ReqRoomChat { Message = $"[{ctx.ClientIndex}] #{i + 1}" }
                 });
                 LoadTestStats.IncrementSent();
+                LoadTestStats.IncrementChatSent();
             }
 
             if (channel.Active && !_token.IsCancellationRequested)

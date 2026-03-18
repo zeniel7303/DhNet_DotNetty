@@ -57,10 +57,11 @@ public class RoomLoopScenario : ILoadTestScenario
                     ReqRoomChat = new ReqRoomChat { Message = $"안녕! (loop #{ctx.RoomLoopCount + 1}, {ctx.PlayerName})" }
                 });
                 LoadTestStats.IncrementSent();
+                LoadTestStats.IncrementChatSent();
                 break;
 
             case GamePacket.PayloadOneofCase.NotiRoomChat:
-                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 채팅: {packet.NotiRoomChat.PlayerName}: {packet.NotiRoomChat.Message}");
+                LoadTestStats.IncrementChatReceived();
                 if (!ctx.RoomExitScheduled)
                 {
                     ctx.RoomExitScheduled = true;
