@@ -1,3 +1,4 @@
+using Common.Server;
 using GameServer.Systems;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,7 +8,6 @@ namespace GameServer.Web.Controllers;
 [Route("broadcast")]
 public class BroadcastController : ControllerBase
 {
-    private const int MaxMessageLength = 512;
 
     [HttpPost]
     [ProducesResponseType(200)]
@@ -17,8 +17,8 @@ public class BroadcastController : ControllerBase
         if (string.IsNullOrWhiteSpace(body.Message))
             return BadRequest(new { error = "Message is required" });
 
-        if (body.Message.Length > MaxMessageLength)
-            return BadRequest(new { error = $"Message exceeds maximum length of {MaxMessageLength}" });
+        if (body.Message.Length > ServerConstants.MaxMessageLength)
+            return BadRequest(new { error = $"Message exceeds maximum length of {ServerConstants.MaxMessageLength}" });
 
         PlayerSystem.Instance.BroadcastAll(body.Message);
         return Ok(new { success = true, recipients = PlayerSystem.Instance.Count });
