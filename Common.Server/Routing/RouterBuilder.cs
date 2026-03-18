@@ -7,7 +7,6 @@ public class RouterBuilder
 {
     private readonly List<IRouter> _routers = new();
 
-    // 응답 없는 핸들러
     public RouterBuilder With<TReq>(Action<TReq> handler) where TReq : class
     {
         CheckDuplicate<TReq>();
@@ -15,7 +14,6 @@ public class RouterBuilder
         return this;
     }
 
-    // 응답 있는 핸들러 — 응답은 항상 GamePacket
     public RouterBuilder With<TReq>(Func<TReq, GamePacket> handler) where TReq : class
     {
         CheckDuplicate<TReq>();

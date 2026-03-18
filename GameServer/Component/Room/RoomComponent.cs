@@ -71,8 +71,6 @@ public class RoomComponent : BaseComponent
 
     public override void Initialize() { }
 
-    // ── 입장 ───────────────────────────────────────────────────────────
-
     public void Enter(PlayerComponent player)
     {
         if (!player.Session.IsConnected)
@@ -116,8 +114,6 @@ public class RoomComponent : BaseComponent
         }
     }
 
-    // ── 퇴장 ───────────────────────────────────────────────────────────
-
     public void Leave(PlayerComponent player, bool isDisconnect)
     {
         if (!_players.TryRemove(player.PlayerId, out _)) return;
@@ -156,8 +152,6 @@ public class RoomComponent : BaseComponent
         if (shouldClose) _onEmpty();
     }
 
-    // ── 채팅 ───────────────────────────────────────────────────────────
-
     public void Chat(PlayerComponent sender, string message)
     {
         GameLogger.Info($"Room:{RoomId}", $"채팅: {sender.Name}: {message}");
@@ -187,8 +181,6 @@ public class RoomComponent : BaseComponent
         }
     }
 
-    // ── 브로드캐스트 (Web API) ─────────────────────────────────────────
-
     public bool Broadcast(string message)
     {
         if (IsDisposed) return false;
@@ -205,8 +197,6 @@ public class RoomComponent : BaseComponent
 
         return true;
     }
-
-    // ── 내부 ───────────────────────────────────────────────────────────
 
     // 룸 퇴장 후 원래 로비로 복귀. 복귀 실패 시 플레이어 강제 종료.
     private void ReturnToLobby(PlayerComponent player)
