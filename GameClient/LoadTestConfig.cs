@@ -18,7 +18,7 @@ public record LoadTestConfig
 
     public static LoadTestConfig FromArgs(string[] args)
     {
-        int clientCount = 4, connectDelay = 10, chatInterval = 1000, port = 7777;
+        int clientCount = 1000, connectDelay = 10, chatInterval = 1000, port = 7777;
         int reconnectDelay = 2000, roomCycles = 0, chatCount = 3;
         string scenario = "room", host = "127.0.0.1", prefix = "Bot";
 

@@ -1,3 +1,4 @@
+using Common.Server;
 using GameServer.Systems;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,7 +8,6 @@ namespace GameServer.Web.Controllers;
 [Route("lobbies")]
 public class LobbiesController : ControllerBase
 {
-    private const int MaxMessageLength = 512;
 
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<LobbyDetailDto>), 200)]
@@ -28,8 +28,8 @@ public class LobbiesController : ControllerBase
         if (string.IsNullOrWhiteSpace(body.Message))
             return BadRequest(new { error = "Message is required" });
 
-        if (body.Message.Length > MaxMessageLength)
-            return BadRequest(new { error = $"Message exceeds maximum length of {MaxMessageLength}" });
+        if (body.Message.Length > ServerConstants.MaxMessageLength)
+            return BadRequest(new { error = $"Message exceeds maximum length of {ServerConstants.MaxMessageLength}" });
 
         var lobby = LobbySystem.Instance.TryGetLobby(id);
         if (lobby == null)

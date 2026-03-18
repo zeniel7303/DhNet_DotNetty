@@ -29,7 +29,7 @@ public class RoomLogDbSet
         return _conn.ExecuteScalarAsync<ulong>(sql)!;
     }
 
-    /// <summary>룸 이벤트 로그 조회. 모든 필터는 선택사항이며 최대 500건 반환.</summary>
+    /// <summary>룸 이벤트 로그 조회. 모든 필터는 선택사항이며 최대 100건 반환.</summary>
     public Task<IEnumerable<RoomLogRow>> QueryAsync(
         ulong? playerId = null,
         ulong? roomId = null,
