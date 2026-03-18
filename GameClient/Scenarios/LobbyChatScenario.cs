@@ -47,6 +47,10 @@ public class LobbyChatScenario : ILoadTestScenario
             ctx.PlayerName = packet.ResLogin.PlayerName;
             _ = StartPeriodicChatAsync(channel, ctx);
         }
+        else if (packet.PayloadCase == GamePacket.PayloadOneofCase.NotiSystem)
+        {
+            GameLogger.Info($"Client[{ctx.ClientIndex}]", $"[시스템] {packet.NotiSystem.Message}");
+        }
     }
 
     public void OnDisconnected(ClientContext ctx)

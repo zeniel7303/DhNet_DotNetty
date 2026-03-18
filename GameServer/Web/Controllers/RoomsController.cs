@@ -19,7 +19,26 @@ public class RoomsController : ControllerBase
         return Ok(rooms);
     }
 
+    [HttpGet("{id}")]
+    [ProducesResponseType(typeof(RoomDetailDto), 200)]
+    [ProducesResponseType(404)]
+    public IActionResult GetById([FromRoute] ulong id)
+    {
+        var room = LobbySystem.Instance.TryGetRoom(id);
+        if (room == null)
+            return NotFound(new { error = $"Room {id} not found" });
+
+        var players = room.GetPlayerList()
+            .Select(p => new PlayerInRoomDto(p.PlayerId, p.Name))
+            .ToArray();
+
+        return Ok(new RoomDetailDto(room.RoomId, room.LobbyId, room.Name, room.PlayerCount, room.Capacity, players));
+    }
+
     [HttpPost("{id}/broadcast")]
+    [ProducesResponseType(200)]
+    [ProducesResponseType(400)]
+    [ProducesResponseType(404)]
     public IActionResult Broadcast([FromRoute] ulong id, [FromBody] BroadcastBody body)
     {
         if (string.IsNullOrWhiteSpace(body.Message))

@@ -104,6 +104,10 @@ public class ReconnectStressScenario : ILoadTestScenario
                 // 브로드캐스트 수신 — 별도 처리 불필요
                 break;
 
+            case GamePacket.PayloadOneofCase.NotiSystem:
+                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"[시스템] {packet.NotiSystem.Message}");
+                break;
+
             default:
                 GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"미처리 패킷: {packet.PayloadCase}");
                 break;

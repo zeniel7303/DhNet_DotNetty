@@ -1,3 +1,4 @@
+using Dapper;
 using GameServer.Database.Rows;
 using GameServer.Database.System;
 
@@ -28,6 +29,30 @@ public class RoomLogDbSet
         return _conn.ExecuteScalarAsync<ulong>(sql)!;
     }
 
-    // TODO [미래]: GetByPlayerAsync(ulong playerId) - 플레이어별 룸 이력 조회
-    // TODO [미래]: GetByRoomAsync(ulong roomId)     - 특정 룸의 입퇴장 이력 조회
+    /// <summary>룸 이벤트 로그 조회. 모든 필터는 선택사항이며 최대 500건 반환.</summary>
+    public Task<IEnumerable<RoomLogRow>> QueryAsync(
+        ulong? playerId = null,
+        ulong? roomId = null,
+        string? action = null,
+        DateTime? startTime = null,
+        DateTime? endTime = null,
+        int limit = 100)
+    {
+        limit = Math.Clamp(limit, 1, 100);
+        var where = new List<string>();
+        var param = new DynamicParameters();
+
+        if (playerId.HasValue)              { where.Add("`player_id` = @player_id");    param.Add("player_id",  playerId.Value); }
+        if (roomId.HasValue)                { where.Add("`room_id` = @room_id");        param.Add("room_id",    roomId.Value); }
+        if (!string.IsNullOrEmpty(action))  { where.Add("`action` = @action");          param.Add("action",     action); }
+        if (startTime.HasValue)             { where.Add("`created_at` >= @start_time"); param.Add("start_time", startTime.Value); }
+        if (endTime.HasValue)               { where.Add("`created_at` <= @end_time");   param.Add("end_time",   endTime.Value); }
+
+        var sql = "SELECT `player_id`, `room_id`, `action`, `created_at` FROM `room_logs`";
+        if (where.Count > 0) sql += " WHERE " + string.Join(" AND ", where);
+        sql += " ORDER BY `created_at` DESC LIMIT @limit";
+        param.Add("limit", limit);
+
+        return _conn.QueryAsync<RoomLogRow>(sql, param);
+    }
 }

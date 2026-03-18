@@ -20,4 +20,16 @@ public class StatLogDbSet
                 (@player_count, @created_at)";
         return _conn.ExecuteAsync(sql, row);
     }
+
+    /// <summary>최근 N개의 플레이어 수 시계열 기록을 반환한다.</summary>
+    public Task<IEnumerable<StatLogRow>> GetHistoryAsync(int limit = 100)
+    {
+        limit = Math.Clamp(limit, 1, 100);
+        const string sql = @"
+            SELECT `player_count`, `created_at`
+            FROM   `stat_logs`
+            ORDER  BY `created_at` DESC
+            LIMIT  @limit";
+        return _conn.QueryAsync<StatLogRow>(sql, new { limit });
+    }
 }
