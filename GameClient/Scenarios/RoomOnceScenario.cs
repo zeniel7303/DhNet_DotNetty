@@ -65,11 +65,14 @@ public class RoomOnceScenario : ILoadTestScenario
 
             case GamePacket.PayloadOneofCase.NotiRoomEnter:
                 GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 입장 알림: {packet.NotiRoomEnter.PlayerName}");
-                await channel.WriteAndFlushAsync(new GamePacket
+                if (packet.NotiRoomEnter.PlayerId == ctx.PlayerId)
                 {
-                    ReqRoomChat = new ReqRoomChat { Message = $"안녕하세요! (from {ctx.PlayerName})" }
-                });
-                LoadTestStats.IncrementSent();
+                    await channel.WriteAndFlushAsync(new GamePacket
+                    {
+                        ReqRoomChat = new ReqRoomChat { Message = $"안녕하세요! (from {ctx.PlayerName})" }
+                    });
+                    LoadTestStats.IncrementSent();
+                }
                 break;
 
             case GamePacket.PayloadOneofCase.NotiRoomChat:
@@ -79,9 +82,17 @@ public class RoomOnceScenario : ILoadTestScenario
                     ctx.RoomExitScheduled = true;
                     _ = Task.Run(async () =>
                     {
-                        await Task.Delay(3000);
-                        await channel.WriteAndFlushAsync(new GamePacket { ReqRoomExit = new ReqRoomExit() });
-                        LoadTestStats.IncrementSent();
+                        try
+                        {
+                            await Task.Delay(3000);
+                            await channel.WriteAndFlushAsync(new GamePacket { ReqRoomExit = new ReqRoomExit() });
+                            LoadTestStats.IncrementSent();
+                        }
+                        catch (Exception ex)
+                        {
+                            GameLogger.Error($"Client[{ctx.ClientIndex}]", "룸 퇴장 요청 오류", ex);
+                            LoadTestStats.IncrementErrors();
+                        }
                     });
                 }
                 break;

@@ -60,8 +60,12 @@ public class RoomChatScenario : ILoadTestScenario
                 break;
 
             case GamePacket.PayloadOneofCase.NotiRoomEnter:
-                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 입장 알림: {packet.NotiRoomEnter.PlayerName} → 채팅 루프 시작");
-                _ = StartPeriodicRoomChatAsync(channel, ctx);
+                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 입장 알림: {packet.NotiRoomEnter.PlayerName}");
+                if (packet.NotiRoomEnter.PlayerId == ctx.PlayerId)
+                {
+                    GameLogger.Info($"Client[{ctx.ClientIndex}]", "내 입장 확인 → 채팅 루프 시작");
+                    _ = StartPeriodicRoomChatAsync(channel, ctx);
+                }
                 break;
 
             case GamePacket.PayloadOneofCase.NotiRoomChat:
