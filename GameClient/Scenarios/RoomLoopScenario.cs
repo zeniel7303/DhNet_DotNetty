@@ -66,9 +66,17 @@ public class RoomLoopScenario : ILoadTestScenario
                     ctx.RoomExitScheduled = true;
                     _ = Task.Run(async () =>
                     {
-                        await Task.Delay(2000);
-                        await channel.WriteAndFlushAsync(new GamePacket { ReqRoomExit = new ReqRoomExit() });
-                        LoadTestStats.IncrementSent();
+                        try
+                        {
+                            await Task.Delay(2000);
+                            await channel.WriteAndFlushAsync(new GamePacket { ReqRoomExit = new ReqRoomExit() });
+                            LoadTestStats.IncrementSent();
+                        }
+                        catch (Exception ex)
+                        {
+                            GameLogger.Error($"Client[{ctx.ClientIndex}]", "룸 퇴장 요청 오류", ex);
+                            LoadTestStats.IncrementErrors();
+                        }
                     });
                 }
                 break;
@@ -78,13 +86,19 @@ public class RoomLoopScenario : ILoadTestScenario
                 GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 퇴장 완료 (총 {ctx.RoomLoopCount}회) → 1초 후 재입장");
                 _ = Task.Run(async () =>
                 {
-                    await Task.Delay(1000);
-                    if (!channel.Active)
+                    try
                     {
-                        return;
+                        await Task.Delay(1000);
+                        if (!channel.Active)
+                            return;
+                        ResetRoomState(ctx);
+                        await EnterRoomAsync(channel, ctx);
                     }
-                    ResetRoomState(ctx);
-                    await EnterRoomAsync(channel, ctx);
+                    catch (Exception ex)
+                    {
+                        GameLogger.Error($"Client[{ctx.ClientIndex}]", "룸 재입장 오류", ex);
+                        LoadTestStats.IncrementErrors();
+                    }
                 });
                 break;
 
