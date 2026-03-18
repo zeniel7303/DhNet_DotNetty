@@ -33,8 +33,6 @@ public class LobbyComponent : BaseComponent
 
     public override void Initialize() { }
 
-    // ── 입장/퇴장 ──────────────────────────────────────────────────────
-
     // CAS로 정원 예약 후 TryAdd. 반환 false = 정원 초과 또는 중복 입장.
     // PlayerComponent 워커 스레드(EnqueueEvent 경유) 또는 LoginController 스레드에서 호출
     public bool TryEnter(PlayerComponent player)
@@ -73,8 +71,6 @@ public class LobbyComponent : BaseComponent
         GameLogger.Info($"Lobby:{LobbyId}", $"퇴장: {player.Name} (현재 {_players.Count}명)");
     }
 
-    // ── 채팅 ───────────────────────────────────────────────────────────
-
     public void Chat(PlayerComponent sender, string message)
     {
         GameLogger.Info($"Lobby:{LobbyId}", $"채팅: {sender.Name}: {message}");
@@ -104,8 +100,6 @@ public class LobbyComponent : BaseComponent
         }
     }
 
-    // ── 브로드캐스트 (Web API) ─────────────────────────────────────────
-
     public bool Broadcast(string message)
     {
         if (IsDisposed) return false;
@@ -122,8 +116,6 @@ public class LobbyComponent : BaseComponent
 
         return true;
     }
-
-    // ── 룸 관리 ────────────────────────────────────────────────────────
 
     // 빈 방 탐색 + 없으면 신규 생성. lock으로 TOCTOU 방지 (순회+생성+추가 원자성).
     public RoomComponent GetOrCreateRoom()

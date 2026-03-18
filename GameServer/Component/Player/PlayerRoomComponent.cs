@@ -16,7 +16,6 @@ public class PlayerRoomComponent(PlayerComponent player) : BaseComponent
 
     public override void Initialize() { }
 
-    // ReqRoomChat — 룸 채팅
     public void Chat(ReqRoomChat req)
     {
         var room = CurrentRoom;

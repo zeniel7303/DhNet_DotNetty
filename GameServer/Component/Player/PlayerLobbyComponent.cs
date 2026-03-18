@@ -17,7 +17,6 @@ public class PlayerLobbyComponent(PlayerComponent player) : BaseComponent
 
     public override void Initialize() { }
 
-    // ReqLobbyList — 로비 목록 조회
     public void LobbyList(ReqLobbyList req)
     {
         var res = new ResLobbyList();
@@ -28,7 +27,6 @@ public class PlayerLobbyComponent(PlayerComponent player) : BaseComponent
         _ = player.Session.SendAsync(new GamePacket { ResLobbyList = res });
     }
 
-    // ReqLobbyChat — 로비 채팅
     public void Chat(ReqLobbyChat req)
     {
         var lobby = CurrentLobby;
@@ -38,7 +36,6 @@ public class PlayerLobbyComponent(PlayerComponent player) : BaseComponent
         lobby.Chat(player, req.Message);
     }
 
-    // ReqRoomEnter — 로비에서 룸 입장
     public void RoomEnter(ReqRoomEnter req)
     {
         var lobby = CurrentLobby;
