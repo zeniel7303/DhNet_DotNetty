@@ -3,6 +3,7 @@ using Common.Logging;
 using Common.Server;
 using Common.Server.Component;
 using GameServer.Component.Player;
+using GameServer.Protocol;
 
 namespace GameServer.Systems;
 
@@ -36,6 +37,19 @@ public class PlayerSystem
     }
 
     public PlayerComponent? TryGet(ulong id) => _players.GetValueOrDefault(id);
+
+    public IReadOnlyList<PlayerComponent> GetAll() => _players.Values.ToList();
+
+    // 전체 접속자에게 시스템 공지 전송
+    public void BroadcastAll(string message)
+    {
+        var noti = new GamePacket { NotiSystem = new NotiSystem { Message = message } };
+
+        foreach (var player in _players.Values)
+        {
+            _ = player.Session.SendAsync(noti);
+        }
+    }
 
     public void Initialize(int maxPlayers) => MaxPlayers = maxPlayers;
 

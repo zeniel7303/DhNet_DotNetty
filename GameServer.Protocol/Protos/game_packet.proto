@@ -6,6 +6,7 @@ import "Protos/login.proto";
 import "Protos/lobby.proto";
 import "Protos/room.proto";
 import "Protos/heartbeat.proto";
+import "Protos/system.proto";
 
 message GamePacket {
   oneof payload {
@@ -25,5 +26,6 @@ message GamePacket {
     ResHeartbeat  res_heartbeat   = 14;
     ReqLobbyList  req_lobby_list  = 15;
     ResLobbyList  res_lobby_list  = 16;
+    NotiSystem    noti_system     = 17;
   }
 }

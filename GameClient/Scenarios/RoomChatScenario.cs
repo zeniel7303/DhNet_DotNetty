@@ -68,6 +68,10 @@ public class RoomChatScenario : ILoadTestScenario
                 GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 채팅: {packet.NotiRoomChat.PlayerName}: {packet.NotiRoomChat.Message}");
                 break;
 
+            case GamePacket.PayloadOneofCase.NotiSystem:
+                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"[시스템] {packet.NotiSystem.Message}");
+                break;
+
             default:
                 GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"미처리 패킷: {packet.PayloadCase}");
                 break;

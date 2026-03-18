@@ -92,6 +92,10 @@ public class RoomLoopScenario : ILoadTestScenario
                 GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 퇴장 알림: {packet.NotiRoomExit.PlayerName}");
                 break;
 
+            case GamePacket.PayloadOneofCase.NotiSystem:
+                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"[시스템] {packet.NotiSystem.Message}");
+                break;
+
             default:
                 GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"미처리 패킷: {packet.PayloadCase}");
                 break;

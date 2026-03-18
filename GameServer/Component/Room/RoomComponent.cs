@@ -181,6 +181,9 @@ public class RoomComponent : BaseComponent
         }
     }
 
+    public IReadOnlyList<(ulong PlayerId, string Name)> GetPlayerList()
+        => _players.Values.Select(p => (p.PlayerId, p.Name)).ToList();
+
     public bool Broadcast(string message)
     {
         if (IsDisposed) return false;
