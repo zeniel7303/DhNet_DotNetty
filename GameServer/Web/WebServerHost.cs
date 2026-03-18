@@ -39,15 +39,21 @@ static class WebServerHost
             });
 
             var app = builder.Build();
+#if DEBUG
+            app.UseSwagger();
+            app.UseSwaggerUI();
+#else
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
+#endif
             app.UseWhen(
                 ctx => !ctx.Request.Path.StartsWithSegments("/swagger"),
                 branch =>
                 {
+                    branch.UseMiddleware<RequestLoggingMiddleware>();
                     branch.UseMiddleware<IpWhitelistMiddleware>();
                     branch.UseMiddleware<ApiKeyMiddleware>();
                 });
