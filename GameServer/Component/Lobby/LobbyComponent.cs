@@ -25,7 +25,7 @@ public class LobbyComponent : BaseComponent
     private readonly ConcurrentDictionary<ulong, RoomComponent> _rooms = new();
     private readonly object _roomLock = new();
 
-    public LobbyComponent(ulong lobbyId, int maxCapacity = 100)
+    public LobbyComponent(ulong lobbyId, int maxCapacity)
     {
         LobbyId = lobbyId;
         MaxCapacity = maxCapacity;

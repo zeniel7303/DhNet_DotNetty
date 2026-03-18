@@ -11,7 +11,7 @@ public class LobbySystem
 
     private LobbyComponent[] _lobbies = Array.Empty<LobbyComponent>();
 
-    public void Initialize(int lobbyCount = 1, int lobbyCapacity = 100)
+    public void Initialize(int lobbyCount, int lobbyCapacity)
     {
         _lobbies = Enumerable.Range(0, lobbyCount)
             .Select(_ => new LobbyComponent(IdGenerators.Lobby.Next(), lobbyCapacity))

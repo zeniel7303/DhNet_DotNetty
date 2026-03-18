@@ -26,7 +26,7 @@ static class ServerStartup
         IdGenerators.Room.Initialize(dbResult.MaxRoomId);
         GameLogger.Info("Server", $"IdGenerators 초기화: Player={dbResult.MaxPlayerId}, Room={dbResult.MaxRoomId}");
 
-        LobbySystem.Instance.Initialize(lobbyCount: 1, lobbyCapacity: gameSettings.MaxPlayers);
+        LobbySystem.Instance.Initialize(lobbyCount: 10, lobbyCapacity: gameSettings.MaxPlayers);
 
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) =>
