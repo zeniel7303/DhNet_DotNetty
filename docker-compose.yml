@@ -1,0 +1,31 @@
+services:
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: "0000"
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db/schema_game.sql:/docker-entrypoint-initdb.d/01_schema_game.sql:ro
+      - ./db/schema_log.sql:/docker-entrypoint-initdb.d/02_schema_log.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p0000"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  gameserver:
+    build: .
+    ports:
+      - "7777:7777"
+      - "8080:8080"
+    environment:
+      DOTNET_ENVIRONMENT: Docker
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
