@@ -72,8 +72,19 @@ public class SessionSystem
         _thread.Start();
     }
 
+    // 종료 시 모든 활성 세션에 Disconnect 이벤트 enqueue — Stop() 호출 전 수행
+    public void DisconnectAll()
+    {
+        var snapshot = _sessions.Values.ToArray();
+        foreach (var session in snapshot)
+        {
+            _eventQueue.Enqueue(EventData.OfDisconnect(session));
+        }
+    }
+
     public void Stop()
     {
+        DisconnectAll();
         _running = false;
         _thread?.Join(TimeSpan.FromSeconds(5));
     }

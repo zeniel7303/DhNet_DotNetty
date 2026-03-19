@@ -136,8 +136,6 @@ public class PlayerComponent : BaseComponent
         Session.DetachPlayer();
         Session.Dispose();
 
-        PlayerSystem.Instance.Remove(this);
-
         // DB InsertAsync가 완료된 경우에만 UpdateLogout 실행
         // InsertAsync 이전 Dispose(ImmediateFinalize, 세션 소실 등) 시 DB 오염 방지
         // Volatile.Read: ImmediateFinalize 경로(ThreadPool)에서 최신 값 보장
@@ -155,6 +153,9 @@ public class PlayerComponent : BaseComponent
 
             DatabaseSystem.Instance.GameLog.LoginLogs.UpdateLogoutAsync(PlayerId, logoutAt).FireAndForget("PlayerComponent");
         }
+
+        // DB write 완료 후 Remove — PlayerSystem.WaitUntilEmptyAsync가 DB 동기화 완료를 정확히 감지하도록 보장
+        PlayerSystem.Instance.Remove(this);
     }
 
     // SessionSystem의 InternalDisconnectSession에서 호출 — IsEntryHandshakeCompleted == true 경로

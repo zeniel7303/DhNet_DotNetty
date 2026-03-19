@@ -56,6 +56,9 @@ public sealed class BaseWorker<T> where T : BaseComponent
             TickInternal();
             Thread.Sleep(_intervalMs);
         }
+
+        // 루프 종료 후 잔여 이벤트 드레인 — DisconnectForNextTick 등 마지막 틱에서 발화되지 않은 이벤트 처리
+        TickInternal();
     }
 
     private void TickInternal()

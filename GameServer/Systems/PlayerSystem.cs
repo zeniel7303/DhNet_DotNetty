@@ -51,6 +51,22 @@ public class PlayerSystem
         }
     }
 
+    // DisconnectAsync가 PlayerSystem.Remove()를 DB write 이후에 호출하므로,
+    // Count == 0은 모든 플레이어의 DB 로그아웃 저장 완료를 의미함
+    public async Task WaitUntilEmptyAsync(TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (_players.Count > 0 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(50);
+        }
+
+        if (_players.Count > 0)
+        {
+            GameLogger.Warn("PlayerSystem", $"WaitUntilEmptyAsync 타임아웃: {_players.Count}명 미정리");
+        }
+    }
+
     public void Initialize(int maxPlayers) => MaxPlayers = maxPlayers;
 
     public void StartSystem() => _workers.StartSystem();
