@@ -17,16 +17,10 @@ static class ServerStartup
         var dbSettings = config.GetSection("Database").Get<DatabaseSettings>()
             ?? throw new InvalidOperationException("appsettings.json에 'Database' 섹션이 없습니다.");
 
-        PlayerSystem.Instance.Initialize(gameSettings.MaxPlayers);
-        SessionSystem.Instance.StartSystem();
-        PlayerSystem.Instance.StartSystem();
-
         var dbResult = await DatabaseSystem.Instance.InitializeAsync(dbSettings);
         IdGenerators.Player.Initialize(dbResult.MaxPlayerId);
         IdGenerators.Room.Initialize(dbResult.MaxRoomId);
         GameLogger.Info("Server", $"IdGenerators 초기화: Player={dbResult.MaxPlayerId}, Room={dbResult.MaxRoomId}");
-
-        LobbySystem.Instance.Initialize(lobbyCount: 10, lobbyCapacity: gameSettings.MaxPlayers);
 
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) =>
@@ -35,11 +29,19 @@ static class ServerStartup
             cts.Cancel();
         };
 
+        GameSystems.Start(gameSettings, cts);
+
         var statTask = StatLogger.RunAsync(cts.Token);
         var webTask  = WebServerHost.RunAsync(gameSettings.WebPort, cts.Token);
         await using var server = new GameServerBootstrap(gameSettings);
         await server.RunAsync(cts.Token);
+
+        await GameSystems.StopAsync();
+
+        GameLogger.Info("Server", "[Shutdown] Web 서버, Stat 로거 종료 대기...");
         await Task.WhenAll(statTask, webTask);
+
+        GameLogger.Info("Server", "[Shutdown] 완료.");
         await GameLogger.FlushAsync();
     }
 }
