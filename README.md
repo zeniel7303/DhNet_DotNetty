@@ -187,8 +187,8 @@ source db/schema_log.sql;
 ```json
 {
   "AdminApi": { "ApiKey": "CHANGE-THIS-SECRET-KEY", "AllowedIps": [] },
-  "GameServer": { "GamePort": 7777, "WebPort": 8080, "MaxPlayers": 100 },
-  "Database": { "Host": "127.0.0.1", "Port": 3306, "UserId": "root", "Password": "" }
+  "GameServer": { "GamePort": 7777, "WebPort": 8080 },
+  "Database": { "Host": "127.0.0.1", "Port": 3306, "UserId": "root", "Password": "0000" }
 }
 ```
 
@@ -220,7 +220,7 @@ curl -X POST http://localhost:8080/broadcast \
 ### 부하 테스트
 
 ```bash
-# 기본 (4클라이언트, room 시나리오)
+# 기본 (1000클라이언트, lobby-chat 시나리오)
 dotnet run --project GameClient
 
 # 주요 옵션

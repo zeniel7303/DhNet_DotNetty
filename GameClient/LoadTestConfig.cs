@@ -2,10 +2,10 @@ namespace GameClient;
 
 public record LoadTestConfig
 {
-    public int ClientCount         { get; init; } = 1;
+    public int ClientCount         { get; init; } = 1000;
     public int ConnectDelayMs      { get; init; } = 10;
     public int ChatIntervalMs      { get; init; } = 1000;
-    public string Scenario         { get; init; } = "lobby";
+    public string Scenario         { get; init; } = "lobby-chat";
     public string ServerHost       { get; init; } = "127.0.0.1";
     public int ServerPort          { get; init; } = 7777;
     public string PlayerNamePrefix { get; init; } = "Bot";
@@ -18,9 +18,10 @@ public record LoadTestConfig
 
     public static LoadTestConfig FromArgs(string[] args)
     {
-        int clientCount = 1000, connectDelay = 10, chatInterval = 1000, port = 7777;
-        int reconnectDelay = 2000, roomCycles = 0, chatCount = 3;
-        string scenario = "lobby-chat", host = "127.0.0.1", prefix = "Bot";
+        var d = new LoadTestConfig();
+        int clientCount = d.ClientCount, connectDelay = d.ConnectDelayMs, chatInterval = d.ChatIntervalMs, port = d.ServerPort;
+        int reconnectDelay = d.ReconnectDelayMs, roomCycles = d.RoomCycles, chatCount = d.ChatCount;
+        string scenario = d.Scenario, host = d.ServerHost, prefix = d.PlayerNamePrefix;
 
         for (var i = 0; i < args.Length - 1; i++)
         {
