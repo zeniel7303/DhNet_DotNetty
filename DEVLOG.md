@@ -150,6 +150,14 @@ C++ 기반 DhNet 서버의 핵심 로직(로그인, 로비, 룸, 채팅)을 DotN
 `DOTNET_ENVIRONMENT=Docker` → `appsettings.Docker.json` 자동 로드로 컨테이너 환경을 분리했다.
 `RequireConnection: true`를 Docker 전용으로 설정해 DB 없이 서버가 묵묵히 시작되는 문제를 방지했다.
 
+#### Graceful Shutdown 구현
+
+서버를 강제 종료하면 처리 중이던 세션과 DB 쓰기가 유실될 수 있었다.
+`ShutdownSystem` 싱글톤이 `CancellationTokenSource`를 소유하고, `Interlocked.Exchange`로 단일 진입을 보장한다.
+`POST /shutdown` REST API로 원격에서도 종료를 트리거할 수 있다(202 반환 후 200ms 지연 → CTS 발행).
+`GameSystems.StopAsync()`가 `SessionSystem` 정리 → `PlayerSystem.WaitUntilEmptyAsync(30s)` 순으로 실행해 DB 동기화 완료 후 프로세스가 종료된다.
+모든 시스템 생명주기(시작/종료)를 `GameSystems`로 단일화해 `ServerStartup` 로직을 단순화했다.
+
 ---
 
 ## 기술적 도전 요약
