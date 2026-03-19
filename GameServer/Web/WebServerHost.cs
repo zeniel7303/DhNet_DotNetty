@@ -20,7 +20,7 @@ static class WebServerHost
                 EnvironmentName = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production"
             });
 
-            builder.WebHost.UseKestrel(o => o.Listen(IPAddress.Loopback, port));
+            builder.WebHost.UseKestrel(o => o.Listen(IPAddress.Any, port));
             builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
             builder.Services.AddControllers();
@@ -50,7 +50,8 @@ static class WebServerHost
             }
 #endif
             app.UseWhen(
-                ctx => !ctx.Request.Path.StartsWithSegments("/swagger"),
+                ctx => !ctx.Request.Path.StartsWithSegments("/swagger")
+                    && !ctx.Request.Path.StartsWithSegments("/health"),
                 branch =>
                 {
                     branch.UseMiddleware<RequestLoggingMiddleware>();
