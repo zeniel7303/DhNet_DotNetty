@@ -15,7 +15,11 @@ sealed class HeartbeatHandler : ChannelHandlerAdapter
         if (evt is IdleStateEvent { State: IdleState.ReaderIdle })
         {
             GameLogger.Warn("Heartbeat", $"유휴 연결 감지, 강제 해제: {ctx.Channel.RemoteAddress}");
-            ctx.CloseAsync();
+            _ = ctx.CloseAsync().ContinueWith(
+                t => GameLogger.Error("Heartbeat", "CloseAsync 실패", t.Exception?.InnerException),
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted,
+                TaskScheduler.Default);
         }
     }
 }

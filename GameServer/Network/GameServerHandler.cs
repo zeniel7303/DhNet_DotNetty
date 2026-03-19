@@ -47,6 +47,10 @@ public class GameServerHandler : SimpleChannelInboundHandler<GamePacket>
     public override void ExceptionCaught(IChannelHandlerContext ctx, Exception ex)
     {
         GameLogger.Error("예외", ex.Message, ex);
-        _ = ctx.CloseAsync();
+        _ = ctx.CloseAsync().ContinueWith(
+            t => GameLogger.Error("GameServerHandler", "CloseAsync 실패", t.Exception?.InnerException),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
     }
 }

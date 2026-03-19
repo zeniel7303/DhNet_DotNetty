@@ -35,7 +35,11 @@ public class ClientContext : IDisposable
         _heartbeatTimer = new Timer(_ =>
         {
             if (channel.Active)
-                _ = channel.WriteAndFlushAsync(new GamePacket { ReqHeartbeat = new ReqHeartbeat() });
+                _ = channel.WriteAndFlushAsync(new GamePacket { ReqHeartbeat = new ReqHeartbeat() }).ContinueWith(
+                    t => GameLogger.Error($"Client[{ClientIndex}]", "Heartbeat 전송 실패", t.Exception?.InnerException),
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted,
+                    TaskScheduler.Default);
         }, null, TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(20));
     }
 
@@ -50,9 +54,13 @@ public class ClientContext : IDisposable
             {
                 await Task.Delay(delay);
                 GameLogger.Info($"Client[{ClientIndex}]", $"룸 입장 재시도 ({retry}/5)");
-                _ = channel.WriteAndFlushAsync(new GamePacket { ReqRoomEnter = new ReqRoomEnter() });
+                await channel.WriteAndFlushAsync(new GamePacket { ReqRoomEnter = new ReqRoomEnter() });
                 LoadTestStats.IncrementSent();
-            });
+            }).ContinueWith(
+                t => GameLogger.Error($"Client[{ClientIndex}]", "룸 입장 재시도 전송 실패", t.Exception?.InnerException),
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted,
+                TaskScheduler.Default);
         }
         else
         {

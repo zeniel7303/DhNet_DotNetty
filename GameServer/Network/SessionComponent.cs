@@ -51,8 +51,14 @@ public class SessionComponent : IDisposable
             return;
         }
 
+        // TaskScheduler.Default 필수: 명시하지 않으면 TaskScheduler.Current를 상속하여
+        // I/O 이벤트 루프 스레드에 continuation이 예약될 수 있다.
+        // CloseAsync() 완료도 같은 I/O 스레드가 담당하므로 데드락 위험이 있음.
+        // Default(ThreadPool)를 명시하면 I/O 스레드와 분리되어 안전하다.
         _ = Channel.CloseAsync().ContinueWith(
             t => GameLogger.Error("SessionComponent", "CloseAsync 실패", t.Exception?.InnerException),
-            TaskContinuationOptions.OnlyOnFaulted);
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
     }
 }
