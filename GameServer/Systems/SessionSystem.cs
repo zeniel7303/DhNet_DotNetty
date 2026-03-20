@@ -86,7 +86,10 @@ public class SessionSystem
     {
         DisconnectAll();
         _running = false;
-        _thread?.Join(TimeSpan.FromSeconds(5));
+        if (_thread != null && !_thread.Join(TimeSpan.FromSeconds(30)))
+        {
+            GameLogger.Error("SessionSystem", "[Shutdown] SessionSystem 스레드 30초 내 종료 실패 — 강제 진행");
+        }
     }
 
     private void Loop()

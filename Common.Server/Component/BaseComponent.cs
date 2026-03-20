@@ -13,37 +13,71 @@ public abstract class BaseComponent : IDisposable
     private int _disposed;
     protected bool IsDisposed => _disposed == 1;
 
-    public void EnqueueEvent(Action job)
+    // disposed이면 false 반환 — EnqueueEventAsync가 TCS를 취소할 수 있도록 성공 여부 전달.
+    protected bool EnqueueEvent(Action job)
     {
         ArgumentNullException.ThrowIfNull(job);
+        
+        if (_disposed == 1)
+        {
+            return false;
+        }
+        
         _eventQueue.Enqueue(job);
+        return true;
     }
 
     // 워커 스레드에서 action 실행 후 완료를 await할 수 있는 오버로드.
     // finally로 TrySetResult 보장 — action 내부 예외나 DisconnectForNextTick 호출 시에도 호출자가 무한 대기하지 않음.
+    // EnqueueEvent가 false를 반환하면(disposed) TCS를 즉시 취소하여 호출자 무한 대기 방지.
     public Task EnqueueEventAsync(Action action)
     {
         ArgumentNullException.ThrowIfNull(action);
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        EnqueueEvent(() =>
+        var enqueued = EnqueueEvent(() =>
         {
-            try { action(); }
-            finally { tcs.TrySetResult(); }
+            try
+            {
+                action();
+            }
+            finally
+            {
+                tcs.TrySetResult();
+            }
         });
+
+        if (!enqueued)
+        {
+            tcs.TrySetCanceled();
+        }
+        
         return tcs.Task;
     }
 
     // 워커 스레드에서 func 실행 후 반환값을 await할 수 있는 오버로드.
     // 예외 발생 시 TrySetException으로 전파 — 호출자에서 try/catch로 처리 가능.
+    // EnqueueEvent가 false를 반환하면(disposed) TCS를 즉시 취소하여 호출자 무한 대기 방지.
     public Task<T> EnqueueEventAsync<T>(Func<T> func)
     {
         ArgumentNullException.ThrowIfNull(func);
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-        EnqueueEvent(() =>
+        var enqueued = EnqueueEvent(() =>
         {
-            try { tcs.TrySetResult(func()); }
-            catch (Exception ex) { tcs.TrySetException(ex); }
+            try
+            {
+                tcs.TrySetResult(func());
+            }
+            catch (Exception ex)
+            {
+                tcs.TrySetException(ex);
+            }
         });
+        
+        if (!enqueued)
+        {
+            tcs.TrySetCanceled();
+        }
+        
         return tcs.Task;
     }
 
