@@ -119,43 +119,51 @@ public class PlayerComponent : BaseComponent
     {
         if (Interlocked.Exchange(ref _disconnected, 1) == 1) return;
 
-        // lock(this): Room/Lobby 참조 캡처 원자화
-        // Disconnect ↔ Dispose 동시 진입 시 참조 교환 안전하게 수행
-        // 실제 Disconnect 호출은 lock 외부 — 외부 컴포넌트 호출로 인한 교차 락 방지
-        PlayerRoomComponent? room;
-        PlayerLobbyComponent? lobby;
-        lock (this)
+        try
         {
-            room  = Room;
-            lobby = Lobby;
-        }
-
-        room?.Disconnect();
-        lobby?.Disconnect();
-
-        Session.DetachPlayer();
-        Session.Dispose();
-
-        // DB InsertAsync가 완료된 경우에만 UpdateLogout 실행
-        // InsertAsync 이전 Dispose(ImmediateFinalize, 세션 소실 등) 시 DB 오염 방지
-        // Volatile.Read: ImmediateFinalize 경로(ThreadPool)에서 최신 값 보장
-        if (Volatile.Read(ref _dbInserted) == 1)
-        {
-            var logoutAt = DateTime.UtcNow;
-            try
+            // lock(this): Room/Lobby 참조 캡처 원자화
+            // Disconnect ↔ Dispose 동시 진입 시 참조 교환 안전하게 수행
+            // 실제 Disconnect 호출은 lock 외부 — 외부 컴포넌트 호출로 인한 교차 락 방지
+            PlayerRoomComponent? room;
+            PlayerLobbyComponent? lobby;
+            lock (this)
             {
-                await DatabaseSystem.Instance.Game.Players.UpdateLogoutAsync(PlayerId, logoutAt);
-            }
-            catch (Exception ex)
-            {
-                GameLogger.Error("PlayerComponent", $"플레이어 로그아웃 DB 저장 실패: {PlayerId}", ex);
+                room  = Room;
+                lobby = Lobby;
             }
 
-            DatabaseSystem.Instance.GameLog.LoginLogs.UpdateLogoutAsync(PlayerId, logoutAt).FireAndForget("PlayerComponent");
-        }
+            room?.Disconnect();
+            lobby?.Disconnect();
 
-        // DB write 완료 후 Remove — PlayerSystem.WaitUntilEmptyAsync가 DB 동기화 완료를 정확히 감지하도록 보장
-        PlayerSystem.Instance.Remove(this);
+            Session.DetachPlayer();
+            Session.Dispose();
+
+            // DB InsertAsync가 완료된 경우에만 UpdateLogout 실행
+            // InsertAsync 이전 Dispose(ImmediateFinalize, 세션 소실 등) 시 DB 오염 방지
+            // Volatile.Read: ImmediateFinalize 경로(ThreadPool)에서 최신 값 보장
+            if (Volatile.Read(ref _dbInserted) == 1)
+            {
+                var logoutAt = DateTime.UtcNow;
+                try
+                {
+                    await DatabaseSystem.Instance.Game.Players.UpdateLogoutAsync(PlayerId, logoutAt);
+                }
+                catch (Exception ex)
+                {
+                    GameLogger.Error("PlayerComponent", $"플레이어 로그아웃 DB 저장 실패: {PlayerId}", ex);
+                }
+
+                DatabaseSystem.Instance.GameLog.LoginLogs.UpdateLogoutAsync(PlayerId, logoutAt).FireAndForget("PlayerComponent");
+            }
+
+            // DB write 완료 후 Remove — PlayerSystem.WaitUntilEmptyAsync가 DB 동기화 완료를 정확히 감지하도록 보장
+            PlayerSystem.Instance.Remove(this);
+        }
+        catch (Exception ex)
+        {
+            // _ = DisconnectAsync() fire-and-forget 경로에서 예외가 unhandled Task가 되지 않도록 최상위 catch.
+            GameLogger.Error("PlayerComponent", $"DisconnectAsync 중 예외 (PlayerId={PlayerId}): {ex.Message}", ex);
+        }
     }
 
     // SessionSystem의 InternalDisconnectSession에서 호출 — IsEntryHandshakeCompleted == true 경로
