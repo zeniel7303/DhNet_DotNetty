@@ -60,20 +60,32 @@ Last Updated: 2026-03-20
 - ✅ **2.19-빌드** 빌드 성공 (경고 0, 오류 0)
 - [ ] **2.19-검증** DB 적용 후 실제 테스트: 잘못된 비번 → INVALID_CREDENTIALS, 봇 → 로그인 성공
 
-### 코드 리뷰 (Opus, 2026-03-20)
-- ✅ **2.20** Opus 모델로 코드 리뷰 완료
-  - Critical 1건 (평문 저장 — Phase 3에서 해결 예정, 의도적)
-  - Major 0건
-  - Minor 4건 (M1: created! null 방어 누락, M2: 로그 Log Injection, M3: proto 필드명, M4: 코드 중복)
-- [ ] **2.21** Minor M1 수정: `RegisterProcessor.cs:121` `created!` → null 체크 추가 (Phase 3 전 권장)
+### 코드 리뷰 1차 (Opus, Phase 2 완료 직후)
+- ✅ **2.20** Phase 2 코드 리뷰 완료
+  - Critical 1건 (평문 저장 — Phase 3 해결 예정)
+  - Minor 4건 → 모두 수정 커밋 완료 (`dc2fdd5`)
+    - M1: created! null 방어 추가
+    - M2: 로그 Log Injection 제거
+    - M3: ReqLogin.player_name → username 필드명 정정
+    - M4: LobbyChatScenario BaseRoomScenario 상속으로 중복 제거
+
+### 전체 코드 리뷰 (Opus, Phase 3 전 최종 점검)
+- ✅ **2.21** 전체 코드 리뷰 완료 (2026-03-20)
+  - Critical 0건, Major 3건, Minor 5건
+  - 결과: `dev/active/보안-3단계-구현/보안-3단계-구현-code-review.md`
+- ✅ **2.22** Major M-3 수정: `LoginProcessor.cs` — username/password 길이 검증 추가 (DB 조회 전 차단)
+- [ ] **2.23** DB 적용 후 실제 테스트: 잘못된 비번 → INVALID_CREDENTIALS, 봇 → 로그인 성공
 
 ## Phase 3 — 비밀번호 BCrypt 해싱
 
+> 전체 코드 리뷰 Major M-2: Timing Attack 방어 필수 (username 미존재 시 dummy hash 패턴)
+
 - [ ] **3.1** `GameServer/GameServer.csproj` — `BCrypt.Net-Next` NuGet 패키지 추가
-- [ ] **3.2** `GameServer/Network/RegisterProcessor.cs` — `BCrypt.HashPassword(password, 11)` 적용
+- [ ] **3.2** `GameServer/Network/RegisterProcessor.cs` — `BCrypt.HashPassword(password, 11)` + `Task.Run` 적용
 - [ ] **3.3** `GameServer/Network/LoginProcessor.cs` — `BCrypt.Verify(password, hash)` 적용
-  - username 미존재 시에도 dummy BCrypt.Verify로 Timing Attack 방어 필요
-- [ ] **3.4** 기존 계정 마이그레이션 SQL (평문 → BCrypt 해시 일괄 변환)
+  - ⚠️ username 미존재 시에도 dummy hash로 `BCrypt.Verify` 실행 (Timing Attack 방어 필수)
+  - `Task.Run` + `SemaphoreSlim`으로 동시 해싱 수 제한 고려
+- [ ] **3.4** 기존 계정 마이그레이션 전략 결정 (최초 로그인 시 재해시 vs 일괄 스크립트)
 - [ ] **3.5** 검증: 올바른 비번 → 로그인 성공, 틀린 비번 → INVALID_CREDENTIALS
 
 ---
@@ -82,6 +94,6 @@ Last Updated: 2026-03-20
 
 | Phase | 상태 |
 |-------|------|
-| Phase 1 (패킷 암호화) | ✅ 완료 (커밋 대기) |
-| Phase 2 (회원가입/비밀번호) | ✅ 구현 완료 + 코드 리뷰 완료 (커밋 대기, DB 검증 필요) |
-| Phase 3 (BCrypt 해싱) | 미착수 (Phase 2 커밋 + DB 검증 후 시작) |
+| Phase 1 (패킷 암호화) | ✅ 완료 (커밋 완료) |
+| Phase 2 (회원가입/비밀번호) | ✅ 완료 (커밋 완료, DB 검증 필요) |
+| Phase 3 (BCrypt 해싱) | 미착수 |
