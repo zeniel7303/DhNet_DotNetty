@@ -146,8 +146,22 @@ internal static class LoginProcessor
     /// username 없거나 password 불일치 → INVALID_CREDENTIALS (어느 쪽인지 노출 안 함).
     /// Phase 3에서 BCrypt.Verify(password, account.password_hash)로 교체 예정.
     /// </summary>
+    private const int MinLength = 4;
+    private const int MaxLength = 16;
+
     private static async Task<AccountRow?> AuthenticateAsync(SessionComponent session, string username, string password)
     {
+        // 기본 길이 검증 — DB 조회 전에 차단 (RegisterProcessor와 동일 기준)
+        if (username.Length < MinLength || username.Length > MaxLength ||
+            password.Length < MinLength || password.Length > MaxLength)
+        {
+            await session.SendAsync(new GamePacket
+            {
+                ResLogin = new ResLogin { ErrorCode = ErrorCode.InvalidCredentials }
+            });
+            return null;
+        }
+
         AccountRow? account;
         try
         {
