@@ -1,5 +1,4 @@
-﻿using Common.Logging;
-using GameServer.Protocol;
+using Common.Logging;
 
 namespace Common.Server.Routing;
 
@@ -14,10 +13,12 @@ public class RouterBuilder
         return this;
     }
 
-    public RouterBuilder With<TReq>(Func<TReq, GamePacket> handler) where TReq : class
+    public RouterBuilder With<TReq, TResponse>(Func<TReq, TResponse> handler)
+        where TReq : class
+        where TResponse : class
     {
         CheckDuplicate<TReq>();
-        _routers.Add(new PacketRouterWithResponse<TReq>(handler));
+        _routers.Add(new PacketRouterWithResponse<TReq, TResponse>(handler));
         return this;
     }
 
