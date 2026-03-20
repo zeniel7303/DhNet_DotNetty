@@ -1,8 +1,6 @@
-﻿using GameServer.Protocol;
-
 namespace Common.Server.Routing;
 
-public delegate void RouterCallback(GamePacket? response);
+public delegate void RouterCallback(object? response);
 
 public interface IRouter
 {

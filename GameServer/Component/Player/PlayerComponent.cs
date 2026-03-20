@@ -4,6 +4,7 @@ using Common.Server.Routing;
 using GameServer.Controllers;
 using GameServer.Database;
 using GameServer.Network;
+using GameServer.Protocol;
 using GameServer.Systems;
 
 namespace GameServer.Component.Player;
@@ -104,8 +105,8 @@ public class PlayerComponent : BaseComponent
 
                 router.Handle(payload, response =>
                 {
-                    if (response != null)
-                        _ = Session.SendAsync(response);
+                    if (response is GamePacket packet)
+                        _ = Session.SendAsync(packet);
                 });
             }
             catch (Exception ex)
