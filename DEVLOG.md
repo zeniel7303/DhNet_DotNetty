@@ -7,7 +7,7 @@ C++ DhNet → C# DotNetty 재이식 과정의 개발 기록.
 
 ## 개발 로그
 
-> 이 프로젝트는 [DotNetty](../DotNetty) 에서 시작됐다. 아래 이력은 그 과정을 포함한다.
+> 이 프로젝트는 DotNetty 프로젝트에서 시작됐다. 아래 이력은 그 과정을 포함한다.
 
 ---
 
@@ -269,6 +269,32 @@ SRP는 수학적 증명 교환으로 서버가 평문을 전혀 보지 않는다
 
 ---
 
+### 2026-03-20 — 셧다운 안정화 및 BaseComponent disposed 가드
+
+셧다운 흐름과 BaseComponent 이벤트 큐에서 두 가지 문제를 수정했다.
+
+#### BaseComponent.EnqueueEvent — disposed 가드 + TCS hang 방지
+
+`Dispose()` drain 완료 후 다른 스레드가 `EnqueueEvent()`를 호출하면 job이 큐에 추가되지만 처리되지 않는다.
+특히 `EnqueueEventAsync`가 TCS를 생성한 뒤 job이 실행되지 않으면 `await`가 영원히 반환되지 않는다.
+
+해결: `EnqueueEvent()`를 `bool` 반환으로 변경했다. `false`는 disposed로 인해 enqueue가 일어나지 않았음을 의미한다.
+`EnqueueEventAsync` 오버로드가 반환값을 보고 `false`면 즉시 `TrySetCanceled()`로 TCS를 취소한다.
+
+```csharp
+var enqueued = EnqueueEvent(() => { ...; tcs.TrySetResult(); });
+if (!enqueued) tcs.TrySetCanceled();
+```
+
+이 패턴은 "워커 스레드에서 완료를 await하되, 컴포넌트가 종료됐으면 취소로 빠져나온다"는 의도를 코드로 명확히 표현한다.
+
+#### SessionSystem.Stop() — Join 타임아웃 5s → 30s + 타임아웃 감지 로그
+
+`DisconnectAll()` 후 5초 내에 모든 세션이 정리되지 않으면 Join이 early return되어 Disconnect가 미완료인 채로 `PlayerSystem.WaitUntilEmptyAsync`가 진행된다.
+`Thread.Join(TimeSpan)`의 반환값(`bool`)을 활용해 타임아웃 소진 여부를 감지하고 Error 로그를 남긴다 — 근본 원인 추적을 위해.
+
+---
+
 ## 기술적 도전 요약
 
 ### 🔄 동시성 — CAS / Lock-Free
@@ -297,6 +323,7 @@ SRP는 수학적 증명 교환으로 서버가 평문을 전혀 보지 않는다
 | DotNetty void 경계 | `ChannelRead0/Inactive`가 `void` 반환 | 내부 async 체인 완성 후 경계에서만 `_ =` 처리 |
 | `ContinueWith` 데드락 | `TaskScheduler.Current`가 I/O 스레드 스케줄러를 잡을 수 있음 | `TaskScheduler.Default` 명시 |
 | ulong → long 오버플로우 | DB에서 읽은 `MAX(player_id)`를 long으로 캐스팅 | 상한 체크 + `ArgumentOutOfRangeException` |
+| `EnqueueEventAsync` 무한 대기 | `Dispose()` drain 완료 후 다른 스레드가 job을 enqueue하면 처리되지 않아 TCS가 영원히 미완료 | `EnqueueEvent()`를 `bool` 반환으로 변경 — `false`이면 즉시 `TrySetCanceled()` |
 
 ### 🌐 네트워크 & 연결
 
@@ -306,6 +333,7 @@ SRP는 수학적 증명 교환으로 서버가 평문을 전혀 보지 않는다
 | Broadcast Silent Failure | Room 종료 직후 `Broadcast()`가 false 반환 → 200 OK | 반환값 검사 후 404 반환 |
 | 비인터랙티브 환경 즉시 종료 | stdin EOF 시 `Console.ReadLine()` 즉시 반환 | `CancellationTokenSource` + Ctrl+C 시그널 |
 | ASP.NET Core + GameServer 통합 | SDK 충돌, `RunAsync(ct)` API 부재, `LogLevel` 네임스페이스 충돌 | FrameworkReference, `ct.Register(Lifetime.StopApplication)`, 전체 한정자 |
+| SessionSystem 종료 타임아웃 미감지 | `DisconnectAll()` 후 5초 내 드레인 실패 시 Join이 조용히 반환 | `Thread.Join(30s)` 반환값(`bool`) 검사 + 타임아웃 소진 시 Error 로그 |
 
 ### 🏗️ 아키텍처 & 설계
 
