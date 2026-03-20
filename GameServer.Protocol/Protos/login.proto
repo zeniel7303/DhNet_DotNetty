@@ -2,11 +2,14 @@ syntax = "proto3";
 package dhnet;
 option csharp_namespace = "GameServer.Protocol";
 
+import "Protos/error_codes.proto";
+
 message ReqLogin {
   string player_name = 1;
 }
 
 message ResLogin {
-  uint64 player_id   = 1;
-  string player_name = 2;
+  uint64    player_id   = 1;
+  string    player_name = 2;
+  ErrorCode error_code  = 3;
 }

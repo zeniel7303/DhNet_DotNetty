@@ -56,9 +56,9 @@ public class ReconnectStressScenario : ILoadTestScenario
         switch (packet.PayloadCase)
         {
             case GamePacket.PayloadOneofCase.ResLogin:
-                if (packet.ResLogin.PlayerId == 0)
+                if (packet.ResLogin.ErrorCode != ErrorCode.Success)
                 {
-                    GameLogger.Warn($"Client[{ctx.ClientIndex}]", "로그인 실패 → 연결 종료");
+                    GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"로그인 실패: {packet.ResLogin.ErrorCode} → 연결 종료");
                     LoadTestStats.IncrementErrors();
                     await channel.CloseAsync();
                     return;
@@ -71,7 +71,7 @@ public class ReconnectStressScenario : ILoadTestScenario
                 break;
 
             case GamePacket.PayloadOneofCase.ResRoomEnter:
-                if (packet.ResRoomEnter.Success)
+                if (packet.ResRoomEnter.ErrorCode == ErrorCode.Success)
                 {
                     GameLogger.Info($"Client[{ctx.ClientIndex}]", "룸 입장 성공 → 채팅 시작");
                     _ = RunRoomActivityAsync(channel, ctx);
