@@ -45,33 +45,8 @@ internal static class RegisterProcessor
             return;
         }
 
-        // username 중복 확인 (SELECT 먼저 → 에러 메시지를 더 빠르게 반환)
-        AccountRow? existing;
-        try
-        {
-            existing = await DatabaseSystem.Instance.Game.Accounts.SelectByUsernameAsync(username);
-        }
-        catch (Exception ex)
-        {
-            GameLogger.Error("Register", $"DB 조회 실패: {username}", ex);
-            await session.SendAsync(new GamePacket
-            {
-                ResRegister = new ResRegister { AccountId = 0, ErrorCode = ErrorCode.DbError }
-            });
-            return;
-        }
-
-        if (existing != null)
-        {
-            GameLogger.Warn("Register", $"중복 username: {username}");
-            await session.SendAsync(new GamePacket
-            {
-                ResRegister = new ResRegister { AccountId = 0, ErrorCode = ErrorCode.UsernameTaken }
-            });
-            return;
-        }
-
-        // 계정 삽입. INSERT IGNORE: 동시 요청에 의한 중복도 안전하게 처리.
+        // 계정 삽입. INSERT IGNORE: 중복 username이면 rows_affected == 0 반환.
+        // SELECT-then-INSERT 패턴은 TOCTOU race condition을 유발하므로 사용하지 않는다.
         int inserted;
         try
         {
