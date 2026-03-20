@@ -43,6 +43,10 @@ internal sealed class AesGcmDecryptionHandler : MessageToMessageDecoder<IByteBuf
     public override void ExceptionCaught(IChannelHandlerContext ctx, Exception ex)
     {
         GameLogger.Warn("Crypto", $"복호화 실패 ({ctx.Channel.RemoteAddress}): {ex.Message}");
-        ctx.CloseAsync();
+        _ = ctx.CloseAsync().ContinueWith(
+            t => GameLogger.Error("Crypto", "CloseAsync 실패", t.Exception?.InnerException),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
     }
 }
