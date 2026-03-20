@@ -21,7 +21,7 @@ public class PlayerComponent : BaseComponent
     // InsertAsync 이전에 Dispose되는 경우(세션 소실 등) UpdateLogout 실행 시 DB 오류 방지
     private int _dbInserted;
 
-    private readonly Dictionary<Type, IRouter> _routeTable = new();
+    private IReadOnlyDictionary<Type, IRouter> _routeTable = new Dictionary<Type, IRouter>();
 
     // private set — OnDispose에서 lock 안에 null 처리를 위해 쓰기 가능
     public PlayerLobbyComponent Lobby { get; private set; }
@@ -43,12 +43,12 @@ public class PlayerComponent : BaseComponent
 
     public override void Initialize()
     {
-        RegisterControllers();
+        _routeTable = RegisterControllers();
         Lobby.Initialize();
         Room.Initialize();
     }
 
-    private void RegisterControllers()
+    private IReadOnlyDictionary<Type, IRouter> RegisterControllers()
     {
         PlayerBaseController[] controllers =
         [
@@ -57,18 +57,20 @@ public class PlayerComponent : BaseComponent
             new PlayerHeartbeatController(this),
         ];
 
+        var table = new Dictionary<Type, IRouter>();
         foreach (var controller in controllers)
         {
             foreach (var router in controller.Routes())
             {
                 var reqType = router.GetRequestType();
-                if (_routeTable.ContainsKey(reqType))
+                if (table.ContainsKey(reqType))
                 {
                     throw new InvalidOperationException($"[PlayerComponent] 중복 라우터: {reqType.Name}");
                 }
-                _routeTable[reqType] = router;
+                table[reqType] = router;
             }
         }
+        return table;
     }
 
     public override void Update(float dt)
