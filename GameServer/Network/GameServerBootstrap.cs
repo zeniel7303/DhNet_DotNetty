@@ -12,10 +12,12 @@ sealed class GameServerBootstrap : IAsyncDisposable
     private readonly MultithreadEventLoopGroup _bossGroup = new(1);
     private readonly MultithreadEventLoopGroup _workerGroup = new();
     private readonly GameServerSettings _settings;
+    private readonly EncryptionSettings _encSettings;
 
-    public GameServerBootstrap(GameServerSettings settings)
+    public GameServerBootstrap(GameServerSettings settings, EncryptionSettings encSettings)
     {
-        _settings = settings;
+        _settings    = settings;
+        _encSettings = encSettings;
     }
 
     public async Task RunAsync(CancellationToken ct)
@@ -25,7 +27,7 @@ sealed class GameServerBootstrap : IAsyncDisposable
             .Channel<TcpServerSocketChannel>()
             .Option(ChannelOption.SoBacklog, 100)
             .Handler(new LoggingHandler("GAME-LSTN"))
-            .ChildHandler(new GamePipelineInitializer());
+            .ChildHandler(new GamePipelineInitializer(_encSettings));
 
         var boundChannel = await bootstrap.BindAsync(_settings.GamePort);
         GameLogger.Info("Server", $"GameServer started on port {_settings.GamePort}. Press Ctrl+C to stop.");
