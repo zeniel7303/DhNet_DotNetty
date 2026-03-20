@@ -38,9 +38,9 @@ public class LobbyChatScenario : ILoadTestScenario
         LoadTestStats.IncrementReceived();
         if (packet.PayloadCase == GamePacket.PayloadOneofCase.ResLogin)
         {
-            if (packet.ResLogin.PlayerId == 0)
+            if (packet.ResLogin.ErrorCode != ErrorCode.Success)
             {
-                GameLogger.Warn($"Client[{ctx.ClientIndex}]", "로그인 실패 (서버 거부)");
+                GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"로그인 실패: {packet.ResLogin.ErrorCode}");
                 return;
             }
             ctx.PlayerId = packet.ResLogin.PlayerId;

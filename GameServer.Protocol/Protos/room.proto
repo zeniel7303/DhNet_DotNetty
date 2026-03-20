@@ -2,8 +2,10 @@ syntax = "proto3";
 package dhnet;
 option csharp_namespace = "GameServer.Protocol";
 
+import "Protos/error_codes.proto";
+
 message ReqRoomEnter  {}
-message ResRoomEnter  { bool success = 1; }
+message ResRoomEnter  { ErrorCode error_code = 1; }
 message NotiRoomEnter { uint64 player_id = 1; string player_name = 2; }
 
 message ReqRoomChat   { string message = 1; }

@@ -2,6 +2,7 @@ syntax = "proto3";
 package dhnet;
 option csharp_namespace = "GameServer.Protocol";
 
+import "Protos/error_codes.proto";
 import "Protos/login.proto";
 import "Protos/lobby.proto";
 import "Protos/room.proto";

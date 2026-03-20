@@ -101,7 +101,7 @@ public class RoomComponent : BaseComponent
         }).FireAndForget("Room");
 
         _ = player.Session.SendAsync(new GamePacket
-            { ResRoomEnter = new ResRoomEnter { Success = true } });
+            { ResRoomEnter = new ResRoomEnter { ErrorCode = ErrorCode.Success } });
 
         var noti = new GamePacket
         {

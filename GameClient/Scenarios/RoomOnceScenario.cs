@@ -9,45 +9,21 @@ namespace GameClient.Scenarios;
 /// <summary>
 /// 로그인 → 로비채팅 → 룸 입장 → 룸 채팅 → 퇴장 → 연결 해제
 /// </summary>
-public class RoomOnceScenario : ILoadTestScenario
+public class RoomOnceScenario(string namePrefix) : BaseRoomScenario(namePrefix)
 {
-    private readonly string _namePrefix;
-
-    public RoomOnceScenario(string namePrefix) => _namePrefix = namePrefix;
-
-    public async Task OnConnectedAsync(IChannel channel, ClientContext ctx)
+    protected override async Task OnLoginSuccessAsync(IChannel channel, ClientContext ctx)
     {
-        LoadTestStats.IncrementConnected();
-        var name = $"{_namePrefix}{ctx.ClientIndex}";
-        GameLogger.Info($"Client[{ctx.ClientIndex}]", $"연결됨, 로그인 시도: {name}");
         await channel.WriteAndFlushAsync(new GamePacket
         {
-            ReqLogin = new ReqLogin { PlayerName = name }
+            ReqLobbyChat = new ReqLobbyChat { Message = "안녕하세요 로비!" }
         });
         LoadTestStats.IncrementSent();
     }
 
-    public async Task OnPacketReceivedAsync(IChannel channel, ClientContext ctx, GamePacket packet)
+    protected override async Task<bool> OnOtherPacketReceivedAsync(IChannel channel, ClientContext ctx, GamePacket packet)
     {
-        LoadTestStats.IncrementReceived();
         switch (packet.PayloadCase)
         {
-            case GamePacket.PayloadOneofCase.ResLogin:
-                if (packet.ResLogin.PlayerId == 0)
-                {
-                    GameLogger.Warn($"Client[{ctx.ClientIndex}]", "로그인 실패 (서버 거부)");
-                    return;
-                }
-                ctx.PlayerId = packet.ResLogin.PlayerId;
-                ctx.PlayerName = packet.ResLogin.PlayerName;
-                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"로그인 성공: {ctx.PlayerName}");
-                await channel.WriteAndFlushAsync(new GamePacket
-                {
-                    ReqLobbyChat = new ReqLobbyChat { Message = "안녕하세요 로비!" }
-                });
-                LoadTestStats.IncrementSent();
-                break;
-
             case GamePacket.PayloadOneofCase.NotiLobbyChat:
                 if (!ctx.RoomEnterSent)
                 {
@@ -55,13 +31,7 @@ public class RoomOnceScenario : ILoadTestScenario
                     await channel.WriteAndFlushAsync(new GamePacket { ReqRoomEnter = new ReqRoomEnter() });
                     LoadTestStats.IncrementSent();
                 }
-                break;
-
-            case GamePacket.PayloadOneofCase.ResRoomEnter:
-                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 입장 결과: Success={packet.ResRoomEnter.Success}");
-                if (!packet.ResRoomEnter.Success)
-                    ctx.ScheduleRoomEnterRetry(channel);
-                break;
+                return true;
 
             case GamePacket.PayloadOneofCase.NotiRoomEnter:
                 GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 입장 알림: {packet.NotiRoomEnter.PlayerName}");
@@ -73,7 +43,7 @@ public class RoomOnceScenario : ILoadTestScenario
                     });
                     LoadTestStats.IncrementSent();
                 }
-                break;
+                return true;
 
             case GamePacket.PayloadOneofCase.NotiRoomChat:
                 LoadTestStats.IncrementChatReceived();
@@ -95,30 +65,19 @@ public class RoomOnceScenario : ILoadTestScenario
                         }
                     });
                 }
-                break;
+                return true;
 
             case GamePacket.PayloadOneofCase.ResRoomExit:
                 GameLogger.Info($"Client[{ctx.ClientIndex}]", "룸 퇴장 완료 → 연결 해제");
                 await channel.CloseAsync();
-                break;
+                return true;
 
             case GamePacket.PayloadOneofCase.NotiRoomExit:
                 GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 퇴장 알림: {packet.NotiRoomExit.PlayerName}");
-                break;
-
-            case GamePacket.PayloadOneofCase.NotiSystem:
-                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"[시스템] {packet.NotiSystem.Message}");
-                break;
+                return true;
 
             default:
-                GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"미처리 패킷: {packet.PayloadCase}");
-                break;
+                return false;
         }
-    }
-
-    public void OnDisconnected(ClientContext ctx)
-    {
-        LoadTestStats.IncrementDisconnected();
-        GameLogger.Info($"Client[{ctx.ClientIndex}]", "연결 해제됨");
     }
 }

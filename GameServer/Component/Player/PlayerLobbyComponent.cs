@@ -39,9 +39,14 @@ public class PlayerLobbyComponent(PlayerComponent player) : BaseComponent
     public void RoomEnter(ReqRoomEnter req)
     {
         var lobby = CurrentLobby;
-        if (player.Room.CurrentRoom != null || lobby == null)
+        if (player.Room.CurrentRoom != null)
         {
-            _ = player.Session.SendAsync(new GamePacket { ResRoomEnter = new ResRoomEnter { Success = false } });
+            _ = player.Session.SendAsync(new GamePacket { ResRoomEnter = new ResRoomEnter { ErrorCode = ErrorCode.AlreadyInRoom } });
+            return;
+        }
+        if (lobby == null)
+        {
+            _ = player.Session.SendAsync(new GamePacket { ResRoomEnter = new ResRoomEnter { ErrorCode = ErrorCode.NotInLobby } });
             return;
         }
 

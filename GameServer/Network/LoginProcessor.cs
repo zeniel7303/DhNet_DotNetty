@@ -22,7 +22,7 @@ internal static class LoginProcessor
             GameLogger.Warn("Login", $"서버 정원 초과 ({PlayerSystem.Instance.MaxPlayers}명) — 로그인 거부");
             await session.SendAsync(new GamePacket
             {
-                ResLogin = new ResLogin { PlayerId = 0, PlayerName = string.Empty }
+                ResLogin = new ResLogin { PlayerId = 0, PlayerName = string.Empty, ErrorCode = ErrorCode.ServerFull }
             });
             return;
         }
@@ -46,7 +46,7 @@ internal static class LoginProcessor
             GameLogger.Error("Login", $"플레이어 DB 저장 실패: {player.Name}", ex);
             await session.SendAsync(new GamePacket
             {
-                ResLogin = new ResLogin { PlayerId = 0, PlayerName = string.Empty }
+                ResLogin = new ResLogin { PlayerId = 0, PlayerName = string.Empty, ErrorCode = ErrorCode.DbError }
             });
             return;
         }
@@ -93,7 +93,7 @@ internal static class LoginProcessor
             GameLogger.Warn("Login", $"로비 자동 배정 불가 — 모든 로비 만원: {player.Name}");
             await session.SendAsync(new GamePacket
             {
-                ResLogin = new ResLogin { PlayerId = 0, PlayerName = string.Empty }
+                ResLogin = new ResLogin { PlayerId = 0, PlayerName = string.Empty, ErrorCode = ErrorCode.LobbyFull }
             });
             player.DisconnectForNextTick();
             return;
@@ -122,7 +122,7 @@ internal static class LoginProcessor
         // 로비 입장 완료 후 ResLogin 전송
         await session.SendAsync(new GamePacket
         {
-            ResLogin = new ResLogin { PlayerId = player.PlayerId, PlayerName = player.Name }
+            ResLogin = new ResLogin { PlayerId = player.PlayerId, PlayerName = player.Name, ErrorCode = ErrorCode.Success }
         });
 
         DatabaseSystem.Instance.GameLog.LoginLogs.InsertAsync(new LoginLogRow

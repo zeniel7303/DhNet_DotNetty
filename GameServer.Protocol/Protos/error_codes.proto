@@ -1,0 +1,23 @@
+syntax = "proto3";
+package dhnet;
+option csharp_namespace = "GameServer.Protocol";
+
+// 서버 응답 에러 코드. 대역별로 오류 성격을 구분한다.
+//   0        : 성공
+//   1000~1999: 시스템 오류 (서버 과부하, DB 등)
+//   2000~2999: 로비 오류
+//   3000~3999: 룸 오류
+enum ErrorCode {
+  SUCCESS = 0;
+
+  // 시스템 (1000~)
+  SERVER_FULL = 1000;  // 서버 정원 초과
+  DB_ERROR    = 1001;  // DB 저장/조회 실패
+
+  // 로비 (2000~)
+  LOBBY_FULL   = 2000;  // 배정 가능한 로비 없음
+  NOT_IN_LOBBY = 2001;  // 로비 미입장 상태에서 요청
+
+  // 룸 (3000~)
+  ALREADY_IN_ROOM = 3000;  // 이미 룸에 입장한 상태에서 요청
+}
