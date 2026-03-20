@@ -10,6 +10,8 @@ public class ClientContext : IDisposable
     public int ClientIndex { get; init; }
     public ulong PlayerId { get; set; }
     public string PlayerName { get; set; } = string.Empty;
+    /// <summary>ReqRegister/ReqLogin.Password에 전송할 비밀번호. 봇은 "0000"으로 통일.</summary>
+    public string Password { get; set; } = "0000";
     public bool RoomEnterSent { get; set; }
     public bool RoomExitScheduled { get; set; }
     public int RoomEnterRetryCount { get; set; }

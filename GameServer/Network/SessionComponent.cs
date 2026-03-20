@@ -21,6 +21,7 @@ public class SessionComponent : IDisposable
     private int _disconnectedFlag;
     private int _entryHandshakeCompleted;
     private int _loginStarted;
+    private int _registerStarted;
 
     public SessionComponent(IChannel channel)
     {
@@ -43,6 +44,9 @@ public class SessionComponent : IDisposable
     // ReqLogin 중복 전송 시 LoginProcessor 병렬 실행 방지
     // 첫 번째 호출만 true 반환 — 이후 호출은 false (로그인 이미 시작됨)
     public bool TrySetLoginStarted() => Interlocked.CompareExchange(ref _loginStarted, 1, 0) == 0;
+
+    // ReqRegister 중복 전송 시 RegisterProcessor 병렬 실행 방지
+    public bool TrySetRegisterStarted() => Interlocked.CompareExchange(ref _registerStarted, 1, 0) == 0;
 
     public void Dispose()
     {

@@ -20,9 +20,9 @@ public class PlayerDbSet
     {
         const string sql = @"
             INSERT IGNORE INTO `players`
-                (`player_id`, `player_name`, `login_at`, `ip_address`)
+                (`player_id`, `player_name`, `login_at`, `ip_address`, `account_id`)
             VALUES
-                (@player_id, @player_name, @login_at, @ip_address)";
+                (@player_id, @player_name, @login_at, @ip_address, @account_id)";
         return _conn.ExecuteAsync(sql, row);
     }
 

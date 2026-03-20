@@ -20,4 +20,6 @@ Last Updated: 2026-03-20
 - ✅ 1.13 서버/클라 기본 키 동기화 (appsettings.json ↔ LoadTestConfig 동일 값 설정)
 - ✅ 1.14 부하 테스트 통과 (1000 클라이언트, lobby-chat, 30초, 에러 0)
 
-## 상태: ✅ 완료
+## 상태: ✅ Phase 1 완료 / Phase 2 완료 / Phase 3 미착수
+
+참고: Phase 2 상세 작업은 `dev/active/보안-3단계-구현/보안-3단계-구현-tasks.md` 참조

@@ -31,16 +31,24 @@ public class GameServerHandler : SimpleChannelInboundHandler<GamePacket>
     {
         if (_session == null) return;
 
-        if (packet.PayloadCase == GamePacket.PayloadOneofCase.ReqLogin)
+        switch (packet.PayloadCase)
         {
-            // TrySetLoginStarted: 중복 ReqLogin 전송 시 LoginProcessor 병렬 실행 방지
-            if (_session.TrySetLoginStarted())
-                _ = LoginProcessor.ProcessAsync(_session, packet.ReqLogin);
-        }
-        else
-        {
-            // 로그인 후 패킷은 세션 큐에 적재 — PlayerComponent 워커가 틱마다 드레인
-            _session.EnqueuePacket(packet);
+            case GamePacket.PayloadOneofCase.ReqRegister:
+                // TrySetRegisterStarted: 중복 ReqRegister 전송 시 RegisterProcessor 병렬 실행 방지
+                if (_session.TrySetRegisterStarted())
+                    _ = RegisterProcessor.ProcessAsync(_session, packet.ReqRegister);
+                break;
+
+            case GamePacket.PayloadOneofCase.ReqLogin:
+                // TrySetLoginStarted: 중복 ReqLogin 전송 시 LoginProcessor 병렬 실행 방지
+                if (_session.TrySetLoginStarted())
+                    _ = LoginProcessor.ProcessAsync(_session, packet.ReqLogin);
+                break;
+
+            default:
+                // 로그인 후 패킷은 세션 큐에 적재 — PlayerComponent 워커가 틱마다 드레인
+                _session.EnqueuePacket(packet);
+                break;
         }
     }
 
