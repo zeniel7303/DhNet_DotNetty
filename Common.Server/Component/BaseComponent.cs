@@ -54,9 +54,17 @@ public abstract class BaseComponent : IDisposable
             return;
         }
 
+        // 이벤트 하나의 예외가 나머지 이벤트 드롭으로 이어지지 않도록 개별 try/catch.
         while (_eventQueue.TryDequeue(out var job))
         {
-            job();
+            try
+            {
+                job();
+            }
+            catch (Exception ex)
+            {
+                GameLogger.Error("BaseComponent", $"Update 이벤트 처리 중 예외 (InstanceId={InstanceId}): {ex.Message}", ex);
+            }
         }
     }
 
