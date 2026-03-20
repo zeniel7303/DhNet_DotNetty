@@ -16,7 +16,7 @@ Last Updated: 2026-03-20
 - ✅ **1.7** `GameClient/LoadTestConfig.cs` — EncryptionKey + --encryption-key CLI
 - ✅ **1.8** `GameClient/Program.cs` — 두 파이프라인 모두 적용 (일반 + reconnect-stress)
 - ✅ **1.9** 빌드 성공 (경고 0, 오류 0)
-- [ ] **1.10** 실 키 설정 후 봇 부하 테스트 수동 검증
+- ✅ **1.10** 부하 테스트 통과 (암호화 ON/OFF 비교, 1000 클라이언트, 에러 0, 오버헤드 ~12%)
 
 ## Phase 2 — 회원가입 및 비밀번호 (4~16자)
 

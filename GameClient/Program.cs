@@ -66,6 +66,25 @@ class Program
             }, cts.Token);
         }
 
+        // 암호화 키 조기 검증 (Fail-fast): 잘못된 키를 개별 연결 실패로 오보고하지 않도록
+        // 클라이언트 생성 전에 한 번만 파싱하여 설정 오류를 즉시 노출
+        byte[]? encKey = null;
+        if (!string.IsNullOrEmpty(config.EncryptionKey))
+        {
+            try
+            {
+                encKey = Convert.FromBase64String(config.EncryptionKey);
+                if (encKey.Length != 16)
+                    throw new InvalidOperationException($"EncryptionKey는 16바이트여야 합니다. 현재: {encKey.Length}바이트.");
+                GameLogger.Info("Config", "패킷 암호화 활성화 (AES-128-GCM)");
+            }
+            catch (Exception ex)
+            {
+                GameLogger.Error("Config", $"--encryption-key 파싱 실패: {ex.Message}", ex);
+                return;
+            }
+        }
+
         try
         {
             var endpoint = new IPEndPoint(IPAddress.Parse(config.ServerHost), config.ServerPort);
@@ -74,7 +93,7 @@ class Program
             GameLogger.Info("Config", $"Tip: --clients {config.ClientCount}에서 --delay 5 를 권장합니다 (접속 분산)");
 
         var tasks = Enumerable.Range(0, config.ClientCount)
-                .Select(i => ConnectClientAsync(group, endpoint, i, config, cts.Token))
+                .Select(i => ConnectClientAsync(group, endpoint, i, config, encKey, cts.Token))
                 .ToArray();
 
             await Task.WhenAll(tasks);
@@ -92,6 +111,7 @@ class Program
         IPEndPoint endpoint,
         int clientIndex,
         LoadTestConfig config,
+        byte[]? encKey,
         CancellationToken token)
     {
         // Thundering Herd 방지: 클라이언트마다 딜레이
@@ -108,7 +128,7 @@ class Program
         // reconnect-stress: 재접속 루프를 직접 관리
         if (config.Scenario.Equals("reconnect-stress", StringComparison.OrdinalIgnoreCase))
         {
-            await RunReconnectLoopAsync(group, endpoint, clientIndex, config, token);
+            await RunReconnectLoopAsync(group, endpoint, clientIndex, config, encKey, token);
             return;
         }
 
@@ -132,6 +152,11 @@ class Program
                 var pipeline = channel.Pipeline;
                 pipeline.AddLast("framing-enc", new LengthFieldPrepender(2));
                 pipeline.AddLast("framing-dec", new LengthFieldBasedFrameDecoder(ushort.MaxValue, 0, 2, 0, 2));
+                if (encKey != null)
+                {
+                    pipeline.AddLast("crypto-dec", new AesGcmDecryptionHandler(encKey));
+                    pipeline.AddLast("crypto-enc", new AesGcmEncryptionHandler(encKey));
+                }
                 pipeline.AddLast("protobuf-decoder", new ProtobufDecoder(GamePacket.Parser));
                 pipeline.AddLast("protobuf-encoder", new ProtobufEncoder());
                 pipeline.AddLast("handler", new GameClientHandler(ctx, scenario));
@@ -177,6 +202,7 @@ class Program
         IPEndPoint endpoint,
         int clientIndex,
         LoadTestConfig config,
+        byte[]? encKey,
         CancellationToken token)
     {
         // Thundering Herd 방지 (기존 ConnectClientAsync와 동일)
@@ -201,6 +227,11 @@ class Program
                 var pipeline = ch.Pipeline;
                 pipeline.AddLast("framing-enc",      new LengthFieldPrepender(2));
                 pipeline.AddLast("framing-dec",      new LengthFieldBasedFrameDecoder(ushort.MaxValue, 0, 2, 0, 2));
+                if (encKey != null)
+                {
+                    pipeline.AddLast("crypto-dec", new AesGcmDecryptionHandler(encKey));
+                    pipeline.AddLast("crypto-enc", new AesGcmEncryptionHandler(encKey));
+                }
                 pipeline.AddLast("protobuf-decoder", new ProtobufDecoder(GamePacket.Parser));
                 pipeline.AddLast("protobuf-encoder", new ProtobufEncoder());
                 pipeline.AddLast("handler",          new GameClientHandler(ctx, scenario));

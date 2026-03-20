@@ -16,6 +16,10 @@ static class ServerStartup
             ?? throw new InvalidOperationException("appsettings.json에 'GameServer' 섹션이 없습니다.");
         var dbSettings = config.GetSection("Database").Get<DatabaseSettings>()
             ?? throw new InvalidOperationException("appsettings.json에 'Database' 섹션이 없습니다.");
+        var encSettings = config.GetSection("Encryption").Get<EncryptionSettings>()
+            ?? new EncryptionSettings();
+        if (!encSettings.IsEnabled)
+            GameLogger.Warn("Server", "[Encryption] Key가 비어있어 암호화가 비활성화되었습니다.");
 
         var dbResult = await DatabaseSystem.Instance.InitializeAsync(dbSettings);
         IdGenerators.Player.Initialize(dbResult.MaxPlayerId);
@@ -33,7 +37,7 @@ static class ServerStartup
 
         var statTask = StatLogger.RunAsync(cts.Token);
         var webTask  = WebServerHost.RunAsync(gameSettings.WebPort, cts.Token);
-        await using var server = new GameServerBootstrap(gameSettings);
+        await using var server = new GameServerBootstrap(gameSettings, encSettings);
         await server.RunAsync(cts.Token);
 
         await GameSystems.StopAsync();
