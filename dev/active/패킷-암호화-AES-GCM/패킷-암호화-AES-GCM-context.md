@@ -101,10 +101,24 @@ public string EncryptionKey { get; init; } = "AiZROpbIadx1uVbp64v7nQ==";
 
 ---
 
-## 다음 단계: Phase 2 (회원가입 및 비밀번호)
+## Phase 2 완료 상태 (2026-03-20)
 
-참조: `dev/active/보안-3단계-구현/보안-3단계-구현-plan.md` Phase 2 섹션
+Phase 2 (회원가입/비밀번호) 구현 완료. Opus 코드 리뷰까지 완료.
 
-Phase 2 시작 전 확인사항:
-- [ ] Phase 1 키 설정 후 실제 봇 부하 테스트 통과 확인
-- [ ] Phase 2 DB 스키마 변경 (accounts 테이블)
+주요 변경사항:
+- `accounts` 테이블 추가, `players.account_id` nullable 컬럼 추가
+- `RegisterProcessor.cs` 신규 (username/password 4~16자, INSERT IGNORE)
+- `LoginProcessor.cs` — AuthenticateAsync, player.Name = account.username (DB 값)
+- 클라 시나리오 3개 — OnConnected → ReqRegister, ResRegister → ReqLogin 플로우
+- BotToken 방식 폐기, 봇 비밀번호 "0000" 고정 (ClientContext.Password 기본값)
+
+코드 리뷰 결과: `dev/active/패킷-암호화-AES-GCM/패킷-암호화-AES-GCM-code-review.md` Phase 2 섹션 참조
+
+## 다음 단계: Phase 3 (BCrypt 해싱)
+
+참조: `dev/active/보안-3단계-구현/보안-3단계-구현-context.md` Phase 3 섹션
+
+Phase 3 시작 전 확인사항:
+- [ ] Phase 1+2 커밋 완료 (사용자가 직접 처리)
+- [ ] DB 적용 후 실제 테스트 (잘못된 비번 → INVALID_CREDENTIALS 확인)
+- [ ] Minor M1 수정: `RegisterProcessor.cs:121` `created!` null 방어 추가 (권장)

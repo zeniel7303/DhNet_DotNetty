@@ -13,9 +13,14 @@ internal static class LoginProcessor
     {
         if (session.Player != null)
         {
-            GameLogger.Warn("Login", $"중복 로그인 시도: {session.Player.Name}");
+            GameLogger.Warn("Login", $"이미 로그인된 세션에서 ReqLogin 수신 — 연결 종료: {session.Player.Name}");
+            await session.Channel.CloseAsync();
             return;
         }
+
+        // 계정 인증 — 실패 시 에러 응답 전송 후 null 반환
+        var account = await AuthenticateAsync(session, req.Username, req.Password);
+        if (account == null) return;
 
         if (PlayerSystem.Instance.Count >= PlayerSystem.Instance.MaxPlayers)
         {
@@ -27,7 +32,8 @@ internal static class LoginProcessor
             return;
         }
 
-        var player = new PlayerComponent(session, req.PlayerName);
+        // 플레이어 이름 = 계정 username (클라이언트 req.PlayerName 대신 DB 값 사용)
+        var player = new PlayerComponent(session, account.username);
         var loginAt = DateTime.UtcNow;
         var ip = session.Channel.RemoteAddress?.ToString();
 
@@ -38,7 +44,8 @@ internal static class LoginProcessor
                 player_id   = player.PlayerId,
                 player_name = player.Name,
                 login_at    = loginAt,
-                ip_address  = ip
+                ip_address  = ip,
+                account_id  = account.account_id
             });
         }
         catch (Exception ex)
@@ -132,5 +139,41 @@ internal static class LoginProcessor
             ip_address  = ip,
             login_at    = loginAt
         }).FireAndForget("Login");
+    }
+
+    /// <summary>
+    /// 계정 인증. 성공 시 AccountRow 반환, 실패 시 에러 응답 전송 후 null 반환.
+    /// username 없거나 password 불일치 → INVALID_CREDENTIALS (어느 쪽인지 노출 안 함).
+    /// Phase 3에서 BCrypt.Verify(password, account.password_hash)로 교체 예정.
+    /// </summary>
+    private static async Task<AccountRow?> AuthenticateAsync(SessionComponent session, string username, string password)
+    {
+        AccountRow? account;
+        try
+        {
+            account = await DatabaseSystem.Instance.Game.Accounts.SelectByUsernameAsync(username);
+        }
+        catch (Exception ex)
+        {
+            GameLogger.Error("Login", $"계정 조회 실패: {username}", ex);
+            await session.SendAsync(new GamePacket
+            {
+                ResLogin = new ResLogin { ErrorCode = ErrorCode.DbError }
+            });
+            return null;
+        }
+
+        // Phase 3: account.password_hash 대신 BCrypt.Verify(password, account.password_hash) 사용
+        if (account == null || account.password_hash != password)
+        {
+            GameLogger.Warn("Login", $"인증 실패: {username}");
+            await session.SendAsync(new GamePacket
+            {
+                ResLogin = new ResLogin { ErrorCode = ErrorCode.InvalidCredentials }
+            });
+            return null;
+        }
+
+        return account;
     }
 }

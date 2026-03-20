@@ -44,8 +44,11 @@ public class ReconnectStressScenario : ILoadTestScenario
         var name = $"{_namePrefix}{ctx.ClientIndex}";
         ctx.PlayerName = name;
 
-        GameLogger.Info($"Client[{ctx.ClientIndex}]", $"접속 완료 (재접속 {ctx.ReconnectCount}회차) → 로그인: {name}");
-        await channel.WriteAndFlushAsync(new GamePacket { ReqLogin = new ReqLogin { PlayerName = name } });
+        GameLogger.Info($"Client[{ctx.ClientIndex}]", $"접속 완료 (재접속 {ctx.ReconnectCount}회차) → 회원가입 시도: {name}");
+        await channel.WriteAndFlushAsync(new GamePacket
+        {
+            ReqRegister = new ReqRegister { Username = name, Password = ctx.Password }
+        });
         LoadTestStats.IncrementSent();
     }
 
@@ -55,6 +58,25 @@ public class ReconnectStressScenario : ILoadTestScenario
 
         switch (packet.PayloadCase)
         {
+            case GamePacket.PayloadOneofCase.ResRegister:
+                // SUCCESS: 신규 가입 / USERNAME_TAKEN: 재접속 봇 — 둘 다 로그인 진행
+                if (packet.ResRegister.ErrorCode == ErrorCode.Success ||
+                    packet.ResRegister.ErrorCode == ErrorCode.UsernameTaken)
+                {
+                    await channel.WriteAndFlushAsync(new GamePacket
+                    {
+                        ReqLogin = new ReqLogin { Username = ctx.PlayerName, Password = ctx.Password }
+                    });
+                    LoadTestStats.IncrementSent();
+                }
+                else
+                {
+                    GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"회원가입 실패: {packet.ResRegister.ErrorCode} → 연결 종료");
+                    LoadTestStats.IncrementErrors();
+                    await channel.CloseAsync();
+                }
+                break;
+
             case GamePacket.PayloadOneofCase.ResLogin:
                 if (packet.ResLogin.ErrorCode != ErrorCode.Success)
                 {

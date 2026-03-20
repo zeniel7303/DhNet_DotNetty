@@ -21,8 +21,11 @@ public abstract class BaseRoomScenario : ILoadTestScenario
     {
         LoadTestStats.IncrementConnected();
         var name = $"{_namePrefix}{ctx.ClientIndex}";
-        GameLogger.Info($"Client[{ctx.ClientIndex}]", $"연결됨, 로그인 시도: {name}");
-        await channel.WriteAndFlushAsync(new GamePacket { ReqLogin = new ReqLogin { PlayerName = name } });
+        GameLogger.Info($"Client[{ctx.ClientIndex}]", $"연결됨, 회원가입 시도: {name}");
+        await channel.WriteAndFlushAsync(new GamePacket
+        {
+            ReqRegister = new ReqRegister { Username = name, Password = ctx.Password }
+        });
         LoadTestStats.IncrementSent();
     }
 
@@ -31,6 +34,24 @@ public abstract class BaseRoomScenario : ILoadTestScenario
         LoadTestStats.IncrementReceived();
         switch (packet.PayloadCase)
         {
+            case GamePacket.PayloadOneofCase.ResRegister:
+                // SUCCESS: 신규 가입 / USERNAME_TAKEN: 이미 존재하는 봇 — 둘 다 로그인 진행
+                if (packet.ResRegister.ErrorCode == ErrorCode.Success ||
+                    packet.ResRegister.ErrorCode == ErrorCode.UsernameTaken)
+                {
+                    var name = $"{_namePrefix}{ctx.ClientIndex}";
+                    await channel.WriteAndFlushAsync(new GamePacket
+                    {
+                        ReqLogin = new ReqLogin { Username = name, Password = ctx.Password }
+                    });
+                    LoadTestStats.IncrementSent();
+                }
+                else
+                {
+                    GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"회원가입 실패: {packet.ResRegister.ErrorCode}");
+                }
+                break;
+
             case GamePacket.PayloadOneofCase.ResLogin:
                 if (packet.ResLogin.ErrorCode != ErrorCode.Success)
                 {

@@ -2,8 +2,8 @@ syntax = "proto3";
 package dhnet;
 option csharp_namespace = "GameServer.Protocol";
 
-import "Protos/error_codes.proto";
 import "Protos/login.proto";
+import "Protos/register.proto";
 import "Protos/lobby.proto";
 import "Protos/room.proto";
 import "Protos/heartbeat.proto";
@@ -28,5 +28,7 @@ message GamePacket {
     ReqLobbyList  req_lobby_list  = 15;
     ResLobbyList  res_lobby_list  = 16;
     NotiSystem    noti_system     = 17;
+    ReqRegister   req_register    = 18;
+    ResRegister   res_register    = 19;
   }
 }

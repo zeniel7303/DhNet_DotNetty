@@ -4,13 +4,12 @@ option csharp_namespace = "GameServer.Protocol";
 
 import "Protos/error_codes.proto";
 
-message ReqLogin {
+message ReqRegister {
   string username = 1;
   string password = 2;
 }
 
-message ResLogin {
-  uint64    player_id   = 1;
-  string    player_name = 2;
-  ErrorCode error_code  = 3;
+message ResRegister {
+  uint64    account_id = 1;
+  ErrorCode error_code = 2;
 }

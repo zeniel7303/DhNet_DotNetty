@@ -11,8 +11,12 @@ enum ErrorCode {
   SUCCESS = 0;
 
   // 시스템 (1000~)
-  SERVER_FULL = 1000;  // 서버 정원 초과
-  DB_ERROR    = 1001;  // DB 저장/조회 실패
+  SERVER_FULL             = 1000;  // 서버 정원 초과
+  DB_ERROR                = 1001;  // DB 저장/조회 실패
+  INVALID_USERNAME_LENGTH = 1002;  // username 4~16자 위반
+  INVALID_PASSWORD_LENGTH = 1003;  // 비밀번호 4~16자 위반
+  USERNAME_TAKEN          = 1004;  // 이미 사용 중인 username
+  INVALID_CREDENTIALS     = 1005;  // username/password 불일치
 
   // 로비 (2000~)
   LOBBY_FULL   = 2000;  // 배정 가능한 로비 없음
