@@ -13,7 +13,9 @@ public sealed class MessagePackGameSerializer : ISerializer
         MessagePackSerializerOptions.Standard.WithSecurity(MessagePackSecurity.UntrustedData);
 
     public byte[] Serialize(GamePacket packet)
-        => MessagePackSerializer.Serialize(packet, Options);
+    {
+        return MessagePackSerializer.Serialize(packet, Options);
+    }
 
     public GamePacket? Deserialize(byte[] data)
     {

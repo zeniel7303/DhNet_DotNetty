@@ -84,9 +84,16 @@ public sealed class GamePacket
 
     /// <summary>payload 타입으로 PacketType을 자동 추론하여 GamePacket을 생성한다.</summary>
     public static GamePacket From<T>(T payload) where T : IPacketPayload
-        => new() { Type = TypeMap[typeof(T)], Payload = payload };
+    {
+        return new GamePacket { Type = TypeMap[typeof(T)], Payload = payload };
+    }
 
     /// <summary>Payload를 지정 타입으로 캐스팅한다. Payload가 null이거나 타입 불일치 시 예외.</summary>
     public T As<T>() where T : class, IPacketPayload
-        => (T)(Payload ?? throw new InvalidOperationException($"Payload is null for PacketType={Type}"));
+    {
+        if (Payload == null)
+            throw new InvalidOperationException($"Payload is null for PacketType={Type}");
+
+        return (T)Payload;
+    }
 }

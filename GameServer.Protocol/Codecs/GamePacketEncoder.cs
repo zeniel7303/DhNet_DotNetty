@@ -12,7 +12,10 @@ public sealed class GamePacketEncoder : MessageToByteEncoder<GamePacket>
 {
     private readonly ISerializer _serializer;
 
-    public GamePacketEncoder(ISerializer serializer) => _serializer = serializer;
+    public GamePacketEncoder(ISerializer serializer)
+    {
+        _serializer = serializer;
+    }
 
     protected override void Encode(IChannelHandlerContext context, GamePacket message, IByteBuffer output)
     {

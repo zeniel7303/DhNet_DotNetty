@@ -15,7 +15,10 @@ public abstract class BaseRoomScenario : ILoadTestScenario
 {
     protected readonly string _namePrefix;
 
-    protected BaseRoomScenario(string namePrefix) => _namePrefix = namePrefix;
+    protected BaseRoomScenario(string namePrefix)
+    {
+        _namePrefix = namePrefix;
+    }
 
     public async Task OnConnectedAsync(IChannel channel, ClientContext ctx)
     {
@@ -95,12 +98,17 @@ public abstract class BaseRoomScenario : ILoadTestScenario
     protected abstract Task OnLoginSuccessAsync(IChannel channel, ClientContext ctx);
 
     /// <summary>룸 입장 성공(ResRoomEnter.Success) 직후 시나리오별 동작.</summary>
-    protected virtual Task OnRoomEnterSuccessAsync(IChannel channel, ClientContext ctx) => Task.CompletedTask;
+    protected virtual Task OnRoomEnterSuccessAsync(IChannel channel, ClientContext ctx)
+    {
+        return Task.CompletedTask;
+    }
 
     /// <summary>
     /// ResLogin/ResRoomEnter/NotiSystem/default 이외의 패킷 처리.
     /// 처리했으면 true, 미처리 패킷이면 false 반환 (false 시 기반 클래스가 경고 로그 출력).
     /// </summary>
     protected virtual Task<bool> OnOtherPacketReceivedAsync(IChannel channel, ClientContext ctx, GamePacket packet)
-        => Task.FromResult(false);
+    {
+        return Task.FromResult(false);
+    }
 }

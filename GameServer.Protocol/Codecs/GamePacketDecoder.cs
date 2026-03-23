@@ -13,7 +13,10 @@ public sealed class GamePacketDecoder : MessageToMessageDecoder<IByteBuffer>
 {
     private readonly ISerializer _serializer;
 
-    public GamePacketDecoder(ISerializer serializer) => _serializer = serializer;
+    public GamePacketDecoder(ISerializer serializer)
+    {
+        _serializer = serializer;
+    }
 
     protected override void Decode(IChannelHandlerContext context, IByteBuffer message, List<object> output)
     {
