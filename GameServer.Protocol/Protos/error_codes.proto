@@ -17,6 +17,7 @@ enum ErrorCode {
   INVALID_PASSWORD_LENGTH = 1003;  // 비밀번호 4~16자 위반
   USERNAME_TAKEN          = 1004;  // 이미 사용 중인 username
   INVALID_CREDENTIALS     = 1005;  // username/password 불일치
+  ALREADY_LOGGED_IN       = 1006;  // 이미 로그인 중인 계정
 
   // 로비 (2000~)
   LOBBY_FULL   = 2000;  // 배정 가능한 로비 없음

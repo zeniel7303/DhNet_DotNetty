@@ -135,11 +135,12 @@ class Program
         var ctx = new ClientContext { ClientIndex = clientIndex };
         ILoadTestScenario scenario = config.Scenario.ToLower() switch
         {
-            "room"      => new RoomScenario(config.PlayerNamePrefix),
-            "room-once" => new RoomOnceScenario(config.PlayerNamePrefix),
-            "room-chat" => new RoomChatScenario(config.PlayerNamePrefix, config.ChatIntervalMs, token),
-            "room-loop" => new RoomLoopScenario(config.PlayerNamePrefix),
-            _           => new LobbyChatScenario(config.PlayerNamePrefix, config.ChatIntervalMs, token),
+            "room"             => new RoomScenario(config.PlayerNamePrefix),
+            "room-once"        => new RoomOnceScenario(config.PlayerNamePrefix),
+            "room-chat"        => new RoomChatScenario(config.PlayerNamePrefix, config.ChatIntervalMs, token),
+            "room-loop"        => new RoomLoopScenario(config.PlayerNamePrefix),
+            "duplicate-login"  => new DuplicateLoginScenario(config.PlayerNamePrefix),
+            _                  => new LobbyChatScenario(config.PlayerNamePrefix, config.ChatIntervalMs, token),
         };
 
         var bootstrap = new Bootstrap();
