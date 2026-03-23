@@ -8,6 +8,9 @@ namespace GameServer.Network;
 public class GameServerHandler : SimpleChannelInboundHandler<GamePacket>
 {
     private SessionComponent? _session;
+    // CloseAsync() 이후 ChannelRead0 재진입 방지 — 로그/CloseAsync 중복 차단
+    // I/O 이벤트 루프 단일 스레드에서만 접근하므로 일반 bool로 충분
+    private bool _closing;
 
     public override void ChannelActive(IChannelHandlerContext ctx)
     {
@@ -29,7 +32,7 @@ public class GameServerHandler : SimpleChannelInboundHandler<GamePacket>
 
     protected override void ChannelRead0(IChannelHandlerContext ctx, GamePacket packet)
     {
-        if (_session == null) return;
+        if (_session == null || _closing) return;
 
         switch (packet.PayloadCase)
         {
@@ -46,8 +49,29 @@ public class GameServerHandler : SimpleChannelInboundHandler<GamePacket>
                 break;
 
             default:
-                // 로그인 후 패킷은 세션 큐에 적재 — PlayerComponent 워커가 틱마다 드레인
-                _session.EnqueuePacket(packet);
+                // 미인증 세션에서 게임 패킷 수신 시 즉시 연결 종료
+                // 인증 후는 워커(틱 100ms)가 매 틱 큐 전체를 드레인하므로 큐 상한 불필요
+                if (!_session.IsEntryHandshakeCompleted)
+                {
+                    if (!_closing)
+                    {
+                        _closing = true;
+                        GameLogger.Warn("GameServerHandler",
+                            $"미인증 세션 게임 패킷 수신 ({packet.PayloadCase}) — 연결 종료: {ctx.Channel.RemoteAddress}");
+                        _ = ctx.CloseAsync();
+                    }
+                    return;
+                }
+                // 인증 후 패킷: 모든 정책(PacketPairPolicy, PacketRatePolicy) 검증 후 큐 적재
+                // 정책 위반 시 연결 종료 — 로그는 SessionComponent.ProcessPacket에서 출력됨
+                if (!_session.ProcessPacket(packet))
+                {
+                    if (!_closing)
+                    {
+                        _closing = true;
+                        _ = ctx.CloseAsync();
+                    }
+                }
                 break;
         }
     }

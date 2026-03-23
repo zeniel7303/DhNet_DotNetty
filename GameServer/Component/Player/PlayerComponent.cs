@@ -46,6 +46,7 @@ public class PlayerComponent : BaseComponent
         _routeTable = RegisterControllers();
         Lobby.Initialize();
         Room.Initialize();
+        Session.PacketHandler = HandlePacket;
     }
 
     private IReadOnlyDictionary<Type, IRouter> RegisterControllers()
@@ -81,40 +82,38 @@ public class PlayerComponent : BaseComponent
         // IsDisposed가 true이면 이미 Dispose된 상태이므로 패킷 처리 스킵
         if (IsDisposed) return;
 
-        DrainSessionPackets();
+        // 큐 드레인은 SessionComponent 소유 — 라우팅만 HandlePacket 콜백으로 위임
+        Session.DrainPackets();
     }
 
-    // WorkerSystem: InstanceId % workerCount → 동일 PlayerComponent는 항상 동일 워커에 고정.
-    // 따라서 DrainSessionPackets는 단일 스레드에서 직렬 실행이 보장된다.
-    private void DrainSessionPackets()
+    // SessionComponent.PacketHandler로 등록 — 드레인된 패킷 1개씩 수신하여 라우팅
+    // WorkerSystem: 동일 PlayerComponent는 항상 동일 워커에 고정 → 단일 스레드 직렬 실행 보장
+    private void HandlePacket(GamePacket packet)
     {
-        while (Session.TryDequeuePacket(out var packet))
+        try
         {
-            try
+            var (type, payload) = packet.ExtractPayload();
+            if (type == null || payload == null)
             {
-                var (type, payload) = packet!.ExtractPayload();
-                if (type == null || payload == null)
-                {
-                    GameLogger.Warn("PlayerComponent", $"미처리 패킷: {packet!.PayloadCase}");
-                    continue;
-                }
-
-                if (!_routeTable.TryGetValue(type, out var router))
-                {
-                    GameLogger.Warn("PlayerComponent", $"라우터 없음: {type.Name}");
-                    continue;
-                }
-
-                router.Handle(payload, response =>
-                {
-                    if (response is GamePacket packet)
-                        _ = Session.SendAsync(packet);
-                });
+                GameLogger.Warn("PlayerComponent", $"미처리 패킷: {packet.PayloadCase}");
+                return;
             }
-            catch (Exception ex)
+
+            if (!_routeTable.TryGetValue(type, out var router))
             {
-                GameLogger.Error("PlayerComponent", $"패킷 처리 오류: {packet!.PayloadCase}", ex);
+                GameLogger.Warn("PlayerComponent", $"라우터 없음: {type.Name}");
+                return;
             }
+
+            router.Handle(payload, response =>
+            {
+                if (response is GamePacket p)
+                    _ = Session.SendAsync(p);
+            });
+        }
+        catch (Exception ex)
+        {
+            GameLogger.Error("PlayerComponent", $"패킷 처리 오류: {packet.PayloadCase}", ex);
         }
     }
 

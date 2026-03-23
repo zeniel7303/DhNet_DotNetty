@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Common.Logging;
 using DotNetty.Transport.Channels;
 using GameServer.Component.Player;
+using GameServer.Network.Policies;
 using GameServer.Protocol;
 
 namespace GameServer.Network;
@@ -26,13 +27,62 @@ public class SessionComponent : IDisposable
     public SessionComponent(IChannel channel)
     {
         Channel = channel;
+        _packetPolicies =
+        [
+            PacketPairPolicy.Create(t => _packetQueue.Count(p => p.PayloadCase == t)),
+            PacketRatePolicy.Create(),
+        ];
     }
 
-    public void AttachPlayer(PlayerComponent player) => Player = player;
-    public void DetachPlayer() => Player = null;
+    // 인증 후 패킷 처리 콜백 — PlayerComponent.Initialize()에서 등록, DetachPlayer()에서 해제
+    public Action<GamePacket>? PacketHandler { get; set; }
 
-    public void EnqueuePacket(GamePacket packet) => _packetQueue.Enqueue(packet);
-    public bool TryDequeuePacket(out GamePacket? packet) => _packetQueue.TryDequeue(out packet);
+    // 패킷 정책 배열 — 수신 시 VerifyPolicy, 처리 후 UpdatePolicy 순서로 실행
+    private readonly IPacketPolicy[] _packetPolicies;
+
+    public void AttachPlayer(PlayerComponent player) => Player = player;
+
+    public void DetachPlayer()
+    {
+        Player = null;
+        PacketHandler = null;
+    }
+
+    // 모든 정책을 순서대로 검증한다.
+    // 반환값: true = 적재 성공, false = 정책 위반 (호출자가 연결 종료 및 로그 책임)
+    // I/O 이벤트 루프 단일 스레드에서만 호출됨
+    public bool ProcessPacket(GamePacket packet)
+    {
+        var type = packet.PayloadCase;
+        foreach (var policy in _packetPolicies)
+        {
+            var result = policy.VerifyPolicy(type);
+            if (!result.Result)
+            {
+                GameLogger.Warn("SessionComponent", $"패킷 정책 위반 [{result}]");
+                return false;
+            }
+        }
+        _packetQueue.Enqueue(packet);
+        return true;
+    }
+
+    // 워커 틱(100ms)마다 PlayerComponent.Update()에서 호출
+    // 패킷 처리 후 모든 정책의 UpdatePolicy를 실행하여 상태를 갱신한다
+    public void DrainPackets()
+    {
+        while (_packetQueue.TryDequeue(out var packet))
+        {
+            PacketHandler?.Invoke(packet);
+
+            var type = packet.PayloadCase;
+            foreach (var policy in _packetPolicies)
+            {
+                policy.UpdatePolicy(type);
+            }
+        }
+    }
+
     public Task SendAsync(GamePacket packet) => Channel.WriteAndFlushAsync(packet);
 
     public bool IsDisconnected => _disconnectedFlag == 1;
@@ -54,6 +104,9 @@ public class SessionComponent : IDisposable
         {
             return;
         }
+
+        foreach (var policy in _packetPolicies)
+            policy.Clear();
 
         // TaskScheduler.Default 필수: 명시하지 않으면 TaskScheduler.Current를 상속하여
         // I/O 이벤트 루프 스레드에 continuation이 예약될 수 있다.
