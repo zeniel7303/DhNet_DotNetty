@@ -295,6 +295,40 @@ if (!enqueued) tcs.TrySetCanceled();
 
 ---
 
+### 2026-03-23 — account_id 스키마 정제, 패킷 정책 시스템, 중복 로그인 방지
+
+#### account_id 스키마 정제 — INSERT 후 SELECT 제거
+
+회원가입 시 `INSERT → SELECT(account_id 조회)` 2-step 패턴을 사용하고 있었다.
+DB 왕복이 한 번 더 발생하고, INSERT 직후 SELECT가 실패하는 예외 경로도 존재했다.
+
+`IdGenerators.Account.Next()`로 account_id를 서버에서 미리 생성해 INSERT에 포함하는 방식으로 변경했다.
+SELECT가 불필요해졌고, `player_id` 생성기를 `account_id` 생성기로 이름을 정리해 ID 의미가 명확해졌다.
+
+#### 패킷 정책 시스템 도입 — 미인증 세션 보호 + 어뷰징 차단
+
+로그인 완료 전 게임 패킷이 수신되거나, 동일 타입 패킷이 과도하게 쌓이는 경우에 대한 방어가 없었다.
+
+`IPacketPolicy` 인터페이스를 도입하고 세 가지 정책을 구현했다:
+- **PacketHandshakePolicy**: 미인증 세션에서 게임 패킷 수신 시 즉시 연결 종료 (auth gate)
+- **PacketPairPolicy**: 큐에 동일 타입 패킷이 이미 적재된 경우 중복 차단 (delegate 주입으로 큐 접근)
+- **PacketRatePolicy**: 슬라이딩 윈도우 기반 초당 패킷 수 제한 (기본 60pps)
+
+`DrainPackets` 소유권을 `PlayerComponent`에서 `SessionComponent`로 이관했다.
+`SessionComponent.PacketHandler` 델리게이트로 라우팅을 분리해 정책 적용 후 처리 흐름이 단일화됐다.
+
+#### 동일 계정 다중 로그인 방지 — TryReserveLogin 패턴 (BUG-2)
+
+두 세션이 동시에 같은 계정으로 로그인을 시도하면, 두 요청 모두 `_players`에 없는 것을 확인하고 진행해 중복 등록이 가능했다(TOCTOU).
+
+`PlayerSystem._reservedAccounts`를 도입했다:
+- DB Insert **전**에 account_id를 `ConcurrentDictionary`에 원자적으로 예약 (`TryAdd`)
+- 이미 예약됐거나 활성인 경우 `ALREADY_LOGGED_IN(1006)` 응답 후 즉시 반환
+- `Add()`에서 `_players` 추가 완료 후 reservation 제거 (역순 시 TOCTOU 발생 가능)
+- `Remove()`에서 예약 잔류 안전망 정리, DB Insert 실패 시 `ImmediateFinalize`로 누수 방지
+
+---
+
 ## 기술적 도전 요약
 
 ### 🔄 동시성 — CAS / Lock-Free
@@ -364,3 +398,6 @@ if (!enqueued) tcs.TrySetCanceled();
 | User Enumeration | username 존재 여부를 에러 코드로 노출 | username 없음·password 불일치 모두 `INVALID_CREDENTIALS` 동일 응답 |
 | 이름 조작 | 클라이언트가 임의 이름으로 로그인 가능 | 로그인 성공 시 DB `accounts.username` 값만 사용 (req 입력 무시) |
 | Log Injection | 검증 실패 로그에 외부 입력 원문 포함 | 길이 정보만 기록, 원문 username 제거 |
+| 미인증 세션 게임 패킷 수신 | 로그인 완료 전 게임 패킷 수신 가능 | `PacketHandshakePolicy` — auth gate, 즉시 연결 종료 |
+| 패킷 어뷰징 (flooding/중복) | 동일 타입 패킷 과다 전송으로 큐 적재 | `PacketPairPolicy`(동일 타입 중복 차단), `PacketRatePolicy`(60pps 슬라이딩 윈도우) |
+| 동일 계정 다중 로그인 (TOCTOU) | DB Insert 전 `_players` 확인만으로는 동시 요청 차단 불가 | `TryReserveLogin` — `_reservedAccounts` CAS 예약으로 레이스 윈도우 원천 차단 |

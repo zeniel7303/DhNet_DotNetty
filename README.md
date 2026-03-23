@@ -137,7 +137,7 @@ await session.EnqueueEventAsync(() => { /* 상태 변경 */ });
 - **봇 재접속** — `ReqRegister` → `USERNAME_TAKEN` → `ReqLogin` 순서로 신규/기존 계정 모두 동일 처리
 - **이름 신뢰성** — 클라이언트 입력값 무시, DB의 `accounts.username` 값 사용 (조작 불가)
 - **User Enumeration 방지** — username 없음과 password 불일치 모두 `INVALID_CREDENTIALS` 동일 응답
-- **중복 로그인 차단** — 이미 로그인된 세션에서 `ReqLogin` 재수신 시 즉시 연결 종료
+- **중복 로그인 차단** — DB Insert 전 `TryReserveLogin`으로 account_id 원자적 예약 → 중복 시 `ALREADY_LOGGED_IN(1006)` 응답
 - **워커 고정** — `PlayerGameEnter` 이후 `InstanceId % workerCount`로 동일 플레이어 패킷이 항상 단일 스레드에서 처리
 
 #### 에러 코드
@@ -151,6 +151,7 @@ await session.EnqueueEventAsync(() => { /* 상태 변경 */ });
 | `INVALID_PASSWORD_LENGTH` | 1003 | ReqRegister — password 4~16자 위반 |
 | `USERNAME_TAKEN` | 1004 | ReqRegister — 중복 username (로그인 진행) |
 | `INVALID_CREDENTIALS` | 1005 | ReqLogin — username/password 불일치 |
+| `ALREADY_LOGGED_IN` | 1006 | ReqLogin — 이미 로그인 중인 계정 |
 | `LOBBY_FULL` | 2000 | ReqLogin/ReqRoomEnter — 배정 가능한 로비/룸 없음 |
 | `NOT_IN_LOBBY` | 2001 | ReqRoomEnter — 로비 미입장 상태 |
 | `ALREADY_IN_ROOM` | 3000 | ReqRoomEnter — 이미 룸에 입장한 상태 |
@@ -266,6 +267,7 @@ DhNet_DotNetty/
 │   ├── Controllers/     PlayerLobbyController, PlayerRoomController, PlayerHeartbeatController
 │   ├── Network/         GameServerBootstrap, GamePipelineInitializer, GameServerHandler, LoginProcessor
 │   │                    AesGcmDecryptionHandler, AesGcmEncryptionHandler
+│   │   └── Policies/    IPacketPolicy, PacketPairPolicy, PacketRatePolicy, PacketHandshakePolicy
 │   ├── Systems/         SessionSystem, PlayerSystem, LobbySystem, StatLogger
 │   └── Web/             WebServerHost, Middleware 3종, REST Controller 8종
 ├── GameClient/
