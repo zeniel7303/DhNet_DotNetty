@@ -1,7 +1,6 @@
 using Dapper;
 using GameServer.Database.Rows;
 using GameServer.Database.System;
-using MySqlConnector;
 
 namespace GameServer.Database.DbSet;
 
@@ -14,33 +13,26 @@ public class PlayerDbSet
 
     /// <summary>
     /// 로그인 시 플레이어 레코드 삽입.
-    /// INSERT IGNORE: player_id 중복(서버 재시작)은 조용히 무시한다.
+    /// INSERT IGNORE: account_id 중복(서버 재시작)은 조용히 무시한다.
     /// </summary>
     public Task<int> InsertAsync(PlayerRow row)
     {
         const string sql = @"
             INSERT IGNORE INTO `players`
-                (`player_id`, `player_name`, `login_at`, `ip_address`, `account_id`)
+                (`account_id`, `player_name`, `login_at`, `ip_address`)
             VALUES
-                (@player_id, @player_name, @login_at, @ip_address, @account_id)";
+                (@account_id, @player_name, @login_at, @ip_address)";
         return _conn.ExecuteAsync(sql, row);
     }
 
     /// <summary>접속 종료 시 logout_at 업데이트.</summary>
-    public Task<int> UpdateLogoutAsync(ulong playerId, DateTime logoutAt)
+    public Task<int> UpdateLogoutAsync(ulong accountId, DateTime logoutAt)
     {
         const string sql = @"
             UPDATE `players`
             SET `logout_at` = @logout_at
-            WHERE `player_id` = @player_id AND `logout_at` IS NULL";
-        return _conn.ExecuteAsync(sql, new { player_id = playerId, logout_at = logoutAt });
-    }
-
-    /// <summary>서버 시작 시 IdGenerator 초기화에 사용.</summary>
-    public Task<ulong> GetMaxPlayerIdAsync()
-    {
-        const string sql = "SELECT COALESCE(MAX(`player_id`), 0) FROM `players`";
-        return _conn.ExecuteScalarAsync<ulong>(sql)!;
+            WHERE `account_id` = @account_id AND `logout_at` IS NULL";
+        return _conn.ExecuteAsync(sql, new { account_id = accountId, logout_at = logoutAt });
     }
 
     // TODO [미래]: GetByNameAsync(string name) - 로그인 시 계정 인증

@@ -18,7 +18,7 @@ public class PlayersController : ControllerBase
                 var lobby = p.Lobby;
                 var room  = p.Room;
                 return new PlayerDto(
-                    p.PlayerId,
+                    p.AccountId,
                     p.Name,
                     lobby?.CurrentLobby?.LobbyId,
                     room?.CurrentRoom?.RoomId);

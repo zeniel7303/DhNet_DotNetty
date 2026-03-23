@@ -6,7 +6,7 @@ namespace GameServer.Database.Rows;
 /// </summary>
 public class RoomLogRow
 {
-    public ulong player_id { get; set; }
+    public ulong account_id { get; set; }
     public ulong room_id { get; set; }
     public string action { get; set; } = "";
     public DateTime created_at { get; set; }

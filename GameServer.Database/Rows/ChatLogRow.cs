@@ -7,7 +7,7 @@ namespace GameServer.Database.Rows;
 /// </summary>
 public class ChatLogRow
 {
-    public ulong player_id { get; set; }
+    public ulong account_id { get; set; }
     public ulong? room_id { get; set; }
     public string channel { get; set; } = "";
     public string message { get; set; } = "";

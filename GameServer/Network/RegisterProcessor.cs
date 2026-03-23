@@ -2,11 +2,14 @@ using Common.Logging;
 using GameServer.Database;
 using GameServer.Database.Rows;
 using GameServer.Protocol;
+using GameServer.Systems;
 
 namespace GameServer.Network;
 
 /// <summary>
 /// 회원가입 처리. ReqRegister 패킷을 받아 계정을 생성하고 ResRegister를 반환한다.
+/// account_id는 IdGenerators.Account.Next()로 미리 생성하여 INSERT에 포함하므로
+/// INSERT 후 SELECT가 불필요하다.
 /// DB에는 Phase 2에서 평문 password를 저장하며, Phase 3(BCrypt)에서 해시로 교체된다.
 /// </summary>
 internal static class RegisterProcessor
@@ -45,6 +48,9 @@ internal static class RegisterProcessor
             return;
         }
 
+        // account_id를 미리 생성하여 INSERT에 포함 — SELECT 불필요
+        var accountId = IdGenerators.Account.Next();
+
         // 계정 삽입. INSERT IGNORE: 중복 username이면 rows_affected == 0 반환.
         // SELECT-then-INSERT 패턴은 TOCTOU race condition을 유발하므로 사용하지 않는다.
         int inserted;
@@ -52,6 +58,7 @@ internal static class RegisterProcessor
         {
             inserted = await DatabaseSystem.Instance.Game.Accounts.InsertAsync(new AccountRow
             {
+                account_id    = accountId,
                 username      = username,
                 password_hash = password,  // Phase 3에서 BCrypt.HashPassword(password, 11)로 교체
                 created_at    = DateTime.UtcNow
@@ -77,38 +84,12 @@ internal static class RegisterProcessor
             return;
         }
 
-        // 생성된 account_id 조회
-        AccountRow? created;
-        try
-        {
-            created = await DatabaseSystem.Instance.Game.Accounts.SelectByUsernameAsync(username);
-        }
-        catch (Exception ex)
-        {
-            GameLogger.Error("Register", $"account_id 조회 실패: {username}", ex);
-            await session.SendAsync(new GamePacket
-            {
-                ResRegister = new ResRegister { AccountId = 0, ErrorCode = ErrorCode.DbError }
-            });
-            return;
-        }
-
-        if (created == null)
-        {
-            GameLogger.Error("Register", $"INSERT 성공 후 SELECT 실패: {username}");
-            await session.SendAsync(new GamePacket
-            {
-                ResRegister = new ResRegister { AccountId = 0, ErrorCode = ErrorCode.DbError }
-            });
-            return;
-        }
-
-        GameLogger.Info("Register", $"계정 생성 완료: {username} (account_id={created.account_id})");
+        GameLogger.Info("Register", $"계정 생성 완료: {username} (account_id={accountId})");
         await session.SendAsync(new GamePacket
         {
             ResRegister = new ResRegister
             {
-                AccountId = created.account_id,
+                AccountId = accountId,
                 ErrorCode = ErrorCode.Success
             }
         });

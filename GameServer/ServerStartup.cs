@@ -22,9 +22,9 @@ static class ServerStartup
             GameLogger.Warn("Server", "[Encryption] Key가 비어있어 암호화가 비활성화되었습니다.");
 
         var dbResult = await DatabaseSystem.Instance.InitializeAsync(dbSettings);
-        IdGenerators.Player.Initialize(dbResult.MaxPlayerId);
+        IdGenerators.Account.Initialize(dbResult.MaxAccountId);
         IdGenerators.Room.Initialize(dbResult.MaxRoomId);
-        GameLogger.Info("Server", $"IdGenerators 초기화: Player={dbResult.MaxPlayerId}, Room={dbResult.MaxRoomId}");
+        GameLogger.Info("Server", $"IdGenerators 초기화: Account={dbResult.MaxAccountId}, Room={dbResult.MaxRoomId}");
 
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) =>

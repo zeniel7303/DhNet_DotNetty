@@ -44,7 +44,7 @@ public class LobbyComponent : BaseComponent
             if (current >= MaxCapacity) return false;
         } while (Interlocked.CompareExchange(ref _playerCount, current + 1, current) != current);
 
-        if (!_players.TryAdd(player.PlayerId, player))
+        if (!_players.TryAdd(player.AccountId, player))
         {
             Interlocked.Decrement(ref _playerCount);
             GameLogger.Warn($"Lobby:{LobbyId}", $"중복 입장 거부, 슬롯 반환: {player.Name}");
@@ -59,7 +59,7 @@ public class LobbyComponent : BaseComponent
 
     public void Leave(PlayerComponent player)
     {
-        if (!_players.TryRemove(player.PlayerId, out _))
+        if (!_players.TryRemove(player.AccountId, out _))
         {
             // 룸 입장 중 disconnect 시 이미 로비에서 퇴장한 상태일 수 있음 — 정상 경로
             GameLogger.Info($"Lobby:{LobbyId}", $"퇴장 요청: {player.Name} — 목록에 없음 (무시됨)");
@@ -75,7 +75,7 @@ public class LobbyComponent : BaseComponent
     {
         // DatabaseSystem.Instance.GameLog.ChatLogs.InsertAsync(new ChatLogRow
         // {
-        //     player_id  = sender.PlayerId,
+        //     account_id = sender.AccountId,
         //     room_id    = null,
         //     channel    = $"lobby:{LobbyId}",
         //     message    = message,
@@ -86,7 +86,7 @@ public class LobbyComponent : BaseComponent
         {
             NotiLobbyChat = new NotiLobbyChat
             {
-                PlayerId   = sender.PlayerId,
+                PlayerId   = sender.AccountId,
                 PlayerName = sender.Name,
                 Message    = message
             }
