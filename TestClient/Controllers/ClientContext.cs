@@ -1,9 +1,9 @@
 using Common.Logging;
 using DotNetty.Transport.Channels;
-using GameClient.Stats;
+using TestClient.Stats;
 using GameServer.Protocol;
 
-namespace GameClient.Controllers;
+namespace TestClient.Controllers;
 
 public class ClientContext : IDisposable
 {

@@ -1,8 +1,8 @@
 using DotNetty.Transport.Channels;
-using GameClient.Controllers;
+using TestClient.Controllers;
 using GameServer.Protocol;
 
-namespace GameClient.Scenarios;
+namespace TestClient.Scenarios;
 
 public interface ILoadTestScenario
 {

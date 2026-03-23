@@ -7,13 +7,13 @@ using DotNetty.Handlers.Logging;
 using DotNetty.Transport.Bootstrapping;
 using DotNetty.Transport.Channels;
 using DotNetty.Transport.Channels.Sockets;
-using GameClient.Controllers;
-using GameClient.Network;
-using GameClient.Scenarios;
-using GameClient.Stats;
+using TestClient.Controllers;
+using TestClient.Network;
+using TestClient.Scenarios;
+using TestClient.Stats;
 using GameServer.Protocol;
 
-namespace GameClient;
+namespace TestClient;
 
 class Program
 {

@@ -1,10 +1,10 @@
 using Common.Logging;
 using DotNetty.Transport.Channels;
-using GameClient.Controllers;
-using GameClient.Stats;
+using TestClient.Controllers;
+using TestClient.Stats;
 using GameServer.Protocol;
 
-namespace GameClient.Scenarios;
+namespace TestClient.Scenarios;
 
 /// <summary>
 /// 로그인 → 로비채팅 → 룸 입장 → 룸 채팅 → 룸 퇴장 시나리오 (기존 흐름)

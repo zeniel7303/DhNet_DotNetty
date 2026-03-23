@@ -3,7 +3,7 @@ using DotNetty.Buffers;
 using DotNetty.Codecs;
 using DotNetty.Transport.Channels;
 
-namespace GameClient.Network;
+namespace TestClient.Network;
 
 /// <summary>
 /// 아웃바운드 AES-GCM 암호화 핸들러 (클라이언트 측).

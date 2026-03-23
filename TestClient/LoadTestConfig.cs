@@ -1,4 +1,4 @@
-namespace GameClient;
+namespace TestClient;
 
 public record LoadTestConfig
 {

@@ -1,11 +1,11 @@
 using Common.Logging;
 using DotNetty.Transport.Channels;
-using GameClient.Controllers;
-using GameClient.Scenarios;
-using GameClient.Stats;
+using TestClient.Controllers;
+using TestClient.Scenarios;
+using TestClient.Stats;
 using GameServer.Protocol;
 
-namespace GameClient.Network;
+namespace TestClient.Network;
 
 public class GameClientHandler : SimpleChannelInboundHandler<GamePacket>
 {

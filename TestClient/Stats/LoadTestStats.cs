@@ -1,6 +1,6 @@
 using Common.Logging;
 
-namespace GameClient.Stats;
+namespace TestClient.Stats;
 
 public static class LoadTestStats
 {
