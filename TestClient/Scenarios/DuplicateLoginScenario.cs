@@ -1,10 +1,10 @@
 using Common.Logging;
 using DotNetty.Transport.Channels;
-using GameClient.Controllers;
-using GameClient.Stats;
+using TestClient.Controllers;
+using TestClient.Stats;
 using GameServer.Protocol;
 
-namespace GameClient.Scenarios;
+namespace TestClient.Scenarios;
 
 /// <summary>
 /// 동일 계정으로 동시 다중 로그인을 시도하는 테스트 시나리오.

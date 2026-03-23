@@ -1,10 +1,10 @@
 using Common.Logging;
 using DotNetty.Transport.Channels;
-using GameClient.Controllers;
-using GameClient.Stats;
+using TestClient.Controllers;
+using TestClient.Stats;
 using GameServer.Protocol;
 
-namespace GameClient.Scenarios;
+namespace TestClient.Scenarios;
 
 /// <summary>
 /// 스트레스 테스트: 접속 → 로그인 → 룸 입장 → 채팅 N회 → 룸 퇴장 → 접속 해제 → 재접속 무한 반복.

@@ -1,10 +1,10 @@
 using Common.Logging;
 using DotNetty.Transport.Channels;
-using GameClient.Controllers;
-using GameClient.Stats;
+using TestClient.Controllers;
+using TestClient.Stats;
 using GameServer.Protocol;
 
-namespace GameClient.Scenarios;
+namespace TestClient.Scenarios;
 
 /// <summary>
 /// 로그인 → 룸 흐름 시나리오의 공통 로직을 담은 추상 기반 클래스.
