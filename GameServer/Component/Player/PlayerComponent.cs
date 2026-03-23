@@ -11,7 +11,7 @@ namespace GameServer.Component.Player;
 
 public class PlayerComponent : BaseComponent
 {
-    public ulong PlayerId { get; }
+    public ulong AccountId { get; }
     public string Name { get; }
     public SessionComponent Session { get; }
 
@@ -27,10 +27,10 @@ public class PlayerComponent : BaseComponent
     public PlayerLobbyComponent Lobby { get; private set; }
     public PlayerRoomComponent Room { get; private set; }
 
-    public PlayerComponent(SessionComponent session, string name)
+    public PlayerComponent(SessionComponent session, string name, ulong accountId)
     {
-        PlayerId = IdGenerators.Player.Next();
-        Name = string.IsNullOrWhiteSpace(name) ? "TempUser" + PlayerId : name;
+        AccountId = accountId;
+        Name = string.IsNullOrWhiteSpace(name) ? "TempUser" + AccountId : name;
         Session = session;
         Lobby = new PlayerLobbyComponent(this);
         Room = new PlayerRoomComponent(this);
@@ -149,14 +149,14 @@ public class PlayerComponent : BaseComponent
                 var logoutAt = DateTime.UtcNow;
                 try
                 {
-                    await DatabaseSystem.Instance.Game.Players.UpdateLogoutAsync(PlayerId, logoutAt);
+                    await DatabaseSystem.Instance.Game.Players.UpdateLogoutAsync(AccountId, logoutAt);
                 }
                 catch (Exception ex)
                 {
-                    GameLogger.Error("PlayerComponent", $"플레이어 로그아웃 DB 저장 실패: {PlayerId}", ex);
+                    GameLogger.Error("PlayerComponent", $"플레이어 로그아웃 DB 저장 실패: {AccountId}", ex);
                 }
 
-                DatabaseSystem.Instance.GameLog.LoginLogs.UpdateLogoutAsync(PlayerId, logoutAt).FireAndForget("PlayerComponent");
+                DatabaseSystem.Instance.GameLog.LoginLogs.UpdateLogoutAsync(AccountId, logoutAt).FireAndForget("PlayerComponent");
             }
 
             // DB write 완료 후 Remove — PlayerSystem.WaitUntilEmptyAsync가 DB 동기화 완료를 정확히 감지하도록 보장
@@ -165,7 +165,7 @@ public class PlayerComponent : BaseComponent
         catch (Exception ex)
         {
             // _ = DisconnectAsync() fire-and-forget 경로에서 예외가 unhandled Task가 되지 않도록 최상위 catch.
-            GameLogger.Error("PlayerComponent", $"DisconnectAsync 중 예외 (PlayerId={PlayerId}): {ex.Message}", ex);
+            GameLogger.Error("PlayerComponent", $"DisconnectAsync 중 예외 (AccountId={AccountId}): {ex.Message}", ex);
         }
     }
 

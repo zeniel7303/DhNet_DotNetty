@@ -16,9 +16,9 @@ public class RoomLogDbSet
     {
         const string sql = @"
             INSERT INTO `room_logs`
-                (`player_id`, `room_id`, `action`, `created_at`)
+                (`account_id`, `room_id`, `action`, `created_at`)
             VALUES
-                (@player_id, @room_id, @action, @created_at)";
+                (@account_id, @room_id, @action, @created_at)";
         return _conn.ExecuteAsync(sql, row);
     }
 
@@ -31,7 +31,7 @@ public class RoomLogDbSet
 
     /// <summary>룸 이벤트 로그 조회. 모든 필터는 선택사항이며 최대 100건 반환.</summary>
     public Task<IEnumerable<RoomLogRow>> QueryAsync(
-        ulong? playerId = null,
+        ulong? accountId = null,
         ulong? roomId = null,
         string? action = null,
         DateTime? startTime = null,
@@ -42,13 +42,13 @@ public class RoomLogDbSet
         var where = new List<string>();
         var param = new DynamicParameters();
 
-        if (playerId.HasValue)              { where.Add("`player_id` = @player_id");    param.Add("player_id",  playerId.Value); }
+        if (accountId.HasValue)             { where.Add("`account_id` = @account_id");  param.Add("account_id", accountId.Value); }
         if (roomId.HasValue)                { where.Add("`room_id` = @room_id");        param.Add("room_id",    roomId.Value); }
         if (!string.IsNullOrEmpty(action))  { where.Add("`action` = @action");          param.Add("action",     action); }
         if (startTime.HasValue)             { where.Add("`created_at` >= @start_time"); param.Add("start_time", startTime.Value); }
         if (endTime.HasValue)               { where.Add("`created_at` <= @end_time");   param.Add("end_time",   endTime.Value); }
 
-        var sql = "SELECT `player_id`, `room_id`, `action`, `created_at` FROM `room_logs`";
+        var sql = "SELECT `account_id`, `room_id`, `action`, `created_at` FROM `room_logs`";
         if (where.Count > 0) sql += " WHERE " + string.Join(" AND ", where);
         sql += " ORDER BY `created_at` DESC LIMIT @limit";
         param.Add("limit", limit);

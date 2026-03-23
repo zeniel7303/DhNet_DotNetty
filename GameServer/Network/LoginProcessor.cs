@@ -33,7 +33,7 @@ internal static class LoginProcessor
         }
 
         // 플레이어 이름 = 계정 username (클라이언트 req.PlayerName 대신 DB 값 사용)
-        var player = new PlayerComponent(session, account.username);
+        var player = new PlayerComponent(session, account.username, account.account_id);
         var loginAt = DateTime.UtcNow;
         var ip = session.Channel.RemoteAddress?.ToString();
 
@@ -41,11 +41,10 @@ internal static class LoginProcessor
         {
             await DatabaseSystem.Instance.Game.Players.InsertAsync(new PlayerRow
             {
-                player_id   = player.PlayerId,
+                account_id  = player.AccountId,
                 player_name = player.Name,
                 login_at    = loginAt,
-                ip_address  = ip,
-                account_id  = account.account_id
+                ip_address  = ip
             });
         }
         catch (Exception ex)
@@ -124,17 +123,17 @@ internal static class LoginProcessor
 
         if (!lobbyEntered) return;
 
-        GameLogger.Info("Login", $"로그인 성공: {player.Name} (Id={player.PlayerId})");
+        GameLogger.Info("Login", $"로그인 성공: {player.Name} (Id={player.AccountId})");
 
         // 로비 입장 완료 후 ResLogin 전송
         await session.SendAsync(new GamePacket
         {
-            ResLogin = new ResLogin { PlayerId = player.PlayerId, PlayerName = player.Name, ErrorCode = ErrorCode.Success }
+            ResLogin = new ResLogin { PlayerId = player.AccountId, PlayerName = player.Name, ErrorCode = ErrorCode.Success }
         });
 
         DatabaseSystem.Instance.GameLog.LoginLogs.InsertAsync(new LoginLogRow
         {
-            player_id   = player.PlayerId,
+            account_id  = player.AccountId,
             player_name = player.Name,
             ip_address  = ip,
             login_at    = loginAt

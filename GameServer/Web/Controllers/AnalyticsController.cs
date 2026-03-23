@@ -12,7 +12,7 @@ public class AnalyticsController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<ChatLogDto>), 200)]
     [ProducesResponseType(503)]
     public async Task<IActionResult> GetChatLogs(
-        [FromQuery] ulong? playerId,
+        [FromQuery] ulong? accountId,
         [FromQuery] ulong? roomId,
         [FromQuery] DateTime? startTime,
         [FromQuery] DateTime? endTime,
@@ -20,8 +20,8 @@ public class AnalyticsController : ControllerBase
     {
         try
         {
-            var rows = await DatabaseSystem.Instance.GameLog.ChatLogs.QueryAsync(playerId, roomId, startTime, endTime, limit);
-            var result = rows.Select(r => new ChatLogDto(r.player_id, r.room_id, r.channel, r.message, r.created_at));
+            var rows = await DatabaseSystem.Instance.GameLog.ChatLogs.QueryAsync(accountId, roomId, startTime, endTime, limit);
+            var result = rows.Select(r => new ChatLogDto(r.account_id, r.room_id, r.channel, r.message, r.created_at));
             return Ok(result);
         }
         catch (Exception ex)
@@ -35,15 +35,15 @@ public class AnalyticsController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<LoginLogDto>), 200)]
     [ProducesResponseType(503)]
     public async Task<IActionResult> GetLoginLogs(
-        [FromQuery] ulong? playerId,
+        [FromQuery] ulong? accountId,
         [FromQuery] DateTime? startTime,
         [FromQuery] DateTime? endTime,
         [FromQuery] int limit = 100)
     {
         try
         {
-            var rows = await DatabaseSystem.Instance.GameLog.LoginLogs.QueryAsync(playerId, startTime, endTime, limit);
-            var result = rows.Select(r => new LoginLogDto(r.player_id, r.player_name, r.ip_address, r.login_at, r.logout_at));
+            var rows = await DatabaseSystem.Instance.GameLog.LoginLogs.QueryAsync(accountId, startTime, endTime, limit);
+            var result = rows.Select(r => new LoginLogDto(r.account_id, r.player_name, r.ip_address, r.login_at, r.logout_at));
             return Ok(result);
         }
         catch (Exception ex)
@@ -57,7 +57,7 @@ public class AnalyticsController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<RoomLogEntryDto>), 200)]
     [ProducesResponseType(503)]
     public async Task<IActionResult> GetRoomLogs(
-        [FromQuery] ulong? playerId,
+        [FromQuery] ulong? accountId,
         [FromQuery] ulong? roomId,
         [FromQuery] string? action,
         [FromQuery] DateTime? startTime,
@@ -66,8 +66,8 @@ public class AnalyticsController : ControllerBase
     {
         try
         {
-            var rows = await DatabaseSystem.Instance.GameLog.RoomLogs.QueryAsync(playerId, roomId, action, startTime, endTime, limit);
-            var result = rows.Select(r => new RoomLogEntryDto(r.player_id, r.room_id, r.action, r.created_at));
+            var rows = await DatabaseSystem.Instance.GameLog.RoomLogs.QueryAsync(accountId, roomId, action, startTime, endTime, limit);
+            var result = rows.Select(r => new RoomLogEntryDto(r.account_id, r.room_id, r.action, r.created_at));
             return Ok(result);
         }
         catch (Exception ex)

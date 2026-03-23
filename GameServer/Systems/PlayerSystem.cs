@@ -20,9 +20,9 @@ public class PlayerSystem
 
     public void Add(PlayerComponent player)
     {
-        if (!_players.TryAdd(player.PlayerId, player))
+        if (!_players.TryAdd(player.AccountId, player))
         {
-            GameLogger.Error("PlayerSystem", $"중복 PlayerId 감지: {player.PlayerId} — workers 등록 건너뜀");
+            GameLogger.Error("PlayerSystem", $"중복 AccountId 감지: {player.AccountId} — workers 등록 건너뜀");
             return;
         }
         _workers.Add(player);
@@ -30,7 +30,7 @@ public class PlayerSystem
 
     public void Remove(PlayerComponent player)
     {
-        _players.TryRemove(player.PlayerId, out _);
+        _players.TryRemove(player.AccountId, out _);
         _workers.Remove(player);
         // worker 제거 후 Dispose 위임 — DisconnectForNextTick 경로에서 Dispose 자동 완결
         player.Dispose();

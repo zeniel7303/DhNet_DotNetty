@@ -23,7 +23,7 @@ public class DatabaseSystem
     /// <summary>
     /// 서버 시작 시 한 번 호출. DB 연결을 초기화하고 IdGenerator 초기화에 필요한 max 값을 반환한다.
     /// </summary>
-    /// <returns>DB에서 읽은 max player_id, max room_id</returns>
+    /// <returns>DB에서 읽은 max account_id, max room_id</returns>
     public async Task<DbInitResult> InitializeAsync(DatabaseSettings settings)
     {
         var gameConnStr = BuildConnectionString(settings, settings.Database);
@@ -42,19 +42,19 @@ public class DatabaseSystem
 
         // IdGenerator 초기화를 위한 max 값 조회
         // DB 연결 실패 시에는 0 반환 (서버가 계속 실행 중인 경우)
-        ulong maxPlayerId = 0;
+        ulong maxAccountId = 0;
         ulong maxRoomId = 0;
         try
         {
-            maxPlayerId = await Game.Players.GetMaxPlayerIdAsync();
-            maxRoomId   = await GameLog.RoomLogs.GetMaxRoomIdAsync();
+            maxAccountId = await Game.Accounts.GetMaxAccountIdAsync();
+            maxRoomId    = await GameLog.RoomLogs.GetMaxRoomIdAsync();
         }
         catch (Exception ex)
         {
             GameLogger.Warn("DatabaseSystem", $"max ID 조회 실패 — IdGenerators는 1부터 시작합니다. ({ex.Message})");
         }
 
-        return new DbInitResult(maxPlayerId, maxRoomId);
+        return new DbInitResult(maxAccountId, maxRoomId);
     }
 
     private static async Task PingAsync(DbConnector connector, string dbName, bool requireConnection)
@@ -93,4 +93,4 @@ public class DatabaseSystem
 }
 
 /// <summary>서버 시작 시 DB에서 읽어온 max ID 값. Program.cs에서 IdGenerators 초기화에 사용.</summary>
-public record DbInitResult(ulong MaxPlayerId, ulong MaxRoomId);
+public record DbInitResult(ulong MaxAccountId, ulong MaxRoomId);

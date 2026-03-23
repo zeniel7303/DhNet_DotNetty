@@ -80,7 +80,7 @@ public class RoomComponent : BaseComponent
             return;
         }
 
-        if (!_players.TryAdd(player.PlayerId, player))
+        if (!_players.TryAdd(player.AccountId, player))
         {
             if (TryReleaseAndClose()) _onEmpty();
             GameLogger.Warn($"Room:{RoomId}", $"입장 거부 (중복): {player.Name}");
@@ -94,7 +94,7 @@ public class RoomComponent : BaseComponent
 
         DatabaseSystem.Instance.GameLog.RoomLogs.InsertAsync(new RoomLogRow
         {
-            player_id  = player.PlayerId,
+            account_id = player.AccountId,
             room_id    = RoomId,
             action     = "enter",
             created_at = DateTime.UtcNow
@@ -105,18 +105,18 @@ public class RoomComponent : BaseComponent
 
         var noti = new GamePacket
         {
-            NotiRoomEnter = new NotiRoomEnter { PlayerId = player.PlayerId, PlayerName = player.Name }
+            NotiRoomEnter = new NotiRoomEnter { PlayerId = player.AccountId, PlayerName = player.Name }
         };
 
         foreach (var (id, p) in _players)
         {
-            if (id != player.PlayerId) _ = p.Session.SendAsync(noti);
+            if (id != player.AccountId) _ = p.Session.SendAsync(noti);
         }
     }
 
     public void Leave(PlayerComponent player, bool isDisconnect)
     {
-        if (!_players.TryRemove(player.PlayerId, out _)) return;
+        if (!_players.TryRemove(player.AccountId, out _)) return;
 
         var shouldClose = TryReleaseAndClose();
 
@@ -127,7 +127,7 @@ public class RoomComponent : BaseComponent
 
         DatabaseSystem.Instance.GameLog.RoomLogs.InsertAsync(new RoomLogRow
         {
-            player_id  = player.PlayerId,
+            account_id = player.AccountId,
             room_id    = RoomId,
             action     = isDisconnect ? "disconnect" : "exit",
             created_at = DateTime.UtcNow
@@ -141,7 +141,7 @@ public class RoomComponent : BaseComponent
 
         var noti = new GamePacket
         {
-            NotiRoomExit = new NotiRoomExit { PlayerId = player.PlayerId, PlayerName = player.Name }
+            NotiRoomExit = new NotiRoomExit { PlayerId = player.AccountId, PlayerName = player.Name }
         };
 
         foreach (var p in _players.Values)
@@ -156,7 +156,7 @@ public class RoomComponent : BaseComponent
     {
         // DatabaseSystem.Instance.GameLog.ChatLogs.InsertAsync(new ChatLogRow
         // {
-        //     player_id  = sender.PlayerId,
+        //     account_id = sender.AccountId,
         //     room_id    = RoomId,
         //     channel    = "room",
         //     message    = message,
@@ -167,7 +167,7 @@ public class RoomComponent : BaseComponent
         {
             NotiRoomChat = new NotiRoomChat
             {
-                PlayerId   = sender.PlayerId,
+                PlayerId   = sender.AccountId,
                 PlayerName = sender.Name,
                 Message    = message
             }
@@ -179,8 +179,8 @@ public class RoomComponent : BaseComponent
         }
     }
 
-    public IReadOnlyList<(ulong PlayerId, string Name)> GetPlayerList()
-        => _players.Values.Select(p => (p.PlayerId, p.Name)).ToList();
+    public IReadOnlyList<(ulong AccountId, string Name)> GetPlayerList()
+        => _players.Values.Select(p => (p.AccountId, p.Name)).ToList();
 
     public bool Broadcast(string message)
     {

@@ -29,7 +29,7 @@ public class RoomsController : ControllerBase
             return NotFound(new { error = $"Room {id} not found" });
 
         var players = room.GetPlayerList()
-            .Select(p => new PlayerInRoomDto(p.PlayerId, p.Name))
+            .Select(p => new PlayerInRoomDto(p.AccountId, p.Name))
             .ToArray();
 
         return Ok(new RoomDetailDto(room.RoomId, room.LobbyId, room.Name, room.PlayerCount, room.Capacity, players));

@@ -7,7 +7,7 @@ namespace GameServer.Database.Rows;
 /// </summary>
 public class LoginLogRow
 {
-    public ulong player_id { get; set; }
+    public ulong account_id { get; set; }
     public string player_name { get; set; } = "";
     public string? ip_address { get; set; }
     public DateTime login_at { get; set; }
