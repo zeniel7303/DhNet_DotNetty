@@ -32,6 +32,17 @@ internal static class LoginProcessor
             return;
         }
 
+        // DB Insert 전에 account_id 예약 — 동시 중복 로그인 차단 (race-free)
+        if (!PlayerSystem.Instance.TryReserveLogin(account.account_id))
+        {
+            GameLogger.Warn("Login", $"중복 로그인 시도: {account.username} (AccountId={account.account_id})");
+            await session.SendAsync(new GamePacket
+            {
+                ResLogin = new ResLogin { ErrorCode = ErrorCode.AlreadyLoggedIn }
+            });
+            return;
+        }
+
         // 플레이어 이름 = 계정 username (클라이언트 req.PlayerName 대신 DB 값 사용)
         var player = new PlayerComponent(session, account.username, account.account_id);
         var loginAt = DateTime.UtcNow;
@@ -54,6 +65,9 @@ internal static class LoginProcessor
             {
                 ResLogin = new ResLogin { PlayerId = 0, PlayerName = string.Empty, ErrorCode = ErrorCode.DbError }
             });
+            // _dbInserted == false이므로 UpdateLogout은 실행되지 않음
+            // ImmediateFinalize → DisconnectAsync → PlayerSystem.Remove → _reservedAccounts 정리
+            player.ImmediateFinalize();
             return;
         }
 
