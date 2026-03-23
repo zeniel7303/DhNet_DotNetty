@@ -66,7 +66,9 @@ public abstract class BaseRoomScenario : ILoadTestScenario
 
             case GamePacket.PayloadOneofCase.ResRoomEnter:
                 GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 입장 결과: {packet.ResRoomEnter.ErrorCode}");
-                if (packet.ResRoomEnter.ErrorCode != ErrorCode.Success)
+                if (packet.ResRoomEnter.ErrorCode == ErrorCode.Success)
+                    await OnRoomEnterSuccessAsync(channel, ctx);
+                else
                     ctx.ScheduleRoomEnterRetry(channel);
                 break;
 
@@ -89,6 +91,9 @@ public abstract class BaseRoomScenario : ILoadTestScenario
 
     /// <summary>로그인 성공 직후 시나리오별 동작 (룸 입장 요청, 로비 채팅 등).</summary>
     protected abstract Task OnLoginSuccessAsync(IChannel channel, ClientContext ctx);
+
+    /// <summary>룸 입장 성공(ResRoomEnter.Success) 직후 시나리오별 동작.</summary>
+    protected virtual Task OnRoomEnterSuccessAsync(IChannel channel, ClientContext ctx) => Task.CompletedTask;
 
     /// <summary>
     /// ResLogin/ResRoomEnter/NotiSystem/default 이외의 패킷 처리.

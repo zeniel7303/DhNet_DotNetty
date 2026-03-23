@@ -20,6 +20,15 @@ public class RoomOnceScenario(string namePrefix) : BaseRoomScenario(namePrefix)
         LoadTestStats.IncrementSent();
     }
 
+    protected override async Task OnRoomEnterSuccessAsync(IChannel channel, ClientContext ctx)
+    {
+        await channel.WriteAndFlushAsync(new GamePacket
+        {
+            ReqRoomChat = new ReqRoomChat { Message = $"안녕하세요! (from {ctx.PlayerName})" }
+        });
+        LoadTestStats.IncrementSent();
+    }
+
     protected override async Task<bool> OnOtherPacketReceivedAsync(IChannel channel, ClientContext ctx, GamePacket packet)
     {
         switch (packet.PayloadCase)
@@ -35,14 +44,6 @@ public class RoomOnceScenario(string namePrefix) : BaseRoomScenario(namePrefix)
 
             case GamePacket.PayloadOneofCase.NotiRoomEnter:
                 GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 입장 알림: {packet.NotiRoomEnter.PlayerName}");
-                if (packet.NotiRoomEnter.PlayerId == ctx.PlayerId)
-                {
-                    await channel.WriteAndFlushAsync(new GamePacket
-                    {
-                        ReqRoomChat = new ReqRoomChat { Message = $"안녕하세요! (from {ctx.PlayerName})" }
-                    });
-                    LoadTestStats.IncrementSent();
-                }
                 return true;
 
             case GamePacket.PayloadOneofCase.NotiRoomChat:
