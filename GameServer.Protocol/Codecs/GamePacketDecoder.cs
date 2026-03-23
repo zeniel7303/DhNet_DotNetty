@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DotNetty.Buffers;
 using DotNetty.Codecs;
 using DotNetty.Transport.Channels;
@@ -21,6 +22,14 @@ public sealed class GamePacketDecoder : MessageToMessageDecoder<IByteBuffer>
 
         var packet = _serializer.Deserialize(bytes);
         if (packet != null)
+        {
             output.Add(packet);
+        }
+        else
+        {
+            // malformed 패킷: PacketRatePolicy 카운트에 포함되지 않으므로 명시적으로 경고 출력
+            Trace.TraceWarning(
+                $"[GamePacketDecoder] 역직렬화 실패 — malformed 패킷 수신 from {context.Channel.RemoteAddress} ({bytes.Length} bytes)");
+        }
     }
 }

@@ -2,6 +2,12 @@ using MessagePack;
 
 namespace GameServer.Protocol;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 새 패킷 타입 추가 시 반드시 아래 세 곳을 동기화해야 한다 (3-place sync rule):
+//   1. PacketType enum — 값 추가
+//   2. IPacketPayload [Union] 어트리뷰트 — Union(key, typeof(XxxClass)) 추가
+//   3. GamePacket.TypeMap — typeof(XxxClass) = PacketType.Xxx 매핑 추가
+// ─────────────────────────────────────────────────────────────────────────────
 public enum PacketType : byte
 {
     None         = 0,
