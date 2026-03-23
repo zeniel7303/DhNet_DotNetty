@@ -7,10 +7,6 @@ namespace GameServer.Component.Player;
 
 // PlayerComponent가 소유하는 서브 컴포넌트 — WorkerSystem에 등록되지 않는다.
 // 모든 메서드는 PlayerComponent 워커 스레드에서 직렬 호출되므로 EnqueueEvent 불필요.
-// CurrentLobby 쓰기 경로:
-//   - LoginController → player.EnqueueEvent(() => lobby.TryEnter(player)) → 워커 틱
-//   - RoomEnter, Disconnect → 워커 스레드 직접 호출
-// → 모든 쓰기가 PlayerComponent 워커 스레드 → volatile 불필요
 public class PlayerLobbyComponent(PlayerComponent player) : BaseComponent
 {
     public LobbyComponent? CurrentLobby { get; internal set; }
@@ -24,7 +20,7 @@ public class PlayerLobbyComponent(PlayerComponent player) : BaseComponent
         {
             res.Lobbies.Add(info);
         }
-        _ = player.Session.SendAsync(new GamePacket { ResLobbyList = res });
+        _ = player.Session.SendAsync(GamePacket.From(res));
     }
 
     public void Chat(ReqLobbyChat req)
@@ -41,18 +37,16 @@ public class PlayerLobbyComponent(PlayerComponent player) : BaseComponent
         var lobby = CurrentLobby;
         if (player.Room.CurrentRoom != null)
         {
-            _ = player.Session.SendAsync(new GamePacket { ResRoomEnter = new ResRoomEnter { ErrorCode = ErrorCode.AlreadyInRoom } });
+            _ = player.Session.SendAsync(GamePacket.From(new ResRoomEnter { ErrorCode = ErrorCode.AlreadyInRoom }));
             return;
         }
         if (lobby == null)
         {
-            _ = player.Session.SendAsync(new GamePacket { ResRoomEnter = new ResRoomEnter { ErrorCode = ErrorCode.NotInLobby } });
+            _ = player.Session.SendAsync(GamePacket.From(new ResRoomEnter { ErrorCode = ErrorCode.NotInLobby }));
             return;
         }
 
         // 이 메서드는 PlayerComponent 워커 스레드에서 직렬 호출된다 (동일 player는 항상 동일 워커).
-        // lobby.Leave → CurrentLobby = null, newRoom.Enter → CurrentRoom = this
-        // 모두 같은 워커 스레드에서 동기적으로 실행되므로 스레드 안전.
         var newRoom = lobby.GetOrCreateRoom();
         lobby.Leave(player);
         newRoom.Enter(player);

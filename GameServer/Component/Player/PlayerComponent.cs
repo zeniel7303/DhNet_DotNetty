@@ -95,7 +95,7 @@ public class PlayerComponent : BaseComponent
             var (type, payload) = packet.ExtractPayload();
             if (type == null || payload == null)
             {
-                GameLogger.Warn("PlayerComponent", $"미처리 패킷: {packet.PayloadCase}");
+                GameLogger.Warn("PlayerComponent", $"미처리 패킷: {packet.Type}");
                 return;
             }
 
@@ -113,7 +113,7 @@ public class PlayerComponent : BaseComponent
         }
         catch (Exception ex)
         {
-            GameLogger.Error("PlayerComponent", $"패킷 처리 오류: {packet.PayloadCase}", ex);
+            GameLogger.Error("PlayerComponent", $"패킷 처리 오류: {packet.Type}", ex);
         }
     }
 

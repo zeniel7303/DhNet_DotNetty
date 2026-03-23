@@ -29,7 +29,7 @@ public class LobbyChatScenario : BaseRoomScenario
 
     protected override Task<bool> OnOtherPacketReceivedAsync(IChannel channel, ClientContext ctx, GamePacket packet)
     {
-        if (packet.PayloadCase == GamePacket.PayloadOneofCase.NotiLobbyChat)
+        if (packet.Type == PacketType.NotiLobbyChat)
         {
             LoadTestStats.IncrementChatReceived();
             return Task.FromResult(true);
@@ -45,10 +45,8 @@ public class LobbyChatScenario : BaseRoomScenario
             {
                 await Task.Delay(_chatIntervalMs, _token);
                 if (!channel.Active) break;
-                await channel.WriteAndFlushAsync(new GamePacket
-                {
-                    ReqLobbyChat = new ReqLobbyChat { Message = $"[{ctx.PlayerName}] lobby ping" }
-                });
+                await channel.WriteAndFlushAsync(GamePacket.From(
+                    new ReqLobbyChat { Message = $"[{ctx.PlayerName}] lobby ping" }));
                 LoadTestStats.IncrementSent();
                 LoadTestStats.IncrementChatSent();
             }

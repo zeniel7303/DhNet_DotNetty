@@ -14,26 +14,26 @@ public class PacketPairPolicy : IPacketPolicy
 {
     private const int DefaultMaxCount = 1;
 
-    private static readonly Dictionary<GamePacket.PayloadOneofCase, int> ExclusionMaxCount = new()
+    private static readonly Dictionary<PacketType, int> ExclusionMaxCount = new()
     {
         // 테스트용 예외 예시
-        // { GamePacket.PayloadOneofCase.ReqRoomChat,  5 },
-        // { GamePacket.PayloadOneofCase.ReqLobbyChat, 5 },
+        // { PacketType.ReqRoomChat,  5 },
+        // { PacketType.ReqLobbyChat, 5 },
     };
 
     // 큐에 적재된 특정 타입 패킷 수를 반환하는 delegate — SessionComponent에서 주입
-    private readonly Func<GamePacket.PayloadOneofCase, int> _getQueueCount;
+    private readonly Func<PacketType, int> _getQueueCount;
 
-    private PacketPairPolicy(Func<GamePacket.PayloadOneofCase, int> getQueueCount)
+    private PacketPairPolicy(Func<PacketType, int> getQueueCount)
         => _getQueueCount = getQueueCount;
 
-    public static PacketPairPolicy Create(Func<GamePacket.PayloadOneofCase, int> getQueueCount)
+    public static PacketPairPolicy Create(Func<PacketType, int> getQueueCount)
         => new(getQueueCount);
 
-    private static int GetMaxCount(GamePacket.PayloadOneofCase packetType)
+    private static int GetMaxCount(PacketType packetType)
         => ExclusionMaxCount.GetValueOrDefault(packetType, DefaultMaxCount);
 
-    public PacketPolicyResult VerifyPolicy(GamePacket.PayloadOneofCase packetType)
+    public PacketPolicyResult VerifyPolicy(PacketType packetType)
     {
         var current = _getQueueCount(packetType);
         var maxCount = GetMaxCount(packetType);
@@ -46,6 +46,6 @@ public class PacketPairPolicy : IPacketPolicy
             ok ? string.Empty : $"QueueCount: {current}, MaxCount: {maxCount}");
     }
 
-    public void UpdatePolicy(GamePacket.PayloadOneofCase packetType) { }
+    public void UpdatePolicy(PacketType packetType) { }
     public void Clear() { }
 }

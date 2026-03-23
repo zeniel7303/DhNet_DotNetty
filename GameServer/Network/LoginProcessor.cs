@@ -25,10 +25,10 @@ internal static class LoginProcessor
         if (PlayerSystem.Instance.Count >= PlayerSystem.Instance.MaxPlayers)
         {
             GameLogger.Warn("Login", $"서버 정원 초과 ({PlayerSystem.Instance.MaxPlayers}명) — 로그인 거부");
-            await session.SendAsync(new GamePacket
+            await session.SendAsync(GamePacket.From(new ResLogin
             {
-                ResLogin = new ResLogin { PlayerId = 0, PlayerName = string.Empty, ErrorCode = ErrorCode.ServerFull }
-            });
+                PlayerId = 0, PlayerName = string.Empty, ErrorCode = ErrorCode.ServerFull
+            }));
             return;
         }
 
@@ -36,10 +36,7 @@ internal static class LoginProcessor
         if (!PlayerSystem.Instance.TryReserveLogin(account.account_id))
         {
             GameLogger.Warn("Login", $"중복 로그인 시도: {account.username} (AccountId={account.account_id})");
-            await session.SendAsync(new GamePacket
-            {
-                ResLogin = new ResLogin { ErrorCode = ErrorCode.AlreadyLoggedIn }
-            });
+            await session.SendAsync(GamePacket.From(new ResLogin { ErrorCode = ErrorCode.AlreadyLoggedIn }));
             return;
         }
 
@@ -61,10 +58,10 @@ internal static class LoginProcessor
         catch (Exception ex)
         {
             GameLogger.Error("Login", $"플레이어 DB 저장 실패: {player.Name}", ex);
-            await session.SendAsync(new GamePacket
+            await session.SendAsync(GamePacket.From(new ResLogin
             {
-                ResLogin = new ResLogin { PlayerId = 0, PlayerName = string.Empty, ErrorCode = ErrorCode.DbError }
-            });
+                PlayerId = 0, PlayerName = string.Empty, ErrorCode = ErrorCode.DbError
+            }));
             // _dbInserted == false이므로 UpdateLogout은 실행되지 않음
             // ImmediateFinalize → DisconnectAsync → PlayerSystem.Remove → _reservedAccounts 정리
             player.ImmediateFinalize();
@@ -111,10 +108,10 @@ internal static class LoginProcessor
         if (defaultLobby == null)
         {
             GameLogger.Warn("Login", $"로비 자동 배정 불가 — 모든 로비 만원: {player.Name}");
-            await session.SendAsync(new GamePacket
+            await session.SendAsync(GamePacket.From(new ResLogin
             {
-                ResLogin = new ResLogin { PlayerId = 0, PlayerName = string.Empty, ErrorCode = ErrorCode.LobbyFull }
-            });
+                PlayerId = 0, PlayerName = string.Empty, ErrorCode = ErrorCode.LobbyFull
+            }));
             player.DisconnectForNextTick();
             return;
         }
@@ -140,10 +137,10 @@ internal static class LoginProcessor
         GameLogger.Info("Login", $"로그인 성공: {player.Name} (Id={player.AccountId})");
 
         // 로비 입장 완료 후 ResLogin 전송
-        await session.SendAsync(new GamePacket
+        await session.SendAsync(GamePacket.From(new ResLogin
         {
-            ResLogin = new ResLogin { PlayerId = player.AccountId, PlayerName = player.Name, ErrorCode = ErrorCode.Success }
-        });
+            PlayerId = player.AccountId, PlayerName = player.Name, ErrorCode = ErrorCode.Success
+        }));
 
         DatabaseSystem.Instance.GameLog.LoginLogs.InsertAsync(new LoginLogRow
         {
@@ -168,10 +165,7 @@ internal static class LoginProcessor
         if (username.Length < MinLength || username.Length > MaxLength ||
             password.Length < MinLength || password.Length > MaxLength)
         {
-            await session.SendAsync(new GamePacket
-            {
-                ResLogin = new ResLogin { ErrorCode = ErrorCode.InvalidCredentials }
-            });
+            await session.SendAsync(GamePacket.From(new ResLogin { ErrorCode = ErrorCode.InvalidCredentials }));
             return null;
         }
 
@@ -183,10 +177,7 @@ internal static class LoginProcessor
         catch (Exception ex)
         {
             GameLogger.Error("Login", $"계정 조회 실패: {username}", ex);
-            await session.SendAsync(new GamePacket
-            {
-                ResLogin = new ResLogin { ErrorCode = ErrorCode.DbError }
-            });
+            await session.SendAsync(GamePacket.From(new ResLogin { ErrorCode = ErrorCode.DbError }));
             return null;
         }
 
@@ -194,10 +185,7 @@ internal static class LoginProcessor
         if (account == null || account.password_hash != password)
         {
             GameLogger.Warn("Login", $"인증 실패: {username}");
-            await session.SendAsync(new GamePacket
-            {
-                ResLogin = new ResLogin { ErrorCode = ErrorCode.InvalidCredentials }
-            });
+            await session.SendAsync(GamePacket.From(new ResLogin { ErrorCode = ErrorCode.InvalidCredentials }));
             return null;
         }
 

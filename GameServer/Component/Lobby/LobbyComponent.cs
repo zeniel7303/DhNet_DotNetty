@@ -16,7 +16,6 @@ public class LobbyComponent : BaseComponent
     public int MaxCapacity { get; }
 
     // CAS 기반 정원 추적 — 여러 PlayerComponent 워커에서 원자적으로 예약/해제
-    // Interlocked.CompareExchange가 이미 메모리 배리어를 포함하므로 volatile 불필요
     private int _playerCount;
     public int PlayerCount => _playerCount;
     public bool IsFull => _playerCount >= MaxCapacity;
@@ -34,7 +33,6 @@ public class LobbyComponent : BaseComponent
     public override void Initialize() { }
 
     // CAS로 정원 예약 후 TryAdd. 반환 false = 정원 초과 또는 중복 입장.
-    // PlayerComponent 워커 스레드(EnqueueEvent 경유) 또는 LoginController 스레드에서 호출
     public bool TryEnter(PlayerComponent player)
     {
         int current;
@@ -51,7 +49,6 @@ public class LobbyComponent : BaseComponent
             return false;
         }
 
-        // LoginController → EnqueueEvent → 워커 틱에서 호출되므로 PlayerComponent 워커 스레드
         player.Lobby.CurrentLobby = this;
         GameLogger.Info($"Lobby:{LobbyId}", $"입장: {player.Name} (현재 {_players.Count}명)");
         return true;
@@ -61,7 +58,6 @@ public class LobbyComponent : BaseComponent
     {
         if (!_players.TryRemove(player.AccountId, out _))
         {
-            // 룸 입장 중 disconnect 시 이미 로비에서 퇴장한 상태일 수 있음 — 정상 경로
             GameLogger.Info($"Lobby:{LobbyId}", $"퇴장 요청: {player.Name} — 목록에 없음 (무시됨)");
             return;
         }
@@ -73,24 +69,12 @@ public class LobbyComponent : BaseComponent
 
     public void Chat(PlayerComponent sender, string message)
     {
-        // DatabaseSystem.Instance.GameLog.ChatLogs.InsertAsync(new ChatLogRow
-        // {
-        //     account_id = sender.AccountId,
-        //     room_id    = null,
-        //     channel    = $"lobby:{LobbyId}",
-        //     message    = message,
-        //     created_at = DateTime.UtcNow
-        // }).FireAndForget("Lobby");
-
-        var noti = new GamePacket
+        var noti = GamePacket.From(new NotiLobbyChat
         {
-            NotiLobbyChat = new NotiLobbyChat
-            {
-                PlayerId   = sender.AccountId,
-                PlayerName = sender.Name,
-                Message    = message
-            }
-        };
+            PlayerId   = sender.AccountId,
+            PlayerName = sender.Name,
+            Message    = message
+        });
 
         foreach (var p in _players.Values)
         {
@@ -102,10 +86,7 @@ public class LobbyComponent : BaseComponent
     {
         if (IsDisposed) return false;
 
-        var noti = new GamePacket
-        {
-            NotiLobbyChat = new NotiLobbyChat { PlayerId = 0, PlayerName = "System", Message = message }
-        };
+        var noti = GamePacket.From(new NotiLobbyChat { PlayerId = 0, PlayerName = "System", Message = message });
 
         foreach (var p in _players.Values)
         {
@@ -153,7 +134,6 @@ public class LobbyComponent : BaseComponent
             if (!_rooms.TryRemove(roomId, out room)) return;
         }
 
-        // lock 외부 Dispose — BaseComponent.Dispose()의 Interlocked 가드가 이중 실행을 방지하므로 안전
         room.Dispose();
         GameLogger.Info($"Lobby:{LobbyId}", $"Room 제거: RoomId={roomId}");
     }
@@ -164,7 +144,6 @@ public class LobbyComponent : BaseComponent
 
     protected override void OnDispose()
     {
-        // 잔류 플레이어 강제 종료 — 서버 종료 등 비정상 경로에서만 실행됨
         foreach (var p in _players.Values)
         {
             p.DisconnectForNextTick();

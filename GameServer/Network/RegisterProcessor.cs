@@ -26,10 +26,10 @@ internal static class RegisterProcessor
         if (username.Length < MinLength || username.Length > MaxLength)
         {
             GameLogger.Warn("Register", $"username 길이 위반: len={username.Length}");
-            await session.SendAsync(new GamePacket
+            await session.SendAsync(GamePacket.From(new ResRegister
             {
-                ResRegister = new ResRegister { AccountId = 0, ErrorCode = ErrorCode.InvalidUsernameLength }
-            });
+                AccountId = 0, ErrorCode = ErrorCode.InvalidUsernameLength
+            }));
             return;
         }
 
@@ -37,14 +37,10 @@ internal static class RegisterProcessor
         if (password.Length < MinLength || password.Length > MaxLength)
         {
             GameLogger.Warn("Register", $"비밀번호 길이 위반: len={password.Length}");
-            await session.SendAsync(new GamePacket
+            await session.SendAsync(GamePacket.From(new ResRegister
             {
-                ResRegister = new ResRegister
-                {
-                    AccountId = 0,
-                    ErrorCode = ErrorCode.InvalidPasswordLength
-                }
-            });
+                AccountId = 0, ErrorCode = ErrorCode.InvalidPasswordLength
+            }));
             return;
         }
 
@@ -52,7 +48,6 @@ internal static class RegisterProcessor
         var accountId = IdGenerators.Account.Next();
 
         // 계정 삽입. INSERT IGNORE: 중복 username이면 rows_affected == 0 반환.
-        // SELECT-then-INSERT 패턴은 TOCTOU race condition을 유발하므로 사용하지 않는다.
         int inserted;
         try
         {
@@ -67,31 +62,27 @@ internal static class RegisterProcessor
         catch (Exception ex)
         {
             GameLogger.Error("Register", $"DB 저장 실패: {username}", ex);
-            await session.SendAsync(new GamePacket
+            await session.SendAsync(GamePacket.From(new ResRegister
             {
-                ResRegister = new ResRegister { AccountId = 0, ErrorCode = ErrorCode.DbError }
-            });
+                AccountId = 0, ErrorCode = ErrorCode.DbError
+            }));
             return;
         }
 
         // rows_affected == 0 : 동시 요청에 의한 중복 (INSERT IGNORE)
         if (inserted == 0)
         {
-            await session.SendAsync(new GamePacket
+            await session.SendAsync(GamePacket.From(new ResRegister
             {
-                ResRegister = new ResRegister { AccountId = 0, ErrorCode = ErrorCode.UsernameTaken }
-            });
+                AccountId = 0, ErrorCode = ErrorCode.UsernameTaken
+            }));
             return;
         }
 
         GameLogger.Info("Register", $"계정 생성 완료: {username} (account_id={accountId})");
-        await session.SendAsync(new GamePacket
+        await session.SendAsync(GamePacket.From(new ResRegister
         {
-            ResRegister = new ResRegister
-            {
-                AccountId = accountId,
-                ErrorCode = ErrorCode.Success
-            }
-        });
+            AccountId = accountId, ErrorCode = ErrorCode.Success
+        }));
     }
 }

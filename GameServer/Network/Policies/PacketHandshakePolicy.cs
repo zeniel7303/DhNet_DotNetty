@@ -9,8 +9,8 @@ namespace GameServer.Network.Policies;
 ///
 /// 사용 예:
 ///   new PacketHandshakePolicy(
-///       sequence:      [ReqSelectCharacter, ReqEnterStage],
-///       ignorePackets: [ReqHeartbeat])
+///       sequence:      [PacketType.ReqSelectCharacter, PacketType.ReqEnterStage],
+///       ignorePackets: [PacketType.ReqHeartbeat])
 ///
 /// 현재 이 서버의 패킷 구조에서는 로그인 핸드셰이크를
 /// GameServerHandler에서 별도 처리하므로 직접 사용하지 않는다.
@@ -18,25 +18,25 @@ namespace GameServer.Network.Policies;
 /// </summary>
 public class PacketHandshakePolicy : IPacketPolicy
 {
-    private readonly Queue<GamePacket.PayloadOneofCase> _sequence;
-    private readonly HashSet<GamePacket.PayloadOneofCase> _ignorePackets;
+    private readonly Queue<PacketType> _sequence;
+    private readonly HashSet<PacketType> _ignorePackets;
 
     private PacketHandshakePolicy(
-        GamePacket.PayloadOneofCase[] sequence,
-        GamePacket.PayloadOneofCase[]? ignorePackets)
+        PacketType[] sequence,
+        PacketType[]? ignorePackets)
     {
-        _sequence = new Queue<GamePacket.PayloadOneofCase>(sequence);
+        _sequence = new Queue<PacketType>(sequence);
         _ignorePackets = ignorePackets is not null
-            ? new HashSet<GamePacket.PayloadOneofCase>(ignorePackets)
+            ? new HashSet<PacketType>(ignorePackets)
             : [];
     }
 
     public static PacketHandshakePolicy Create(
-        GamePacket.PayloadOneofCase[] sequence,
-        GamePacket.PayloadOneofCase[]? ignorePackets = null)
+        PacketType[] sequence,
+        PacketType[]? ignorePackets = null)
         => new(sequence, ignorePackets);
 
-    public PacketPolicyResult VerifyPolicy(GamePacket.PayloadOneofCase packetType)
+    public PacketPolicyResult VerifyPolicy(PacketType packetType)
     {
         // 무시 목록에 있는 패킷은 항상 통과
         if (_ignorePackets.Contains(packetType))
@@ -56,7 +56,7 @@ public class PacketHandshakePolicy : IPacketPolicy
             result ? string.Empty : $"Expected: {expected}, Actual: {packetType}");
     }
 
-    public void UpdatePolicy(GamePacket.PayloadOneofCase packetType) { }
+    public void UpdatePolicy(PacketType packetType) { }
 
     public void Clear() => _sequence.Clear();
 }

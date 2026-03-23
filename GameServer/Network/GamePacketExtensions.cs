@@ -6,14 +6,14 @@ public static class GamePacketExtensions
 {
     // ReqLogin은 GameServerHandler에서 선처리됨 — Dispatch에 도달하지 않음
     public static (Type? type, object? payload) ExtractPayload(this GamePacket packet) =>
-        packet.PayloadCase switch
+        packet.Type switch
         {
-            GamePacket.PayloadOneofCase.ReqRoomEnter  => (typeof(ReqRoomEnter),  packet.ReqRoomEnter),
-            GamePacket.PayloadOneofCase.ReqRoomChat   => (typeof(ReqRoomChat),   packet.ReqRoomChat),
-            GamePacket.PayloadOneofCase.ReqRoomExit   => (typeof(ReqRoomExit),   packet.ReqRoomExit),
-            GamePacket.PayloadOneofCase.ReqLobbyChat  => (typeof(ReqLobbyChat),  packet.ReqLobbyChat),
-            GamePacket.PayloadOneofCase.ReqLobbyList  => (typeof(ReqLobbyList),  packet.ReqLobbyList),
-            GamePacket.PayloadOneofCase.ReqHeartbeat  => (typeof(ReqHeartbeat),  packet.ReqHeartbeat),
-            _                                         => (null, null)
+            PacketType.ReqRoomEnter  => (typeof(ReqRoomEnter),  packet.As<ReqRoomEnter>()),
+            PacketType.ReqRoomChat   => (typeof(ReqRoomChat),   packet.As<ReqRoomChat>()),
+            PacketType.ReqRoomExit   => (typeof(ReqRoomExit),   packet.As<ReqRoomExit>()),
+            PacketType.ReqLobbyChat  => (typeof(ReqLobbyChat),  packet.As<ReqLobbyChat>()),
+            PacketType.ReqLobbyList  => (typeof(ReqLobbyList),  packet.As<ReqLobbyList>()),
+            PacketType.ReqHeartbeat  => (typeof(ReqHeartbeat),  packet.As<ReqHeartbeat>()),
+            _                        => (null, null)
         };
 }

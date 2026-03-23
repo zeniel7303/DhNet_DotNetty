@@ -57,7 +57,7 @@ public class PlayerSystem
     // 전체 접속자에게 시스템 공지 전송
     public void BroadcastAll(string message)
     {
-        var noti = new GamePacket { NotiSystem = new NotiSystem { Message = message } };
+        var noti = GamePacket.From(new NotiSystem { Message = message });
 
         foreach (var player in _players.Values)
         {

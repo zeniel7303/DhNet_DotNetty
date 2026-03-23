@@ -27,7 +27,6 @@ public class RoomComponent : BaseComponent
 
     // _reservedCount + _closing을 단일 int로 통합.
     // -1 = 닫히는 중, 0~MaxPlayers = 예약된 슬롯 수.
-    // 마지막 슬롯 반환(1→-1)이 단일 CAS로 처리되므로 TryReserve와의 레이스가 완전히 제거됨.
     private int _state = 0;
 
     // CAS 패턴 — lock 없이 원자적으로 슬롯 예약 (LobbyComponent._roomLock 내부에서만 호출)
@@ -37,14 +36,11 @@ public class RoomComponent : BaseComponent
         do
         {
             current = _state;
-            // -1 = 닫히는 중, MaxPlayers = 정원 초과
             if (current < 0 || current >= MaxPlayers) return false;
         } while (Interlocked.CompareExchange(ref _state, current + 1, current) != current);
         return true;
     }
 
-    // 슬롯을 반환하고, 마지막 슬롯이면 _state를 원자적으로 -1(closing)로 전환.
-    // 반환값 true = 이 스레드가 방 종료 책임을 가짐 → _onEmpty() 호출 필요.
     private bool TryReleaseAndClose()
     {
         int current;
@@ -52,7 +48,6 @@ public class RoomComponent : BaseComponent
         {
             current = _state;
             if (current <= 0) return false;
-            // 마지막 슬롯(1→-1): TryReserve의 CAS가 -1을 보고 즉시 실패하므로 레이스 없음
             int next = current == 1 ? -1 : current - 1;
             if (Interlocked.CompareExchange(ref _state, next, current) == current)
             {
@@ -87,7 +82,6 @@ public class RoomComponent : BaseComponent
             return;
         }
 
-        // PlayerLobbyComponent.RoomEnter → PlayerComponent 워커 스레드에서 호출
         player.Room.CurrentRoom = this;
 
         GameLogger.Info($"Room:{RoomId}", $"입장: {player.Name} ({_players.Count}/{MaxPlayers})");
@@ -100,13 +94,9 @@ public class RoomComponent : BaseComponent
             created_at = DateTime.UtcNow
         }).FireAndForget("Room");
 
-        _ = player.Session.SendAsync(new GamePacket
-            { ResRoomEnter = new ResRoomEnter { ErrorCode = ErrorCode.Success } });
+        _ = player.Session.SendAsync(GamePacket.From(new ResRoomEnter { ErrorCode = ErrorCode.Success }));
 
-        var noti = new GamePacket
-        {
-            NotiRoomEnter = new NotiRoomEnter { PlayerId = player.AccountId, PlayerName = player.Name }
-        };
+        var noti = GamePacket.From(new NotiRoomEnter { PlayerId = player.AccountId, PlayerName = player.Name });
 
         foreach (var (id, p) in _players)
         {
@@ -120,7 +110,6 @@ public class RoomComponent : BaseComponent
 
         var shouldClose = TryReleaseAndClose();
 
-        // PlayerRoomComponent.Exit/Disconnect → PlayerComponent 워커 스레드에서 호출
         player.Room.CurrentRoom = null;
 
         GameLogger.Info($"Room:{RoomId}", $"퇴장: {player.Name} (disconnect={isDisconnect}, 잔여 {_players.Count}명)");
@@ -136,13 +125,10 @@ public class RoomComponent : BaseComponent
         if (!isDisconnect)
         {
             ReturnToLobby(player);
-            _ = player.Session.SendAsync(new GamePacket { ResRoomExit = new ResRoomExit() });
+            _ = player.Session.SendAsync(GamePacket.From(new ResRoomExit()));
         }
 
-        var noti = new GamePacket
-        {
-            NotiRoomExit = new NotiRoomExit { PlayerId = player.AccountId, PlayerName = player.Name }
-        };
+        var noti = GamePacket.From(new NotiRoomExit { PlayerId = player.AccountId, PlayerName = player.Name });
 
         foreach (var p in _players.Values)
         {
@@ -154,24 +140,12 @@ public class RoomComponent : BaseComponent
 
     public void Chat(PlayerComponent sender, string message)
     {
-        // DatabaseSystem.Instance.GameLog.ChatLogs.InsertAsync(new ChatLogRow
-        // {
-        //     account_id = sender.AccountId,
-        //     room_id    = RoomId,
-        //     channel    = "room",
-        //     message    = message,
-        //     created_at = DateTime.UtcNow
-        // }).FireAndForget("Room");
-
-        var noti = new GamePacket
+        var noti = GamePacket.From(new NotiRoomChat
         {
-            NotiRoomChat = new NotiRoomChat
-            {
-                PlayerId   = sender.AccountId,
-                PlayerName = sender.Name,
-                Message    = message
-            }
-        };
+            PlayerId   = sender.AccountId,
+            PlayerName = sender.Name,
+            Message    = message
+        });
 
         foreach (var p in _players.Values)
         {
@@ -186,10 +160,7 @@ public class RoomComponent : BaseComponent
     {
         if (IsDisposed) return false;
 
-        var noti = new GamePacket
-        {
-            NotiRoomChat = new NotiRoomChat { PlayerId = 0, PlayerName = "System", Message = message }
-        };
+        var noti = GamePacket.From(new NotiRoomChat { PlayerId = 0, PlayerName = "System", Message = message });
 
         foreach (var p in _players.Values)
         {
@@ -199,19 +170,16 @@ public class RoomComponent : BaseComponent
         return true;
     }
 
-    // 룸 퇴장 후 원래 로비로 복귀. 복귀 실패 시 플레이어 강제 종료.
     private void ReturnToLobby(PlayerComponent player)
     {
         if (_returnToLobby(player)) return;
 
         GameLogger.Warn($"Room:{RoomId}", $"로비 복귀 실패 — 연결 종료 (LobbyId={LobbyId}): {player.Name}");
-        // 로비 복귀 실패 시 WorkerSystem 등록 상태이므로 큐에 넣어 워커 틱에서 처리
         player.DisconnectForNextTick();
     }
 
     protected override void OnDispose()
     {
-        // 잔류 플레이어 강제 종료 — 서버 종료 등 비정상 경로에서만 실행됨
         foreach (var p in _players.Values)
         {
             p.DisconnectForNextTick();

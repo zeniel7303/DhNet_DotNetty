@@ -2,7 +2,6 @@ using System.Net;
 using Common;
 using Common.Logging;
 using DotNetty.Codecs;
-using DotNetty.Codecs.Protobuf;
 using DotNetty.Handlers.Logging;
 using DotNetty.Transport.Bootstrapping;
 using DotNetty.Transport.Channels;
@@ -12,6 +11,8 @@ using GameClient.Network;
 using GameClient.Scenarios;
 using GameClient.Stats;
 using GameServer.Protocol;
+using GameServer.Protocol.Codecs;
+using GameServer.Protocol.Serialization;
 
 namespace GameClient;
 
@@ -158,8 +159,8 @@ class Program
                     pipeline.AddLast("crypto-dec", new AesGcmDecryptionHandler(encKey));
                     pipeline.AddLast("crypto-enc", new AesGcmEncryptionHandler(encKey));
                 }
-                pipeline.AddLast("protobuf-decoder", new ProtobufDecoder(GamePacket.Parser));
-                pipeline.AddLast("protobuf-encoder", new ProtobufEncoder());
+                pipeline.AddLast("packet-decoder", new GamePacketDecoder(MessagePackGameSerializer.Instance));
+                pipeline.AddLast("packet-encoder", new GamePacketEncoder(MessagePackGameSerializer.Instance));
                 pipeline.AddLast("handler", new GameClientHandler(ctx, scenario));
             }));
 
@@ -233,8 +234,8 @@ class Program
                     pipeline.AddLast("crypto-dec", new AesGcmDecryptionHandler(encKey));
                     pipeline.AddLast("crypto-enc", new AesGcmEncryptionHandler(encKey));
                 }
-                pipeline.AddLast("protobuf-decoder", new ProtobufDecoder(GamePacket.Parser));
-                pipeline.AddLast("protobuf-encoder", new ProtobufEncoder());
+                pipeline.AddLast("packet-decoder", new GamePacketDecoder(MessagePackGameSerializer.Instance));
+                pipeline.AddLast("packet-encoder", new GamePacketEncoder(MessagePackGameSerializer.Instance));
                 pipeline.AddLast("handler",          new GameClientHandler(ctx, scenario));
             }));
 

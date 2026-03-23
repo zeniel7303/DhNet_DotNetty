@@ -45,10 +45,7 @@ public class ReconnectStressScenario : ILoadTestScenario
         ctx.PlayerName = name;
 
         GameLogger.Info($"Client[{ctx.ClientIndex}]", $"접속 완료 (재접속 {ctx.ReconnectCount}회차) → 회원가입 시도: {name}");
-        await channel.WriteAndFlushAsync(new GamePacket
-        {
-            ReqRegister = new ReqRegister { Username = name, Password = ctx.Password }
-        });
+        await channel.WriteAndFlushAsync(GamePacket.From(new ReqRegister { Username = name, Password = ctx.Password }));
         LoadTestStats.IncrementSent();
     }
 
@@ -56,44 +53,49 @@ public class ReconnectStressScenario : ILoadTestScenario
     {
         LoadTestStats.IncrementReceived();
 
-        switch (packet.PayloadCase)
+        switch (packet.Type)
         {
-            case GamePacket.PayloadOneofCase.ResRegister:
+            case PacketType.ResRegister:
+            {
+                var res = packet.As<ResRegister>();
                 // SUCCESS: 신규 가입 / USERNAME_TAKEN: 재접속 봇 — 둘 다 로그인 진행
-                if (packet.ResRegister.ErrorCode == ErrorCode.Success ||
-                    packet.ResRegister.ErrorCode == ErrorCode.UsernameTaken)
+                if (res.ErrorCode == ErrorCode.Success || res.ErrorCode == ErrorCode.UsernameTaken)
                 {
-                    await channel.WriteAndFlushAsync(new GamePacket
-                    {
-                        ReqLogin = new ReqLogin { Username = ctx.PlayerName, Password = ctx.Password }
-                    });
+                    await channel.WriteAndFlushAsync(GamePacket.From(
+                        new ReqLogin { Username = ctx.PlayerName, Password = ctx.Password }));
                     LoadTestStats.IncrementSent();
                 }
                 else
                 {
-                    GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"회원가입 실패: {packet.ResRegister.ErrorCode} → 연결 종료");
+                    GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"회원가입 실패: {res.ErrorCode} → 연결 종료");
                     LoadTestStats.IncrementErrors();
                     await channel.CloseAsync();
                 }
                 break;
+            }
 
-            case GamePacket.PayloadOneofCase.ResLogin:
-                if (packet.ResLogin.ErrorCode != ErrorCode.Success)
+            case PacketType.ResLogin:
+            {
+                var res = packet.As<ResLogin>();
+                if (res.ErrorCode != ErrorCode.Success)
                 {
-                    GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"로그인 실패: {packet.ResLogin.ErrorCode} → 연결 종료");
+                    GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"로그인 실패: {res.ErrorCode} → 연결 종료");
                     LoadTestStats.IncrementErrors();
                     await channel.CloseAsync();
                     return;
                 }
-                ctx.PlayerId   = packet.ResLogin.PlayerId;
-                ctx.PlayerName = packet.ResLogin.PlayerName;
+                ctx.PlayerId   = res.PlayerId;
+                ctx.PlayerName = res.PlayerName;
                 GameLogger.Info($"Client[{ctx.ClientIndex}]", $"로그인 성공: {ctx.PlayerName} → 룸 입장 요청");
-                await channel.WriteAndFlushAsync(new GamePacket { ReqRoomEnter = new ReqRoomEnter() });
+                await channel.WriteAndFlushAsync(GamePacket.From(new ReqRoomEnter()));
                 LoadTestStats.IncrementSent();
                 break;
+            }
 
-            case GamePacket.PayloadOneofCase.ResRoomEnter:
-                if (packet.ResRoomEnter.ErrorCode == ErrorCode.Success)
+            case PacketType.ResRoomEnter:
+            {
+                var res = packet.As<ResRoomEnter>();
+                if (res.ErrorCode == ErrorCode.Success)
                 {
                     GameLogger.Info($"Client[{ctx.ClientIndex}]", "룸 입장 성공 → 채팅 시작");
                     _ = RunRoomActivityAsync(channel, ctx);
@@ -104,8 +106,9 @@ public class ReconnectStressScenario : ILoadTestScenario
                     ctx.ScheduleRoomEnterRetry(channel);
                 }
                 break;
+            }
 
-            case GamePacket.PayloadOneofCase.ResRoomExit:
+            case PacketType.ResRoomExit:
                 ctx.TotalRoomCycles++;
                 LoadTestStats.IncrementRoomCycle();
                 GameLogger.Info($"Client[{ctx.ClientIndex}]",
@@ -119,21 +122,21 @@ public class ReconnectStressScenario : ILoadTestScenario
                 await channel.CloseAsync();
                 break;
 
-            case GamePacket.PayloadOneofCase.NotiRoomChat:
-            case GamePacket.PayloadOneofCase.NotiLobbyChat:
+            case PacketType.NotiRoomChat:
+            case PacketType.NotiLobbyChat:
                 LoadTestStats.IncrementChatReceived();
                 break;
 
-            case GamePacket.PayloadOneofCase.NotiRoomEnter:
-            case GamePacket.PayloadOneofCase.NotiRoomExit:
+            case PacketType.NotiRoomEnter:
+            case PacketType.NotiRoomExit:
                 break;
 
-            case GamePacket.PayloadOneofCase.NotiSystem:
-                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"[시스템] {packet.NotiSystem.Message}");
+            case PacketType.NotiSystem:
+                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"[시스템] {packet.As<NotiSystem>().Message}");
                 break;
 
             default:
-                GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"미처리 패킷: {packet.PayloadCase}");
+                GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"미처리 패킷: {packet.Type}");
                 break;
         }
     }
@@ -166,17 +169,15 @@ public class ReconnectStressScenario : ILoadTestScenario
             {
                 if (!channel.Active || _token.IsCancellationRequested) return;
                 await Task.Delay(300, _token).ConfigureAwait(false);
-                await channel.WriteAndFlushAsync(new GamePacket
-                {
-                    ReqRoomChat = new ReqRoomChat { Message = $"[{ctx.ClientIndex}] #{i + 1}" }
-                });
+                await channel.WriteAndFlushAsync(GamePacket.From(
+                    new ReqRoomChat { Message = $"[{ctx.ClientIndex}] #{i + 1}" }));
                 LoadTestStats.IncrementSent();
                 LoadTestStats.IncrementChatSent();
             }
 
             if (channel.Active && !_token.IsCancellationRequested)
             {
-                await channel.WriteAndFlushAsync(new GamePacket { ReqRoomExit = new ReqRoomExit() });
+                await channel.WriteAndFlushAsync(GamePacket.From(new ReqRoomExit()));
                 LoadTestStats.IncrementSent();
             }
         }

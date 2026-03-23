@@ -8,6 +8,6 @@ public class PlayerHeartbeatController(PlayerComponent player) : PlayerBaseContr
 {
     public override IReadOnlyList<IRouter> Routes() =>
         NewRouter()
-            .With<ReqHeartbeat>(_ => new GamePacket { ResHeartbeat = new ResHeartbeat() })
+            .With<ReqHeartbeat>(_ => GamePacket.From(new ResHeartbeat()))
             .Build();
 }

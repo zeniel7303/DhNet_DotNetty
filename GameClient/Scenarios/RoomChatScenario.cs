@@ -15,24 +15,27 @@ public class RoomChatScenario(string namePrefix, int chatIntervalMs, Cancellatio
     protected override async Task OnLoginSuccessAsync(IChannel channel, ClientContext ctx)
     {
         ctx.RoomEnterSent = true;
-        await channel.WriteAndFlushAsync(new GamePacket { ReqRoomEnter = new ReqRoomEnter() });
+        await channel.WriteAndFlushAsync(GamePacket.From(new ReqRoomEnter()));
         LoadTestStats.IncrementSent();
     }
 
     protected override async Task<bool> OnOtherPacketReceivedAsync(IChannel channel, ClientContext ctx, GamePacket packet)
     {
-        switch (packet.PayloadCase)
+        switch (packet.Type)
         {
-            case GamePacket.PayloadOneofCase.NotiRoomEnter:
-                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 입장 알림: {packet.NotiRoomEnter.PlayerName}");
-                if (packet.NotiRoomEnter.PlayerId == ctx.PlayerId)
+            case PacketType.NotiRoomEnter:
+            {
+                var noti = packet.As<NotiRoomEnter>();
+                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 입장 알림: {noti.PlayerName}");
+                if (noti.PlayerId == ctx.PlayerId)
                 {
                     GameLogger.Info($"Client[{ctx.ClientIndex}]", "내 입장 확인 → 채팅 루프 시작");
                     _ = StartPeriodicRoomChatAsync(channel, ctx);
                 }
                 return true;
+            }
 
-            case GamePacket.PayloadOneofCase.NotiRoomChat:
+            case PacketType.NotiRoomChat:
                 LoadTestStats.IncrementChatReceived();
                 return true;
 
@@ -49,10 +52,8 @@ public class RoomChatScenario(string namePrefix, int chatIntervalMs, Cancellatio
             {
                 await Task.Delay(chatIntervalMs, token);
                 if (!channel.Active) break;
-                await channel.WriteAndFlushAsync(new GamePacket
-                {
-                    ReqRoomChat = new ReqRoomChat { Message = $"[{ctx.PlayerName}] room ping" }
-                });
+                await channel.WriteAndFlushAsync(GamePacket.From(
+                    new ReqRoomChat { Message = $"[{ctx.PlayerName}] room ping" }));
                 LoadTestStats.IncrementSent();
                 LoadTestStats.IncrementChatSent();
             }

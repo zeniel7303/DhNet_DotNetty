@@ -1,6 +1,0 @@
-syntax = "proto3";
-package dhnet;
-option csharp_namespace = "GameServer.Protocol";
-
-message ReqHeartbeat {}
-message ResHeartbeat {}

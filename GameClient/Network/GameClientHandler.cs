@@ -26,7 +26,7 @@ public class GameClientHandler : SimpleChannelInboundHandler<GamePacket>
 
     protected override void ChannelRead0(IChannelHandlerContext ctx, GamePacket packet)
     {
-        if (packet.PayloadCase == GamePacket.PayloadOneofCase.ResHeartbeat)
+        if (packet.Type == PacketType.ResHeartbeat)
             return;
         _ = _scenario.OnPacketReceivedAsync(ctx.Channel, _ctx, packet);
     }

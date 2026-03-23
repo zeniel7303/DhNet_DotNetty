@@ -29,7 +29,7 @@ public class SessionComponent : IDisposable
         Channel = channel;
         _packetPolicies =
         [
-            PacketPairPolicy.Create(t => _packetQueue.Count(p => p.PayloadCase == t)),
+            PacketPairPolicy.Create(t => _packetQueue.Count(p => p.Type == t)),
             PacketRatePolicy.Create(),
         ];
     }
@@ -53,7 +53,7 @@ public class SessionComponent : IDisposable
     // I/O 이벤트 루프 단일 스레드에서만 호출됨
     public bool ProcessPacket(GamePacket packet)
     {
-        var type = packet.PayloadCase;
+        var type = packet.Type;
         foreach (var policy in _packetPolicies)
         {
             var result = policy.VerifyPolicy(type);
@@ -75,7 +75,7 @@ public class SessionComponent : IDisposable
         {
             PacketHandler?.Invoke(packet);
 
-            var type = packet.PayloadCase;
+            var type = packet.Type;
             foreach (var policy in _packetPolicies)
             {
                 policy.UpdatePolicy(type);

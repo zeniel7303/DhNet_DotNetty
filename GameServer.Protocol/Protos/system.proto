@@ -1,8 +1,0 @@
-syntax = "proto3";
-package dhnet;
-option csharp_namespace = "GameServer.Protocol";
-
-// 서버에서 클라이언트로 전송하는 시스템 공지 메시지
-message NotiSystem {
-  string message = 1;
-}

@@ -34,18 +34,18 @@ public class GameServerHandler : SimpleChannelInboundHandler<GamePacket>
     {
         if (_session == null || _closing) return;
 
-        switch (packet.PayloadCase)
+        switch (packet.Type)
         {
-            case GamePacket.PayloadOneofCase.ReqRegister:
+            case PacketType.ReqRegister:
                 // TrySetRegisterStarted: 중복 ReqRegister 전송 시 RegisterProcessor 병렬 실행 방지
                 if (_session.TrySetRegisterStarted())
-                    _ = RegisterProcessor.ProcessAsync(_session, packet.ReqRegister);
+                    _ = RegisterProcessor.ProcessAsync(_session, packet.As<ReqRegister>());
                 break;
 
-            case GamePacket.PayloadOneofCase.ReqLogin:
+            case PacketType.ReqLogin:
                 // TrySetLoginStarted: 중복 ReqLogin 전송 시 LoginProcessor 병렬 실행 방지
                 if (_session.TrySetLoginStarted())
-                    _ = LoginProcessor.ProcessAsync(_session, packet.ReqLogin);
+                    _ = LoginProcessor.ProcessAsync(_session, packet.As<ReqLogin>());
                 break;
 
             default:
@@ -57,7 +57,7 @@ public class GameServerHandler : SimpleChannelInboundHandler<GamePacket>
                     {
                         _closing = true;
                         GameLogger.Warn("GameServerHandler",
-                            $"미인증 세션 게임 패킷 수신 ({packet.PayloadCase}) — 연결 종료: {ctx.Channel.RemoteAddress}");
+                            $"미인증 세션 게임 패킷 수신 ({packet.Type}) — 연결 종료: {ctx.Channel.RemoteAddress}");
                         _ = ctx.CloseAsync();
                     }
                     return;

@@ -26,10 +26,7 @@ public class DuplicateLoginScenario(string namePrefix) : ILoadTestScenario
         GameLogger.Info($"DupTest[{ctx.ClientIndex}]", $"연결됨 → 회원가입 시도: {Username}");
 
         // 먼저 가입 시도: 이미 존재하면 USERNAME_TAKEN → 그냥 로그인으로 넘어감
-        await channel.WriteAndFlushAsync(new GamePacket
-        {
-            ReqRegister = new ReqRegister { Username = Username, Password = Password }
-        });
+        await channel.WriteAndFlushAsync(GamePacket.From(new ReqRegister { Username = Username, Password = Password }));
         LoadTestStats.IncrementSent();
     }
 
@@ -37,18 +34,17 @@ public class DuplicateLoginScenario(string namePrefix) : ILoadTestScenario
     {
         LoadTestStats.IncrementReceived();
 
-        switch (packet.PayloadCase)
+        switch (packet.Type)
         {
-            case GamePacket.PayloadOneofCase.ResRegister:
-                var regCode = packet.ResRegister.ErrorCode;
+            case PacketType.ResRegister:
+            {
+                var regCode = packet.As<ResRegister>().ErrorCode;
                 if (regCode == ErrorCode.Success || regCode == ErrorCode.UsernameTaken)
                 {
                     GameLogger.Info($"DupTest[{ctx.ClientIndex}]",
                         $"가입 결과: {regCode} → 로그인 시도: {Username}");
-                    await channel.WriteAndFlushAsync(new GamePacket
-                    {
-                        ReqLogin = new ReqLogin { Username = Username, Password = Password }
-                    });
+                    await channel.WriteAndFlushAsync(GamePacket.From(
+                        new ReqLogin { Username = Username, Password = Password }));
                     LoadTestStats.IncrementSent();
                 }
                 else
@@ -57,13 +53,15 @@ public class DuplicateLoginScenario(string namePrefix) : ILoadTestScenario
                     await channel.CloseAsync();
                 }
                 break;
+            }
 
-            case GamePacket.PayloadOneofCase.ResLogin:
-                var loginCode = packet.ResLogin.ErrorCode;
-                if (loginCode == ErrorCode.Success)
+            case PacketType.ResLogin:
+            {
+                var res = packet.As<ResLogin>();
+                if (res.ErrorCode == ErrorCode.Success)
                 {
                     GameLogger.Info($"DupTest[{ctx.ClientIndex}]",
-                        $"[SUCCESS] 로그인 성공: {packet.ResLogin.PlayerName} (Id={packet.ResLogin.PlayerId})");
+                        $"[SUCCESS] 로그인 성공: {res.PlayerName} (Id={res.PlayerId})");
 
                     // 3초 후 연결 해제 — 다른 클라이언트의 재시도 여지 확인용
                     _ = Task.Run(async () =>
@@ -73,25 +71,26 @@ public class DuplicateLoginScenario(string namePrefix) : ILoadTestScenario
                         await channel.CloseAsync();
                     });
                 }
-                else if (loginCode == ErrorCode.AlreadyLoggedIn)
+                else if (res.ErrorCode == ErrorCode.AlreadyLoggedIn)
                 {
                     GameLogger.Warn($"DupTest[{ctx.ClientIndex}]",
-                        $"[BLOCKED] 중복 로그인 거부: {loginCode} ← 정상 동작");
+                        $"[BLOCKED] 중복 로그인 거부: {res.ErrorCode} ← 정상 동작");
                     await channel.CloseAsync();
                 }
                 else
                 {
-                    GameLogger.Warn($"DupTest[{ctx.ClientIndex}]", $"[FAIL] 로그인 실패: {loginCode}");
+                    GameLogger.Warn($"DupTest[{ctx.ClientIndex}]", $"[FAIL] 로그인 실패: {res.ErrorCode}");
                     await channel.CloseAsync();
                 }
                 break;
+            }
 
-            case GamePacket.PayloadOneofCase.NotiSystem:
-                GameLogger.Info($"DupTest[{ctx.ClientIndex}]", $"[시스템] {packet.NotiSystem.Message}");
+            case PacketType.NotiSystem:
+                GameLogger.Info($"DupTest[{ctx.ClientIndex}]", $"[시스템] {packet.As<NotiSystem>().Message}");
                 break;
 
             default:
-                GameLogger.Warn($"DupTest[{ctx.ClientIndex}]", $"미처리 패킷: {packet.PayloadCase}");
+                GameLogger.Warn($"DupTest[{ctx.ClientIndex}]", $"미처리 패킷: {packet.Type}");
                 break;
         }
     }

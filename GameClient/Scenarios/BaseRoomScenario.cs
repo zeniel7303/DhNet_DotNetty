@@ -22,63 +22,65 @@ public abstract class BaseRoomScenario : ILoadTestScenario
         LoadTestStats.IncrementConnected();
         var name = $"{_namePrefix}{ctx.ClientIndex}";
         GameLogger.Info($"Client[{ctx.ClientIndex}]", $"연결됨, 회원가입 시도: {name}");
-        await channel.WriteAndFlushAsync(new GamePacket
-        {
-            ReqRegister = new ReqRegister { Username = name, Password = ctx.Password }
-        });
+        await channel.WriteAndFlushAsync(GamePacket.From(new ReqRegister { Username = name, Password = ctx.Password }));
         LoadTestStats.IncrementSent();
     }
 
     public async Task OnPacketReceivedAsync(IChannel channel, ClientContext ctx, GamePacket packet)
     {
         LoadTestStats.IncrementReceived();
-        switch (packet.PayloadCase)
+        switch (packet.Type)
         {
-            case GamePacket.PayloadOneofCase.ResRegister:
+            case PacketType.ResRegister:
+            {
+                var res = packet.As<ResRegister>();
                 // SUCCESS: 신규 가입 / USERNAME_TAKEN: 이미 존재하는 봇 — 둘 다 로그인 진행
-                if (packet.ResRegister.ErrorCode == ErrorCode.Success ||
-                    packet.ResRegister.ErrorCode == ErrorCode.UsernameTaken)
+                if (res.ErrorCode == ErrorCode.Success || res.ErrorCode == ErrorCode.UsernameTaken)
                 {
                     var name = $"{_namePrefix}{ctx.ClientIndex}";
-                    await channel.WriteAndFlushAsync(new GamePacket
-                    {
-                        ReqLogin = new ReqLogin { Username = name, Password = ctx.Password }
-                    });
+                    await channel.WriteAndFlushAsync(GamePacket.From(new ReqLogin { Username = name, Password = ctx.Password }));
                     LoadTestStats.IncrementSent();
                 }
                 else
                 {
-                    GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"회원가입 실패: {packet.ResRegister.ErrorCode}");
+                    GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"회원가입 실패: {res.ErrorCode}");
                 }
                 break;
+            }
 
-            case GamePacket.PayloadOneofCase.ResLogin:
-                if (packet.ResLogin.ErrorCode != ErrorCode.Success)
+            case PacketType.ResLogin:
+            {
+                var res = packet.As<ResLogin>();
+                if (res.ErrorCode != ErrorCode.Success)
                 {
-                    GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"로그인 실패: {packet.ResLogin.ErrorCode}");
+                    GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"로그인 실패: {res.ErrorCode}");
                     return;
                 }
-                ctx.PlayerId   = packet.ResLogin.PlayerId;
-                ctx.PlayerName = packet.ResLogin.PlayerName;
+                ctx.PlayerId   = res.PlayerId;
+                ctx.PlayerName = res.PlayerName;
                 GameLogger.Info($"Client[{ctx.ClientIndex}]", $"로그인 성공: {ctx.PlayerName} (Id={ctx.PlayerId})");
                 await OnLoginSuccessAsync(channel, ctx);
                 break;
+            }
 
-            case GamePacket.PayloadOneofCase.ResRoomEnter:
-                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 입장 결과: {packet.ResRoomEnter.ErrorCode}");
-                if (packet.ResRoomEnter.ErrorCode == ErrorCode.Success)
+            case PacketType.ResRoomEnter:
+            {
+                var res = packet.As<ResRoomEnter>();
+                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 입장 결과: {res.ErrorCode}");
+                if (res.ErrorCode == ErrorCode.Success)
                     await OnRoomEnterSuccessAsync(channel, ctx);
                 else
                     ctx.ScheduleRoomEnterRetry(channel);
                 break;
+            }
 
-            case GamePacket.PayloadOneofCase.NotiSystem:
-                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"[시스템] {packet.NotiSystem.Message}");
+            case PacketType.NotiSystem:
+                GameLogger.Info($"Client[{ctx.ClientIndex}]", $"[시스템] {packet.As<NotiSystem>().Message}");
                 break;
 
             default:
                 if (!await OnOtherPacketReceivedAsync(channel, ctx, packet))
-                    GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"미처리 패킷: {packet.PayloadCase}");
+                    GameLogger.Warn($"Client[{ctx.ClientIndex}]", $"미처리 패킷: {packet.Type}");
                 break;
         }
     }

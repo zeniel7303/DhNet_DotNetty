@@ -29,7 +29,7 @@ public record PacketPolicyResult
 /// </summary>
 public interface IPacketPolicy
 {
-    PacketPolicyResult VerifyPolicy(GamePacket.PayloadOneofCase packetType);
-    void UpdatePolicy(GamePacket.PayloadOneofCase packetType);
+    PacketPolicyResult VerifyPolicy(PacketType packetType);
+    void UpdatePolicy(PacketType packetType);
     void Clear();
 }
