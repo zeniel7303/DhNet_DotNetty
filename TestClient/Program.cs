@@ -140,6 +140,8 @@ class Program
             "room-chat"        => new RoomChatScenario(config.PlayerNamePrefix, config.ChatIntervalMs, token),
             "room-loop"        => new RoomLoopScenario(config.PlayerNamePrefix),
             "duplicate-login"  => new DuplicateLoginScenario(config.PlayerNamePrefix),
+            "rpg-room"         => new RpgRoomScenario(config.PlayerNamePrefix),
+            "pve-stress"       => new PveStressScenario(config.PlayerNamePrefix),
             _                  => new LobbyChatScenario(config.PlayerNamePrefix, config.ChatIntervalMs, token),
         };
 

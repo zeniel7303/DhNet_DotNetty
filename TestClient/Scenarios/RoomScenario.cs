@@ -13,10 +13,7 @@ public class RoomScenario(string namePrefix) : BaseRoomScenario(namePrefix)
 {
     protected override async Task OnLoginSuccessAsync(IChannel channel, ClientContext ctx)
     {
-        await channel.WriteAndFlushAsync(new GamePacket
-        {
-            ReqLobbyChat = new ReqLobbyChat { Message = "안녕하세요 로비!" }
-        });
+        await channel.WriteAndFlushAsync(new GamePacket { ReqCreateRoom = new ReqCreateRoom() });
         LoadTestStats.IncrementSent();
     }
 
@@ -24,15 +21,6 @@ public class RoomScenario(string namePrefix) : BaseRoomScenario(namePrefix)
     {
         switch (packet.PayloadCase)
         {
-            case GamePacket.PayloadOneofCase.NotiLobbyChat:
-                if (!ctx.RoomEnterSent)
-                {
-                    ctx.RoomEnterSent = true;
-                    await channel.WriteAndFlushAsync(new GamePacket { ReqRoomEnter = new ReqRoomEnter() });
-                    LoadTestStats.IncrementSent();
-                }
-                return true;
-
             case GamePacket.PayloadOneofCase.NotiRoomEnter:
                 GameLogger.Info($"Client[{ctx.ClientIndex}]", $"룸 입장 알림: {packet.NotiRoomEnter.PlayerName}");
                 if (packet.NotiRoomEnter.PlayerId == ctx.PlayerId)

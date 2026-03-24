@@ -120,7 +120,6 @@ public class ReconnectStressScenario : ILoadTestScenario
                 break;
 
             case GamePacket.PayloadOneofCase.NotiRoomChat:
-            case GamePacket.PayloadOneofCase.NotiLobbyChat:
                 LoadTestStats.IncrementChatReceived();
                 break;
 
