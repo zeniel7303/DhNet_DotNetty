@@ -37,13 +37,15 @@ static class ServerStartup
 
         var statTask = StatLogger.RunAsync(cts.Token);
         var webTask  = WebServerHost.RunAsync(gameSettings.WebPort, cts.Token);
+        await using var wsServer = new WsServerBootstrap(gameSettings.WsPort);
+        var wsTask = wsServer.RunAsync(cts.Token);
         await using var server = new GameServerBootstrap(gameSettings, encSettings);
         await server.RunAsync(cts.Token);
 
         await GameSystems.StopAsync();
 
-        GameLogger.Info("Server", "[Shutdown] Web 서버, Stat 로거 종료 대기...");
-        await Task.WhenAll(statTask, webTask);
+        GameLogger.Info("Server", "[Shutdown] Web/WS 서버, Stat 로거 종료 대기...");
+        await Task.WhenAll(statTask, webTask, wsTask);
 
         GameLogger.Info("Server", "[Shutdown] 완료.");
         await GameLogger.FlushAsync();
