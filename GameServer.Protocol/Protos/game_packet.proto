@@ -8,6 +8,10 @@ import "Protos/lobby.proto";
 import "Protos/room.proto";
 import "Protos/heartbeat.proto";
 import "Protos/system.proto";
+import "Protos/world.proto";
+import "Protos/combat.proto";
+import "Protos/character.proto";
+import "Protos/chat.proto";
 
 message GamePacket {
   oneof payload {
@@ -21,14 +25,49 @@ message GamePacket {
     ReqRoomExit   req_room_exit   = 8;
     ResRoomExit   res_room_exit   = 9;
     NotiRoomExit  noti_room_exit  = 10;
-    ReqLobbyChat  req_lobby_chat  = 11;
-    NotiLobbyChat noti_lobby_chat = 12;
+    // 11, 12 reserved (구 ReqLobbyChat, NotiLobbyChat)
     ReqHeartbeat  req_heartbeat   = 13;
     ResHeartbeat  res_heartbeat   = 14;
-    ReqLobbyList  req_lobby_list  = 15;
-    ResLobbyList  res_lobby_list  = 16;
+    // 15, 16 reserved (구 ReqLobbyList, ResLobbyList)
     NotiSystem    noti_system     = 17;
     ReqRegister   req_register    = 18;
     ResRegister   res_register    = 19;
+
+    // Room — 게임 준비/시작/종료
+    ReqReadyGame  req_ready_game  = 20;
+    NotiReadyGame noti_ready_game = 21;
+    NotiGameStart noti_game_start = 22;
+    NotiGameEnd   noti_game_end   = 23;
+
+    // World — 이동, 게임 입퇴장, 몬스터 스폰
+    ReqMove            req_move             = 24;
+    NotiMove           noti_move            = 25;
+    NotiEnterGame      noti_enter_game      = 26;
+    NotiLeaveGame      noti_leave_game      = 27;
+    NotiSpawnMonster   noti_spawn_monster   = 28;
+    NotiDespawnMonster noti_despawn_monster = 29;
+    ResEnterGame       res_enter_game       = 30;
+
+    // Combat — PvE 전투
+    ReqAttack         req_attack          = 31;
+    NotiCombat        noti_combat         = 32;
+    NotiMonsterAttack noti_monster_attack = 33;
+    NotiHpChange      noti_hp_change      = 34;
+    NotiDeath         noti_death          = 35;
+    NotiRespawn       noti_respawn        = 36;
+
+    // Character — 스탯/레벨/EXP
+    NotiExpGain      noti_exp_gain       = 37;
+    NotiLevelUp      noti_level_up       = 38;
+    ResCharacterInfo res_character_info  = 39;
+
+    // Chat — 게임 플레이 중 채팅
+    ReqGameChat  req_game_chat  = 40;
+    NotiGameChat noti_game_chat = 41;
+
+    // Lobby Hub — 룸 목록 조회 / 룸 생성
+    ReqRoomList   req_room_list   = 42;
+    ResRoomList   res_room_list   = 43;
+    ReqCreateRoom req_create_room = 44;
   }
 }

@@ -1,0 +1,31 @@
+syntax = "proto3";
+package dhnet;
+option csharp_namespace = "GameServer.Protocol";
+
+import "Protos/error_codes.proto";
+
+message ReqMove          { float x = 1; float y = 2; }
+message NotiMove         { uint64 player_id = 1; float x = 2; float y = 3; }
+
+message NotiEnterGame    {
+    uint64 player_id   = 1;
+    string player_name = 2;
+    float  x           = 3;
+    float  y           = 4;
+    int32  level       = 5;
+    int32  hp          = 6;
+    int32  max_hp      = 7;
+}
+message NotiLeaveGame    { uint64 player_id = 1; }
+
+message NotiSpawnMonster   { uint64 monster_id = 1; int32 monster_type = 2; float x = 3; float y = 4; int32 hp = 5; int32 max_hp = 6; }
+message NotiDespawnMonster { uint64 monster_id = 1; }
+
+message PlayerInfo  { uint64 player_id = 1; string name = 2; float x = 3; float y = 4; int32 level = 5; int32 hp = 6; int32 max_hp = 7; }
+message MonsterInfo { uint64 monster_id = 1; int32 monster_type = 2; float x = 3; float y = 4; int32 hp = 5; int32 max_hp = 6; }
+
+message ResEnterGame {
+    repeated PlayerInfo  players  = 1;
+    repeated MonsterInfo monsters = 2;
+    ErrorCode            error_code = 3;
+}

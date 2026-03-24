@@ -37,8 +37,24 @@ CREATE TABLE `players` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='플레이어 로그인 세션 정보';
 
 -- ──────────────────────────────────────────────
+-- characters: RPG 캐릭터 영속 데이터 (1계정 1캐릭터)
+-- ──────────────────────────────────────────────
+DROP TABLE IF EXISTS `characters`;
+CREATE TABLE `characters` (
+    `account_id`  BIGINT UNSIGNED NOT NULL               COMMENT 'accounts.account_id FK',
+    `level`       INT             NOT NULL DEFAULT 1,
+    `exp`         BIGINT          NOT NULL DEFAULT 0,
+    `hp`          INT             NOT NULL DEFAULT 100,
+    `max_hp`      INT             NOT NULL DEFAULT 100,
+    `attack`      INT             NOT NULL DEFAULT 15,
+    `defense`     INT             NOT NULL DEFAULT 5,
+    `x`           FLOAT           NOT NULL DEFAULT 100.0  COMMENT '마지막 위치 X',
+    `y`           FLOAT           NOT NULL DEFAULT 100.0  COMMENT '마지막 위치 Y',
+    `updated_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`account_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RPG 캐릭터 영속 데이터';
+
+-- ──────────────────────────────────────────────
 -- TODO [미래 Phase A]: account_bans 테이블 (정지 계정)
--- TODO [미래 Phase D]: player_stats 테이블 (게임 통계)
 -- TODO [미래 Phase D]: player_items 테이블 (인벤토리)
--- TODO [미래]: player_id 컬럼 추가 시 1개 계정이 N개 플레이어 소유 가능
 -- ──────────────────────────────────────────────

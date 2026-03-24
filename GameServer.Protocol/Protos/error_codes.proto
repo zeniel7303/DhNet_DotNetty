@@ -24,5 +24,8 @@ enum ErrorCode {
   NOT_IN_LOBBY = 2001;  // 로비 미입장 상태에서 요청
 
   // 룸 (3000~)
-  ALREADY_IN_ROOM = 3000;  // 이미 룸에 입장한 상태에서 요청
+  ALREADY_IN_ROOM      = 3000;  // 이미 룸에 입장한 상태에서 요청
+  ROOM_NOT_FOUND       = 3001;  // 존재하지 않는 룸 ID
+  ROOM_FULL            = 3002;  // 룸 정원 초과
+  ROOM_ALREADY_STARTED = 3003;  // 이미 게임이 시작된 룸
 }
