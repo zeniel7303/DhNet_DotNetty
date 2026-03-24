@@ -1,206 +1,146 @@
 # RPG 웹게임 - Context
 
-Last Updated: 2026-03-24
+Last Updated: 2026-03-24 (Phase 6 완료)
 
 ---
 
-## 요구사항 요약
+## 현재 구현 상태
+
+**Phase 1~6 전부 완료.** 미완료 항목: Phase 6.3 (Web REST API 확인) — 기능 코드 변경 없이 수동 검증만 필요.
+
+### 완료된 Phase 요약
+| Phase | 내용 | 상태 |
+|-------|------|------|
+| 1 | WebSocket 파이프라인 (`/ws`) | ✅ |
+| 2 | 룸 시스템 수정 + Proto 확장 | ✅ |
+| 3 | RPG 서버 컴포넌트 (Character, World, Monster, GameSession) | ✅ |
+| 4 | DB 확장 (characters 테이블 + CharacterDbSet) | ✅ |
+| 5 | HTML5 웹 클라이언트 (GameClient.Web) | ✅ |
+| 6.1 | RpgRoomScenario (TestClient) | ✅ |
+| 6.2 | PveStressScenario (TestClient) | ✅ |
+| 6.3 | Web REST API 엔드포인트 확인 | ⬜ 수동 검증 |
+
+---
+
+## 이 세션에서 내린 주요 결정사항
+
+### 1. protobuf.js oneof 접근 방식 (결정적 버그 수정)
+- **문제**: 클라이언트 로그인/회원가입 후 "연결 중..."에서 멈춤
+- **원인 1**: `pkt.payloadCase` 는 C# 관례. protobuf.js에서는 `pkt.payload` 가 설정된 필드 이름 문자열을 반환
+  ```js
+  // 틀림: pkt.payloadCase → undefined
+  // 맞음: pkt.payload → "resLogin"
+  switch(pkt.payload) { case 'resLogin': ... }
+  ```
+- **원인 2**: `uint64` 필드는 protobuf.js에서 `Long` 객체로 반환됨 (BigInt/number 아님)
+  ```js
+  function toId(v) {
+    if (v == null) return '0';
+    if (typeof v === 'object' && v.toString) return v.toString();
+    return String(v);
+  }
+  ```
+- **검증**: Node.js에서 직접 패킷 디코딩하여 확인
+- game.js 전체 재작성으로 수정 완료 (2026-03-24)
+
+### 2. WebSocket 파이프라인 — LengthField 프레이밍 불필요
+- WebSocket이 메시지 경계를 자체 처리하므로 LengthFieldPrepender/BasedFrameDecoder 제거
+- `WebSocketFrameHandler`: `BinaryWebSocketFrame` ↔ `IByteBuffer` 변환만 수행
+
+### 3. GameClient.Web 프로젝트 구성
+- `Microsoft.NET.Sdk` + `FrameworkReference Include="Microsoft.AspNetCore.App"` 사용
+  (NOT `Microsoft.NET.Sdk.Web` — `WebApplication`을 찾지 못하는 이슈 있었음)
+- `using Microsoft.AspNetCore.Builder;` 명시적 선언 필요 (ImplicitUsings로 포함 안 됨)
+
+### 4. proto-bundle.json 생성 방법
+- `npx pbjs` CLI는 잘못된 패키지(pbjs@0.0.14)를 설치함
+- Node.js protobuf.js API를 직접 사용:
+  ```js
+  const protobuf = require('protobufjs');
+  const root = new protobuf.Root();
+  root.resolvePath = (o, t) => path.join('../GameServer.Protocol', t);
+  root.loadSync('Protos/game_packet.proto', { keepCase: false });
+  require('fs').writeFileSync('proto-bundle.json', JSON.stringify(root.toJSON()));
+  ```
+
+### 5. RpgRoomScenario / PveStressScenario 협조 패턴
+- 짝수 인덱스 클라이언트: 룸 생성 → NotiRoomEnter(다른 플레이어) 수신 시 ReadyGame
+- 홀수 인덱스 클라이언트: 2~3초 딜레이 → ReqRoomList → 입장 → 즉시 ReadyGame
+- 1초 공격 쿨다운 때문에 ReqAttack 사이 1100ms Delay 사용
+
+---
+
+## 수정된 파일 목록 (이 세션 전체)
+
+### 신규 생성
+- `GameServer/Network/WebSocketFrameHandler.cs`
+- `GameServer/Network/WsPipelineInitializer.cs`
+- `GameServer/Network/WsServerBootstrap.cs`
+- `GameServer/Component/Player/CharacterComponent.cs`
+- `GameServer/Component/Player/PlayerWorldComponent.cs`
+- `GameServer/Component/Room/MonsterComponent.cs`
+- `GameServer/Component/Room/GameSessionComponent.cs`
+- `GameServer/Systems/MonsterSystem.cs`
+- `GameServer/Controllers/PlayerRpgController.cs`
+- `GameServer.Database/Rows/CharacterRow.cs`
+- `GameServer.Database/DbSet/CharacterDbSet.cs`
+- `GameClient.Web/` (전체 프로젝트)
+  - `Program.cs`, `appsettings.json`, `GameClient.Web.csproj`
+  - `wwwroot/index.html`, `wwwroot/css/style.css`
+  - `wwwroot/js/game.js`, `wwwroot/js/proto-bundle.json`
+- `TestClient/Scenarios/RpgRoomScenario.cs`
+- `TestClient/Scenarios/PveStressScenario.cs`
+
+### 수정
+- `GameServer/Component/Room/RoomComponent.cs` — GameSession 통합, BroadcastPacket, GetPlayers
+- `GameServer/Component/Player/PlayerComponent.cs` — Character/World 컴포넌트 추가
+- `GameServer/Network/LoginProcessor.cs` — CharacterComponent 초기화 + ResCharacterInfo 전송
+- `GameServer/Network/GamePacketExtensions.cs` — RPG 패킷 라우팅 추가
+- `GameServer/Systems/GameSystems.cs` — lobbyCount 1로 변경, MonsterSystem 초기화
+- `GameServer.Database/System/GameDbContext.cs` — CharacterDbSet 추가
+- `db/schema_game.sql` — characters 테이블 추가
+- `TestClient/Program.cs` — rpg-room, pve-stress 시나리오 추가
+
+---
+
+## 실행 방법
+
+```bash
+# 서버 실행 (TCP:7777 + WebSocket:7778)
+dotnet run --project GameServer
+
+# 웹 클라이언트 (http://localhost:8081)
+dotnet run --project GameClient.Web
+
+# TestClient 시나리오
+dotnet run --project TestClient -- --scenario rpg-room --clients 2 --delay 100
+dotnet run --project TestClient -- --scenario pve-stress --clients 10 --delay 100
+
+# DB 스키마 재적용 (MySQL)
+mysql -u root -p gameserver < db/schema_game.sql
+mysql -u root -p gamelog < db/schema_log.sql
+```
+
+---
+
+## 미완성 작업 / 알려진 이슈
+
+### 6.3 Web REST API 확인 (수동)
+- `GameServer/Web/` 에 ASP.NET Core REST API 존재 (별도 포트)
+- 엔드포인트 목록 확인 및 정상 응답 검증 필요
+
+### 알려진 제한사항
+- 서버는 단일 로비(lobbyCount=1)만 운영 — 스트레스 테스트 시 로비 병목 가능
+- 몬스터 위치는 고정값 (랜덤 스폰 없음): Slime(200,150), Slime(600,150), Orc(400,350), Dragon(400,500)
+- 캐릭터 저장: 연결 해제 시만 저장 (레벨업 즉시 저장은 구현되지 않음)
+- 게임 종료 후 플레이어가 룸에 남아있음 — 클라이언트가 `ReqRoomExit` 전송해야 로비 복귀
+
+---
+
+## 요구사항 요약 (원본)
 
 - 기존 DotNetty + Protocol Buffers 유지
 - 로비/룸 시스템 **유지** — 유저가 룸을 직접 생성하고 입장
 - 멀티플레이어: **PvE 전용** (플레이어 간 전투 없음)
 - 룸당 최대 **2인**
 - 브라우저에서 플레이 가능한 간단한 웹 RPG
-
----
-
-## 핵심 파일 목록
-
-### 재활용 (수정 없거나 최소 수정)
-- `GameServer/Network/GameServerBootstrap.cs` — DotNetty 서버 부트스트랩
-- `GameServer/Network/GamePipelineInitializer.cs` — **수정 필요**: WebSocket 핸들러 추가
-- `GameServer/Network/SessionComponent.cs` — 세션 상태
-- `GameServer/Network/GameServerHandler.cs` — **수정 필요**: RPG 패킷 라우팅 추가
-- `GameServer/Network/LoginProcessor.cs` — **수정 필요**: CharacterComponent 초기화 연동
-- `GameServer/Network/RegisterProcessor.cs` — 재활용
-- `GameServer/Network/HeartbeatHandler.cs` — 재활용
-- `GameServer/Systems/PlayerSystem.cs` — 재활용
-- `GameServer/Systems/LobbySystem.cs` — 재활용 (수정 없음)
-- `GameServer/Systems/ShutdownSystem.cs` — 재활용
-- `GameServer/Systems/GameSystems.cs` — **수정 필요**: MonsterSystem, CombatSystem 추가
-- `GameServer/Component/Lobby/LobbyComponent.cs` — 재활용 (수정 없음)
-- `GameServer/Component/Player/PlayerLobbyComponent.cs` — 재활용 (수정 없음)
-- `Common.Server/Component/WorkerSystem.cs` — 재활용
-- `Common.Server/Routing/PacketRouter.cs` — 재활용
-- `GameServer.Database/` — 전체 재활용 + CharacterDbSet 추가
-
-### 수정 대상
-- `GameServer/Component/Room/RoomComponent.cs` — 최대 인원 2 제한, 게임 시작 콜백
-- `GameServer/Component/Player/PlayerRoomComponent.cs` — 게임 플레이 중 상태 연동
-- `GameServer/Controllers/PlayerRoomController.cs` — ReqReadyGame 핸들러 추가
-- `GameServer.Protocol/Protos/room.proto` — ReqReadyGame, NotiGameStart, NotiGameEnd 추가
-
-### 신규 작성
-- `GameServer/Network/WebSocketFrameHandler.cs` — WebSocket 바이너리 프레임 처리
-- `GameServer/Component/Player/PlayerWorldComponent.cs` — 위치/이동/전투상태
-- `GameServer/Component/Player/CharacterComponent.cs` — 스탯/레벨/EXP
-- `GameServer/Component/GameSession/GameSessionComponent.cs` — 룸 1:1 게임 세션 (max 2인)
-- `GameServer/Component/Monster/MonsterComponent.cs` — 몬스터 엔티티
-- `GameServer/Systems/MonsterSystem.cs` — 몬스터 AI + 리스폰
-- `GameServer/Systems/CombatSystem.cs` — PvE 전투 계산
-- `GameServer/Controllers/PlayerRpgController.cs` — RPG 패킷 핸들러
-- `GameServer.Protocol/Protos/world.proto` — 이동/게임세션 패킷
-- `GameServer.Protocol/Protos/combat.proto` — PvE 전투 패킷
-- `GameServer.Protocol/Protos/character.proto` — 캐릭터 정보 패킷
-- `GameServer.Protocol/Protos/chat.proto` — 채팅 패킷
-- `GameServer.Database/DbSet/CharacterDbSet.cs` — 캐릭터 DB 접근
-- `GameServer.Database/Rows/CharacterRow.cs` — 캐릭터 DB 행
-- `GameClient.Web/` — HTML5 웹 클라이언트 프로젝트 (신규)
-
----
-
-## 핵심 설계 결정
-
-### 1. WebSocket + Protobuf 프레이밍
-DotNetty WebSocket 지원은 `DotNetty.Codecs.Http` 패키지에 포함됨.
-파이프라인 구성:
-```
-HttpServerCodec
-HttpObjectAggregator
-WebSocketServerProtocolHandler (path: /ws)
-WebSocketFrameHandler (BinaryWebSocketFrame -> ByteBuf)
-LengthFieldPrepender(2) / LengthFieldBasedFrameDecoder
-ProtobufDecoder / ProtobufEncoder
-AesGcmDecryption/Encryption (optional)
-HeartbeatHandler
-GameServerHandler
-```
-
-### 2. 룸 기반 게임 세션 구조
-- 기존 RoomComponent 유지, 최대 인원 2로 제한
-- 게임 시작 시 GameSessionComponent 생성 (RoomComponent와 1:1)
-- GameSessionComponent: 해당 룸의 몬스터/플레이어 위치 관리, 브로드캐스트
-- 게임 종료 시 GameSessionComponent 해제, 플레이어는 로비로 복귀
-
-### 3. PvE 전용 전투 모델
-- 클릭 -> ReqAttack(targetMonsterId) — 플레이어 타겟 없음
-- 서버: 사거리 체크 -> 데미지 계산 (ATK - DEF, 최소 1) -> NotiCombat 브로드캐스트
-- 몬스터 HP 0 -> NotiDeath -> EXP 분배 (룸 내 2인 균등) -> NotiExpGain -> 레벨업 체크
-- 몬스터 리스폰: 사망 후 N초 타이머 (종별 상이)
-- 몬스터 -> 플레이어 자동 공격 (MonsterSystem AI)
-
-### 4. 서버 권위 이동
-- 클라이언트: ReqMove(targetX, targetY) 전송
-- 서버: 유효성 검사 (이동 속도 초과 여부) 후 위치 업데이트
-- NotiMove를 룸의 모든 플레이어에게 브로드캐스트
-- 클라이언트: 보간(interpolation)으로 부드러운 움직임 표현
-
-### 5. 캐릭터 데이터 저장 타이밍
-- 로그인: DB에서 characters 레코드 로드 (없으면 기본값으로 생성)
-- 로그아웃/연결 끊김: characters 레코드 업데이트 (HP, 위치, 레벨, EXP)
-- 레벨업: 즉시 DB 업데이트 (데이터 손실 방지)
-
-### 6. 게임 종료 조건
-- **전멸**: 룸 내 모든 플레이어 HP 0 -> NotiGameEnd(result=Defeat)
-- **클리어**: 보스(Dragon) 처치 -> NotiGameEnd(result=Clear)
-- 게임 종료 시: DB 저장 -> 플레이어 로비 복귀
-
----
-
-## 데이터베이스 스키마 변경
-
-### 추가 테이블 (schema_game.sql)
-```sql
-CREATE TABLE characters (
-    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-    account_id  BIGINT NOT NULL UNIQUE,
-    level       INT NOT NULL DEFAULT 1,
-    exp         BIGINT NOT NULL DEFAULT 0,
-    hp          INT NOT NULL DEFAULT 100,
-    max_hp      INT NOT NULL DEFAULT 100,
-    attack      INT NOT NULL DEFAULT 10,
-    defense     INT NOT NULL DEFAULT 5,
-    x           FLOAT NOT NULL DEFAULT 400.0,
-    y           FLOAT NOT NULL DEFAULT 300.0,
-    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (account_id) REFERENCES accounts(account_id)
-);
-```
-
----
-
-## Protocol Buffers 설계
-
-### room.proto 추가 메시지
-```proto
-message ReqReadyGame { }
-message NotiGameStart { int32 zone_id = 1; }
-message NotiGameEnd { bool is_clear = 1; int32 exp_gained = 2; }
-```
-
-### world.proto
-```proto
-message ReqMove { float x = 1; float y = 2; }
-message NotiMove { uint64 player_id = 1; float x = 2; float y = 3; }
-message NotiEnterGame {
-    uint64 player_id = 1; string player_name = 2;
-    float x = 3; float y = 4; int32 level = 5;
-    int32 hp = 6; int32 max_hp = 7;
-}
-message NotiLeaveGame { uint64 player_id = 1; }
-message NotiSpawnMonster { uint64 monster_id = 1; int32 monster_type = 2; float x = 3; float y = 4; int32 hp = 5; int32 max_hp = 6; }
-message NotiDespawnMonster { uint64 monster_id = 1; }
-message ResEnterGame {
-    repeated PlayerInfo players = 1;
-    repeated MonsterInfo monsters = 2;
-    ErrorCode error_code = 3;
-}
-message PlayerInfo { uint64 player_id = 1; string name = 2; float x = 3; float y = 4; int32 level = 5; int32 hp = 6; int32 max_hp = 7; }
-message MonsterInfo { uint64 monster_id = 1; int32 monster_type = 2; float x = 3; float y = 4; int32 hp = 5; int32 max_hp = 6; }
-```
-
-### combat.proto (PvE only)
-```proto
-message ReqAttack { uint64 target_monster_id = 1; }
-message NotiCombat { uint64 attacker_player_id = 1; uint64 target_monster_id = 2; int32 damage = 3; }
-message NotiMonsterAttack { uint64 monster_id = 1; uint64 target_player_id = 2; int32 damage = 3; }
-message NotiHpChange { uint64 entity_id = 1; int32 hp = 2; int32 max_hp = 3; bool is_monster = 4; }
-message NotiDeath { uint64 entity_id = 1; bool is_monster = 2; }
-message NotiRespawn { uint64 monster_id = 1; float x = 2; float y = 3; int32 hp = 4; }
-```
-
-### character.proto
-```proto
-message NotiExpGain { uint64 player_id = 1; int32 exp_gained = 2; int64 total_exp = 3; int64 next_level_exp = 4; }
-message NotiLevelUp { uint64 player_id = 1; int32 new_level = 2; int32 new_max_hp = 3; int32 new_attack = 4; int32 new_defense = 5; }
-message ResCharacterInfo { int32 level = 1; int64 exp = 2; int64 next_level_exp = 3; int32 hp = 4; int32 max_hp = 5; int32 attack = 6; int32 defense = 7; float x = 8; float y = 9; }
-```
-
-### chat.proto
-```proto
-message ReqChat { string message = 1; }
-message NotiChat { uint64 player_id = 1; string player_name = 2; string message = 3; }
-```
-
----
-
-## 레벨업 테이블 (간단)
-```
-Level 1 -> 2: 100 EXP
-Level N -> N+1: 100 * N * 1.2^(N-1) EXP
-```
-
-## 몬스터 스탯 테이블
-| Type | Name | HP | ATK | DEF | EXP | 리스폰(초) |
-|------|------|----|-----|-----|-----|-----------|
-| 1 | Slime | 30 | 3 | 0 | 10 | 5 |
-| 2 | Orc | 80 | 8 | 3 | 30 | 10 |
-| 3 | Dragon | 500 | 25 | 10 | 200 | 60 |
-
----
-
-## 의존성 정보
-
-- `DotNetty.Codecs.Http` 0.7.6 — WebSocket 지원 확인 필요 (패키지에 포함되어 있음)
-- `protobuf.js` v7.x — 클라이언트 Protobuf 직렬화
-- HTML5 Canvas API — 렌더링
