@@ -16,9 +16,11 @@ public class PacketPairPolicy : IPacketPolicy
 
     private static readonly Dictionary<GamePacket.PayloadOneofCase, int> ExclusionMaxCount = new()
     {
-        // 테스트용 예외 예시
-        // { GamePacket.PayloadOneofCase.ReqRoomChat,  5 },
-        // { GamePacket.PayloadOneofCase.ReqLobbyChat, 5 },
+        // 채팅/이동/전투 패킷은 연속 입력이 자연스러우므로 큐 상한을 높게 설정
+        { GamePacket.PayloadOneofCase.ReqRoomChat,  5 },
+        { GamePacket.PayloadOneofCase.ReqMove,      5 },
+        { GamePacket.PayloadOneofCase.ReqAttack,    3 },
+        { GamePacket.PayloadOneofCase.ReqGameChat,  3 },
     };
 
     // 큐에 적재된 특정 타입 패킷 수를 반환하는 delegate — SessionComponent에서 주입
