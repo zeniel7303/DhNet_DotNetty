@@ -15,7 +15,8 @@ appsettings.*.json
 # Logs
 *.log
 
-# Claude Code hooks dependencies
+# Node modules
+node_modules/
 .claude/hooks/node_modules/
 
 # IDE

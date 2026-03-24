@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DhNet RPG</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- ──────────────────────────────────────────────────── -->
+<!-- 로그인 / 등록 화면                                    -->
+<!-- ──────────────────────────────────────────────────── -->
+<div id="screen-login" class="panel hidden">
+  <h2>⚔ DhNet RPG</h2>
+
+  <div class="tab-btns">
+    <button id="tab-login"    class="active" onclick="switchTab('login')">로그인</button>
+    <button id="tab-register"              onclick="switchTab('register')">계정 생성</button>
+  </div>
+
+  <!-- 로그인 폼 -->
+  <div id="form-login">
+    <div class="form-group">
+      <label>아이디</label>
+      <input id="login-user" type="text" placeholder="아이디 (4~16자)" maxlength="16"
+             onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <div class="form-group">
+      <label>비밀번호</label>
+      <input id="login-pass" type="password" placeholder="비밀번호 (4~16자)" maxlength="16"
+             onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <button class="btn-primary" onclick="doLogin()">로그인</button>
+  </div>
+
+  <!-- 등록 폼 -->
+  <div id="form-register" class="hidden">
+    <div class="form-group">
+      <label>아이디</label>
+      <input id="reg-user" type="text" placeholder="아이디 (4~16자)" maxlength="16"
+             onkeydown="if(event.key==='Enter') doRegister()">
+    </div>
+    <div class="form-group">
+      <label>비밀번호</label>
+      <input id="reg-pass" type="password" placeholder="비밀번호 (4~16자)" maxlength="16"
+             onkeydown="if(event.key==='Enter') doRegister()">
+    </div>
+    <button class="btn-primary" onclick="doRegister()">계정 생성</button>
+  </div>
+
+  <div id="login-status" class="status-msg"></div>
+</div>
+
+<!-- ──────────────────────────────────────────────────── -->
+<!-- 로비 화면                                            -->
+<!-- ──────────────────────────────────────────────────── -->
+<div id="screen-lobby" class="panel hidden">
+  <div class="lobby-header">
+    <h2>🏰 로비</h2>
+    <span id="lobby-username" style="color:#a8dadc;font-size:0.9rem"></span>
+  </div>
+
+  <h3>방 목록</h3>
+  <div id="room-list"></div>
+
+  <div class="lobby-actions">
+    <button class="btn-primary" onclick="createRoom()">새 방 만들기</button>
+    <button class="btn-secondary" onclick="requestLobbyRoomList()">새로고침</button>
+  </div>
+  <div id="lobby-status" class="status-msg"></div>
+</div>
+
+<!-- ──────────────────────────────────────────────────── -->
+<!-- 룸 대기실 화면                                        -->
+<!-- ──────────────────────────────────────────────────── -->
+<div id="screen-room" class="panel hidden">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h2>🚪 대기실</h2>
+    <span id="room-id-label" style="color:#a0a0b0;font-size:0.85rem"></span>
+  </div>
+
+  <h3>참가자 (최대 2인)</h3>
+  <div id="room-players"></div>
+
+  <div class="room-actions">
+    <button id="btn-ready" class="btn-success" onclick="toggleReady()">준비</button>
+    <button class="btn-secondary" onclick="exitRoom()">나가기</button>
+  </div>
+</div>
+
+<!-- ──────────────────────────────────────────────────── -->
+<!-- 게임 화면                                            -->
+<!-- ──────────────────────────────────────────────────── -->
+<div id="screen-game" class="hidden">
+  <div id="game-hud">
+    <div class="hud-stat">👤 <span id="hud-name">-</span></div>
+    <div class="hud-stat">Lv.<span id="hud-level">1</span></div>
+    <div class="hud-stat">❤ <span id="hud-hp">-</span></div>
+    <div class="hud-stat">EXP <span id="hud-exp">-</span></div>
+    <div class="hud-stat">ATK <span id="hud-atk">-</span></div>
+    <div class="hud-stat">DEF <span id="hud-def">-</span></div>
+    <div style="font-size:0.75rem;color:#666">WASD 이동 · 몬스터 클릭 공격</div>
+  </div>
+
+  <canvas id="game-canvas" width="800" height="600"></canvas>
+
+  <div id="game-chat-area">
+    <div id="chat-log"></div>
+    <input id="chat-input" type="text" placeholder="채팅 입력 (Enter)" maxlength="200"
+           onkeydown="if(event.key==='Enter') sendGameChat()">
+  </div>
+</div>
+
+<!-- ──────────────────────────────────────────────────── -->
+<!-- 결과 화면                                            -->
+<!-- ──────────────────────────────────────────────────── -->
+<div id="screen-result" class="panel hidden">
+  <div id="result-title" class="result-title">결과</div>
+
+  <div style="text-align:center;margin:20px 0;color:#a8dadc;">
+    <div style="margin-bottom:8px">최종 레벨: <strong id="result-level">-</strong></div>
+    <div>누적 EXP: <strong id="result-exp">-</strong></div>
+  </div>
+
+  <button class="btn-primary" onclick="backToLobby()">로비로 돌아가기</button>
+</div>
+
+<!-- ──────────────────────────────────────────────────── -->
+<!-- 스크립트                                              -->
+<!-- ──────────────────────────────────────────────────── -->
+<script src="https://cdn.jsdelivr.net/npm/protobufjs@7/dist/protobuf.min.js"></script>
+<script src="/js/game.js"></script>
+
+</body>
+</html>
