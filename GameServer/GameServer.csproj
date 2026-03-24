@@ -14,6 +14,7 @@
 
     <ItemGroup>
         <PackageReference Include="DotNetty.Codecs" Version="0.7.6" />
+        <PackageReference Include="DotNetty.Codecs.Http" Version="0.7.6" />
         <PackageReference Include="DotNetty.Codecs.Protobuf" Version="0.7.6" />
         <PackageReference Include="DotNetty.Handlers" Version="0.7.6" />
         <PackageReference Include="DotNetty.Transport" Version="0.7.6" />

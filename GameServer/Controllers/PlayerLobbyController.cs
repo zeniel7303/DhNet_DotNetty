@@ -8,12 +8,12 @@ public class PlayerLobbyController(PlayerComponent player) : PlayerBaseControlle
 {
     public override IReadOnlyList<IRouter> Routes() =>
         NewRouter()
-            .With<ReqLobbyList>(OnLobbyList)
-            .With<ReqLobbyChat>(OnChat)
+            .With<ReqRoomList>(OnRoomList)
+            .With<ReqCreateRoom>(OnCreateRoom)
             .With<ReqRoomEnter>(OnRoomEnter)
             .Build();
 
-    private void OnLobbyList(ReqLobbyList req) => Player.Lobby.LobbyList(req);
-    private void OnChat(ReqLobbyChat req)      => Player.Lobby.Chat(req);
-    private void OnRoomEnter(ReqRoomEnter req) => Player.Lobby.RoomEnter(req);
+    private void OnRoomList(ReqRoomList req)     => Player.Lobby.RoomList(req);
+    private void OnCreateRoom(ReqCreateRoom req) => Player.Lobby.CreateRoom(req);
+    private void OnRoomEnter(ReqRoomEnter req)   => Player.Lobby.RoomEnter(req);
 }

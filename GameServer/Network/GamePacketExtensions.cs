@@ -11,8 +11,12 @@ public static class GamePacketExtensions
             GamePacket.PayloadOneofCase.ReqRoomEnter  => (typeof(ReqRoomEnter),  packet.ReqRoomEnter),
             GamePacket.PayloadOneofCase.ReqRoomChat   => (typeof(ReqRoomChat),   packet.ReqRoomChat),
             GamePacket.PayloadOneofCase.ReqRoomExit   => (typeof(ReqRoomExit),   packet.ReqRoomExit),
-            GamePacket.PayloadOneofCase.ReqLobbyChat  => (typeof(ReqLobbyChat),  packet.ReqLobbyChat),
-            GamePacket.PayloadOneofCase.ReqLobbyList  => (typeof(ReqLobbyList),  packet.ReqLobbyList),
+            GamePacket.PayloadOneofCase.ReqRoomList   => (typeof(ReqRoomList),   packet.ReqRoomList),
+            GamePacket.PayloadOneofCase.ReqCreateRoom => (typeof(ReqCreateRoom), packet.ReqCreateRoom),
+            GamePacket.PayloadOneofCase.ReqReadyGame  => (typeof(ReqReadyGame),  packet.ReqReadyGame),
+            GamePacket.PayloadOneofCase.ReqMove       => (typeof(ReqMove),       packet.ReqMove),
+            GamePacket.PayloadOneofCase.ReqAttack     => (typeof(ReqAttack),     packet.ReqAttack),
+            GamePacket.PayloadOneofCase.ReqGameChat   => (typeof(ReqGameChat),   packet.ReqGameChat),
             GamePacket.PayloadOneofCase.ReqHeartbeat  => (typeof(ReqHeartbeat),  packet.ReqHeartbeat),
             _                                         => (null, null)
         };

@@ -30,14 +30,8 @@ public class LobbySystem
     public LobbyComponent? TryGetLobby(ulong lobbyId)
         => Array.Find(_lobbies, l => l.LobbyId == lobbyId);
 
-    public LobbyInfo[] GetLobbyList()
-        => _lobbies.Select(l => new LobbyInfo
-        {
-            LobbyId     = l.LobbyId,
-            PlayerCount = l.PlayerCount,
-            MaxCapacity = l.MaxCapacity,
-            IsFull      = l.IsFull
-        }).ToArray();
+    public IReadOnlyList<LobbyComponent> GetAllLobbies()
+        => _lobbies;
 
     public IReadOnlyList<RoomComponent> GetAllRooms()
         => _lobbies.SelectMany(l => l.GetRooms()).ToList();

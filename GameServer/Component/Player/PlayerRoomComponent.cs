@@ -25,6 +25,11 @@ public class PlayerRoomComponent(PlayerComponent player) : BaseComponent
         room.Chat(player, req.Message);
     }
 
+    public void Ready()
+    {
+        CurrentRoom?.Ready(player);
+    }
+
     // ReqRoomExit — 정상 퇴장 (isDisconnect=false, ResRoomExit 전송됨)
     public void Exit()
     {
