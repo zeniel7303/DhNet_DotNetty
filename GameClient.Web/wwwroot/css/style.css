@@ -1,0 +1,280 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* ── 공통 패널 ────────────────────────── */
+.panel {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  padding: 32px;
+  min-width: 360px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+.panel h2 {
+  color: #e94560;
+  margin-bottom: 20px;
+  font-size: 1.4rem;
+  letter-spacing: 1px;
+}
+
+.panel h3 {
+  color: #a8dadc;
+  margin-bottom: 12px;
+  font-size: 1rem;
+}
+
+/* ── 폼 요소 ─────────────────────────── */
+.form-group { margin-bottom: 14px; }
+
+.form-group label {
+  display: block;
+  font-size: 0.8rem;
+  color: #a0a0b0;
+  margin-bottom: 4px;
+}
+
+input[type=text], input[type=password] {
+  width: 100%;
+  background: #0f3460;
+  border: 1px solid #1a5276;
+  border-radius: 4px;
+  color: #e0e0e0;
+  padding: 8px 12px;
+  font-size: 0.95rem;
+  outline: none;
+}
+
+input:focus { border-color: #e94560; }
+
+/* ── 버튼 ────────────────────────────── */
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 4px;
+  padding: 9px 18px;
+  font-size: 0.9rem;
+  transition: background 0.15s;
+}
+
+.btn-primary {
+  background: #e94560;
+  color: #fff;
+  width: 100%;
+  margin-top: 6px;
+}
+.btn-primary:hover { background: #c0392b; }
+
+.btn-secondary {
+  background: #0f3460;
+  color: #a8dadc;
+  border: 1px solid #1a5276;
+}
+.btn-secondary:hover { background: #1a5276; }
+
+.btn-success {
+  background: #27ae60;
+  color: #fff;
+}
+.btn-success:hover { background: #229954; }
+
+.btn-danger {
+  background: #c0392b;
+  color: #fff;
+}
+.btn-danger:hover { background: #a93226; }
+
+/* ── 로그인/등록 화면 ──────────────────── */
+#screen-login .tab-btns {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+#screen-login .tab-btns button {
+  flex: 1;
+  background: #0f3460;
+  color: #a0a0b0;
+  border: 1px solid #1a5276;
+}
+
+#screen-login .tab-btns button.active {
+  background: #e94560;
+  color: #fff;
+  border-color: #e94560;
+}
+
+/* ── 로비 화면 ───────────────────────── */
+#screen-lobby {
+  min-width: 520px;
+}
+
+.lobby-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+#room-list {
+  max-height: 260px;
+  overflow-y: auto;
+  background: #0a1628;
+  border-radius: 4px;
+  padding: 4px;
+}
+
+.room-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  background: #0f3460;
+}
+
+.room-item:hover { background: #1a5276; }
+
+.room-item-info { font-size: 0.9rem; }
+.room-item-id   { color: #a0a0b0; font-size: 0.75rem; }
+.room-item-count { color: #a8dadc; }
+.room-item-started { color: #e74c3c; font-size: 0.8rem; }
+
+.lobby-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ── 룸 대기실 ───────────────────────── */
+#screen-room {
+  min-width: 400px;
+}
+
+.player-slot {
+  background: #0a1628;
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.player-slot .ready-badge {
+  background: #27ae60;
+  color: #fff;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: auto;
+}
+
+.player-slot .waiting-badge {
+  background: #7f8c8d;
+  color: #fff;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: auto;
+}
+
+.room-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ── 게임 화면 ───────────────────────── */
+#screen-game {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #1a1a2e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+#game-hud {
+  width: 800px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 4px 4px 0 0;
+}
+
+.hud-stat { font-size: 0.85rem; }
+.hud-stat span { color: #e94560; font-weight: bold; }
+
+#game-canvas {
+  display: block;
+  border: 2px solid #0f3460;
+  cursor: crosshair;
+}
+
+#game-chat-area {
+  width: 800px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 0 0 4px 4px;
+  padding: 6px 10px;
+  display: flex;
+  gap: 6px;
+}
+
+#chat-log {
+  flex: 1;
+  font-size: 0.8rem;
+  color: #a8dadc;
+  max-height: 60px;
+  overflow-y: auto;
+}
+
+#chat-input {
+  width: 240px;
+  background: #0f3460;
+  border: 1px solid #1a5276;
+  border-radius: 4px;
+  color: #e0e0e0;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  outline: none;
+}
+
+/* ── 결과 화면 ───────────────────────── */
+#screen-result .result-title {
+  font-size: 2rem;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+#screen-result .result-title.clear { color: #f39c12; }
+#screen-result .result-title.fail  { color: #c0392b; }
+
+/* ── 상태 메시지 ─────────────────────── */
+.status-msg {
+  font-size: 0.8rem;
+  margin-top: 10px;
+  color: #e74c3c;
+  min-height: 1.2em;
+  text-align: center;
+}
+
+.status-ok { color: #27ae60; }
+
+/* ── 숨김 ────────────────────────────── */
+.hidden { display: none !important; }
