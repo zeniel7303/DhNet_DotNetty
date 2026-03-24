@@ -4,8 +4,8 @@ option csharp_namespace = "GameServer.Protocol";
 
 import "Protos/error_codes.proto";
 
-message ReqRoomEnter  {}
-message ResRoomEnter  { ErrorCode error_code = 1; }
+message ReqRoomEnter  { uint64 room_id = 1; }
+message ResRoomEnter  { uint64 room_id = 1; ErrorCode error_code = 2; }
 message NotiRoomEnter { uint64 player_id = 1; string player_name = 2; }
 
 message ReqRoomChat   { string message = 1; }
@@ -14,3 +14,8 @@ message NotiRoomChat  { uint64 player_id = 1; string player_name = 2; string mes
 message ReqRoomExit   {}
 message ResRoomExit   {}
 message NotiRoomExit  { uint64 player_id = 1; string player_name = 2; }
+
+message ReqReadyGame  {}
+message NotiReadyGame { uint64 player_id = 1; bool is_ready = 2; }
+message NotiGameStart { repeated uint64 player_ids = 1; }
+message NotiGameEnd   { bool is_clear = 1; }

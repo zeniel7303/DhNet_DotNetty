@@ -1,0 +1,8 @@
+syntax = "proto3";
+package dhnet;
+option csharp_namespace = "GameServer.Protocol";
+
+// 게임 플레이 중 채팅 (룸 내 기존 NotiRoomChat과 별개)
+
+message ReqGameChat  { string message = 1; }
+message NotiGameChat { uint64 player_id = 1; string player_name = 2; string message = 3; }

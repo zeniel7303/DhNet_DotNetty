@@ -2,26 +2,18 @@ syntax = "proto3";
 package dhnet;
 option csharp_namespace = "GameServer.Protocol";
 
-message ReqLobbyChat {
-  string message = 1;
-}
+// 로비는 룸 허브 역할만 담당한다 — 로비 채팅 없음
 
-message NotiLobbyChat {
-  uint64 player_id   = 1;
-  string player_name = 2;
-  string message     = 3;
-}
+message ReqRoomList { }
 
-// 로비 목록 조회
-message ReqLobbyList { }
-
-message LobbyInfo {
-  uint64 lobby_id     = 1;
+message RoomInfo {
+  uint64 room_id      = 1;
   int32  player_count = 2;
-  int32  max_capacity = 3;
-  bool   is_full      = 4;
+  int32  max_players  = 3;
+  bool   is_started   = 4;
 }
 
-message ResLobbyList {
-  repeated LobbyInfo lobbies = 1;
-}
+message ResRoomList { repeated RoomInfo rooms = 1; }
+
+message ReqCreateRoom { }
+// ReqCreateRoom 응답은 ResRoomEnter (room.proto) 로 통합
