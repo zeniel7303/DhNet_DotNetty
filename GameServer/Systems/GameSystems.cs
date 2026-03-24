@@ -11,7 +11,7 @@ static class GameSystems
     {
         ShutdownSystem.Instance.Initialize(cts);
         PlayerSystem.Instance.Initialize(settings.MaxPlayers);
-        LobbySystem.Instance.Initialize(lobbyCount: 10, lobbyCapacity: settings.MaxPlayers);
+        LobbySystem.Instance.Initialize(lobbyCount: 1, lobbyCapacity: settings.MaxPlayers);
         
         SessionSystem.Instance.StartSystem();
         PlayerSystem.Instance.StartSystem();

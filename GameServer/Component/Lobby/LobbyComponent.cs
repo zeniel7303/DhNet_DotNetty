@@ -71,40 +71,13 @@ public class LobbyComponent : BaseComponent
         GameLogger.Info($"Lobby:{LobbyId}", $"퇴장: {player.Name} (현재 {_players.Count}명)");
     }
 
-    public void Chat(PlayerComponent sender, string message)
-    {
-        // DatabaseSystem.Instance.GameLog.ChatLogs.InsertAsync(new ChatLogRow
-        // {
-        //     account_id = sender.AccountId,
-        //     room_id    = null,
-        //     channel    = $"lobby:{LobbyId}",
-        //     message    = message,
-        //     created_at = DateTime.UtcNow
-        // }).FireAndForget("Lobby");
-
-        var noti = new GamePacket
-        {
-            NotiLobbyChat = new NotiLobbyChat
-            {
-                PlayerId   = sender.AccountId,
-                PlayerName = sender.Name,
-                Message    = message
-            }
-        };
-
-        foreach (var p in _players.Values)
-        {
-            _ = p.Session.SendAsync(noti);
-        }
-    }
-
     public bool Broadcast(string message)
     {
         if (IsDisposed) return false;
 
         var noti = new GamePacket
         {
-            NotiLobbyChat = new NotiLobbyChat { PlayerId = 0, PlayerName = "System", Message = message }
+            NotiSystem = new NotiSystem { Message = message }
         };
 
         foreach (var p in _players.Values)
@@ -114,6 +87,39 @@ public class LobbyComponent : BaseComponent
 
         return true;
     }
+
+    // 신규 룸 생성 + 첫 슬롯 예약. 실패 시 null (불가능한 경로이나 방어적 처리).
+    public RoomComponent? CreateRoom()
+    {
+        lock (_roomLock)
+        {
+            var roomId = IdGenerators.Room.Next();
+            var newRoom = new RoomComponent(roomId, LobbyId,
+                onEmpty: () => RemoveRoom(roomId),
+                returnToLobby: p => TryEnter(p));
+            newRoom.Initialize();
+            _rooms.TryAdd(newRoom.RoomId, newRoom);
+
+            if (!newRoom.TryReserve())
+            {
+                GameLogger.Warn($"Lobby:{LobbyId}", $"CreateRoom 첫 슬롯 예약 실패: RoomId={roomId}");
+                return null;
+            }
+
+            GameLogger.Info($"Lobby:{LobbyId}", $"Room 생성: RoomId={roomId}");
+            return newRoom;
+        }
+    }
+
+    // 현재 로비의 룸 목록 반환 (게임 시작 여부 포함)
+    public RoomInfo[] GetRoomList()
+        => _rooms.Values.Select(r => new RoomInfo
+        {
+            RoomId      = r.RoomId,
+            PlayerCount = r.PlayerCount,
+            MaxPlayers  = r.Capacity,
+            IsStarted   = r.IsGameStarted
+        }).ToArray();
 
     // 빈 방 탐색 + 없으면 신규 생성. lock으로 TOCTOU 방지 (순회+생성+추가 원자성).
     public RoomComponent GetOrCreateRoom()

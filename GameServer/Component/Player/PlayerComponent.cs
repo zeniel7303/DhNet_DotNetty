@@ -3,6 +3,7 @@ using Common.Server.Component;
 using Common.Server.Routing;
 using GameServer.Controllers;
 using GameServer.Database;
+using GameServer.Database.Rows;
 using GameServer.Network;
 using GameServer.Protocol;
 using GameServer.Systems;
@@ -24,16 +25,20 @@ public class PlayerComponent : BaseComponent
     private IReadOnlyDictionary<Type, IRouter> _routeTable = new Dictionary<Type, IRouter>();
 
     // private set — OnDispose에서 lock 안에 null 처리를 위해 쓰기 가능
-    public PlayerLobbyComponent Lobby { get; private set; }
-    public PlayerRoomComponent Room { get; private set; }
+    public PlayerLobbyComponent Lobby     { get; private set; }
+    public PlayerRoomComponent  Room      { get; private set; }
+    public CharacterComponent   Character { get; private set; }
+    public PlayerWorldComponent World     { get; private set; }
 
     public PlayerComponent(SessionComponent session, string name, ulong accountId)
     {
         AccountId = accountId;
         Name = string.IsNullOrWhiteSpace(name) ? "TempUser" + AccountId : name;
         Session = session;
-        Lobby = new PlayerLobbyComponent(this);
-        Room = new PlayerRoomComponent(this);
+        World     = new PlayerWorldComponent();
+        Character = new CharacterComponent(this);
+        Lobby     = new PlayerLobbyComponent(this);
+        Room      = new PlayerRoomComponent(this);
 
         // RegisterControllers()는 Initialize()에서 수행 — WorkerSystem.Add() 시 호출됨
     }
@@ -44,6 +49,8 @@ public class PlayerComponent : BaseComponent
     public override void Initialize()
     {
         _routeTable = RegisterControllers();
+        World.Initialize();
+        Character.Initialize();
         Lobby.Initialize();
         Room.Initialize();
         Session.PacketHandler = HandlePacket;
@@ -55,6 +62,7 @@ public class PlayerComponent : BaseComponent
         [
             new PlayerLobbyController(this),
             new PlayerRoomController(this),
+            new PlayerRpgController(this),
             new PlayerHeartbeatController(this),
         ];
 
@@ -123,15 +131,15 @@ public class PlayerComponent : BaseComponent
 
         try
         {
-            // lock(this): Room/Lobby 참조 캡처 원자화
-            // Disconnect ↔ Dispose 동시 진입 시 참조 교환 안전하게 수행
-            // 실제 Disconnect 호출은 lock 외부 — 외부 컴포넌트 호출로 인한 교차 락 방지
-            PlayerRoomComponent? room;
+            // lock(this): Room/Lobby/Character 참조 캡처 원자화
+            PlayerRoomComponent?  room;
             PlayerLobbyComponent? lobby;
+            CharacterComponent?   character;
             lock (this)
             {
-                room  = Room;
-                lobby = Lobby;
+                room      = Room;
+                lobby     = Lobby;
+                character = Character;
             }
 
             room?.Disconnect();
@@ -146,6 +154,20 @@ public class PlayerComponent : BaseComponent
             if (Volatile.Read(ref _dbInserted) == 1)
             {
                 var logoutAt = DateTime.UtcNow;
+
+                // 캐릭터 데이터 저장
+                if (character != null)
+                {
+                    try
+                    {
+                        await DatabaseSystem.Instance.Game.Characters.UpsertAsync(character.ToRow());
+                    }
+                    catch (Exception ex)
+                    {
+                        GameLogger.Error("PlayerComponent", $"캐릭터 DB 저장 실패: {AccountId}", ex);
+                    }
+                }
+
                 try
                 {
                     await DatabaseSystem.Instance.Game.Players.UpdateLogoutAsync(AccountId, logoutAt);
@@ -184,8 +206,10 @@ public class PlayerComponent : BaseComponent
     {
         lock (this)
         {
-            Lobby = null!;
-            Room  = null!;
+            Lobby     = null!;
+            Room      = null!;
+            Character = null!;
+            World     = null!;
         }
     }
 }

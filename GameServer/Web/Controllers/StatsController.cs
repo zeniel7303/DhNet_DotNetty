@@ -13,7 +13,7 @@ public class StatsController : ControllerBase
     [ProducesResponseType(typeof(StatsDto), 200)]
     public IActionResult Get()
     {
-        var lobbies = LobbySystem.Instance.GetLobbyList()
+        var lobbies = LobbySystem.Instance.GetAllLobbies()
             .Select(l => new LobbyDetailDto(l.LobbyId, l.PlayerCount, l.MaxCapacity, l.IsFull))
             .ToArray();
 

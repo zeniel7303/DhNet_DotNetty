@@ -9,7 +9,7 @@ namespace GameServer.Component.Player;
 // 모든 메서드는 PlayerComponent 워커 스레드에서 직렬 호출되므로 EnqueueEvent 불필요.
 // CurrentLobby 쓰기 경로:
 //   - LoginController → player.EnqueueEvent(() => lobby.TryEnter(player)) → 워커 틱
-//   - RoomEnter, Disconnect → 워커 스레드 직접 호출
+//   - CreateRoom/RoomEnter/Disconnect → 워커 스레드 직접 호출
 // → 모든 쓰기가 PlayerComponent 워커 스레드 → volatile 불필요
 public class PlayerLobbyComponent(PlayerComponent player) : BaseComponent
 {
@@ -17,45 +17,71 @@ public class PlayerLobbyComponent(PlayerComponent player) : BaseComponent
 
     public override void Initialize() { }
 
-    public void LobbyList(ReqLobbyList req)
+    // 현재 로비의 룸 목록 조회
+    public void RoomList(ReqRoomList req)
     {
-        var res = new ResLobbyList();
-        foreach (var info in LobbySystem.Instance.GetLobbyList())
+        var res = new ResRoomList();
+        var lobby = CurrentLobby;
+        if (lobby != null)
         {
-            res.Lobbies.Add(info);
+            foreach (var info in lobby.GetRoomList())
+                res.Rooms.Add(info);
         }
-        _ = player.Session.SendAsync(new GamePacket { ResLobbyList = res });
+        _ = player.Session.SendAsync(new GamePacket { ResRoomList = res });
     }
 
-    public void Chat(ReqLobbyChat req)
+    // 새 룸 생성 후 자동 입장 — 응답은 ResRoomEnter로 통합
+    public void CreateRoom(ReqCreateRoom req)
     {
-        var lobby = CurrentLobby;
-        if (lobby == null || player.Room.CurrentRoom != null) return;
-        if (string.IsNullOrWhiteSpace(req.Message) || req.Message.Length > 500) return;
-
-        lobby.Chat(player, req.Message);
-    }
-
-    public void RoomEnter(ReqRoomEnter req)
-    {
-        var lobby = CurrentLobby;
         if (player.Room.CurrentRoom != null)
         {
-            _ = player.Session.SendAsync(new GamePacket { ResRoomEnter = new ResRoomEnter { ErrorCode = ErrorCode.AlreadyInRoom } });
-            return;
-        }
-        if (lobby == null)
-        {
-            _ = player.Session.SendAsync(new GamePacket { ResRoomEnter = new ResRoomEnter { ErrorCode = ErrorCode.NotInLobby } });
+            _ = player.Session.SendAsync(new GamePacket
+                { ResRoomEnter = new ResRoomEnter { ErrorCode = ErrorCode.AlreadyInRoom } });
             return;
         }
 
-        // 이 메서드는 PlayerComponent 워커 스레드에서 직렬 호출된다 (동일 player는 항상 동일 워커).
-        // lobby.Leave → CurrentLobby = null, newRoom.Enter → CurrentRoom = this
-        // 모두 같은 워커 스레드에서 동기적으로 실행되므로 스레드 안전.
-        var newRoom = lobby.GetOrCreateRoom();
+        var lobby = CurrentLobby;
+        if (lobby == null)
+        {
+            _ = player.Session.SendAsync(new GamePacket
+                { ResRoomEnter = new ResRoomEnter { ErrorCode = ErrorCode.NotInLobby } });
+            return;
+        }
+
+        var newRoom = lobby.CreateRoom();
+        if (newRoom == null) return; // 방어적 처리 — 로그는 LobbyComponent에서 출력됨
+
         lobby.Leave(player);
         newRoom.Enter(player);
+    }
+
+    // 특정 room_id의 룸에 입장
+    public void RoomEnter(ReqRoomEnter req)
+    {
+        if (player.Room.CurrentRoom != null)
+        {
+            _ = player.Session.SendAsync(new GamePacket
+                { ResRoomEnter = new ResRoomEnter { ErrorCode = ErrorCode.AlreadyInRoom } });
+            return;
+        }
+
+        var room = LobbySystem.Instance.TryGetRoom(req.RoomId);
+        if (room == null || room.IsGameStarted)
+        {
+            _ = player.Session.SendAsync(new GamePacket
+                { ResRoomEnter = new ResRoomEnter { ErrorCode = ErrorCode.RoomNotFound } });
+            return;
+        }
+
+        if (!room.TryReserve())
+        {
+            _ = player.Session.SendAsync(new GamePacket
+                { ResRoomEnter = new ResRoomEnter { ErrorCode = ErrorCode.RoomFull } });
+            return;
+        }
+
+        CurrentLobby?.Leave(player);
+        room.Enter(player);
     }
 
     // PlayerComponent.DisconnectAsync()에서 호출 — 로비 미입장 시 무시

@@ -15,20 +15,28 @@ public class RoomComponent : BaseComponent
     public string Name => $"Room {RoomId}";
     public int PlayerCount => Math.Max(0, _state);
     public int Capacity => MaxPlayers;
+    public bool IsGameStarted => _gameStarted == 1;
 
     private const int MaxPlayers = 2;
 
     private readonly ConcurrentDictionary<ulong, PlayerComponent> _players = new();
+    private readonly ConcurrentDictionary<ulong, bool> _readyState = new();
+
+    public GameSessionComponent? GameSession { get; private set; }
 
     // 방이 비었을 때 호출 — LobbyComponent.RemoveRoom() 주입
     private readonly Action _onEmpty;
     // 룸 퇴장 후 로비 복귀 — LobbyComponent.TryEnter() 주입
     private readonly Func<PlayerComponent, bool> _returnToLobby;
+    // 게임 시작 시 호출 (선택적 외부 훅)
+    private readonly Action<RoomComponent>? _onGameStart;
 
     // _reservedCount + _closing을 단일 int로 통합.
     // -1 = 닫히는 중, 0~MaxPlayers = 예약된 슬롯 수.
     // 마지막 슬롯 반환(1→-1)이 단일 CAS로 처리되므로 TryReserve와의 레이스가 완전히 제거됨.
     private int _state = 0;
+    // 0 = 대기 중, 1 = 게임 시작됨 (CAS로 중복 트리거 방지)
+    private int _gameStarted = 0;
 
     // CAS 패턴 — lock 없이 원자적으로 슬롯 예약 (LobbyComponent._roomLock 내부에서만 호출)
     internal bool TryReserve()
@@ -61,12 +69,14 @@ public class RoomComponent : BaseComponent
         } while (true);
     }
 
-    public RoomComponent(ulong roomId, ulong lobbyId, Action onEmpty, Func<PlayerComponent, bool> returnToLobby)
+    public RoomComponent(ulong roomId, ulong lobbyId, Action onEmpty, Func<PlayerComponent, bool> returnToLobby,
+        Action<RoomComponent>? onGameStart = null)
     {
         RoomId = roomId;
         LobbyId = lobbyId;
         _onEmpty = onEmpty;
         _returnToLobby = returnToLobby;
+        _onGameStart = onGameStart;
     }
 
     public override void Initialize() { }
@@ -101,7 +111,7 @@ public class RoomComponent : BaseComponent
         }).FireAndForget("Room");
 
         _ = player.Session.SendAsync(new GamePacket
-            { ResRoomEnter = new ResRoomEnter { ErrorCode = ErrorCode.Success } });
+            { ResRoomEnter = new ResRoomEnter { RoomId = RoomId, ErrorCode = ErrorCode.Success } });
 
         var noti = new GamePacket
         {
@@ -114,10 +124,55 @@ public class RoomComponent : BaseComponent
         }
     }
 
+    public void Ready(PlayerComponent player)
+    {
+        if (!_players.ContainsKey(player.AccountId)) return;
+        if (_gameStarted == 1) return;
+
+        _readyState[player.AccountId] = true;
+
+        // 준비 상태 변경 전파
+        var notiReady = new GamePacket
+        {
+            NotiReadyGame = new NotiReadyGame { PlayerId = player.AccountId, IsReady = true }
+        };
+        foreach (var p in _players.Values)
+            _ = p.Session.SendAsync(notiReady);
+
+        GameLogger.Info($"Room:{RoomId}", $"준비: {player.Name} ({_readyState.Count}/{_players.Count})");
+
+        // 모든 플레이어가 준비 완료인지 확인
+        int playerCount = _players.Count;
+        if (playerCount < 1) return;
+        bool allReady = _players.Keys.All(id => _readyState.TryGetValue(id, out bool r) && r);
+        if (!allReady) return;
+
+        // CAS — 중복 게임 시작 방지
+        if (Interlocked.CompareExchange(ref _gameStarted, 1, 0) != 0) return;
+
+        GameLogger.Info($"Room:{RoomId}", $"게임 시작! 참가자: {playerCount}명");
+
+        var notiStart = new GamePacket
+        {
+            NotiGameStart = new NotiGameStart { PlayerIds = { _players.Keys } }
+        };
+        foreach (var p in _players.Values)
+            _ = p.Session.SendAsync(notiStart);
+
+        // 게임 세션 생성 및 시작 (NotiGameStart 이후)
+        var session = new GameSessionComponent(this);
+        GameSession = session;
+        Systems.MonsterSystem.Instance.Register(session);
+        session.Start(_players.Values.ToList());
+
+        _onGameStart?.Invoke(this);
+    }
+
     public void Leave(PlayerComponent player, bool isDisconnect)
     {
         if (!_players.TryRemove(player.AccountId, out _)) return;
 
+        _readyState.TryRemove(player.AccountId, out _);
         var shouldClose = TryReleaseAndClose();
 
         // PlayerRoomComponent.Exit/Disconnect → PlayerComponent 워커 스레드에서 호출
@@ -179,8 +234,17 @@ public class RoomComponent : BaseComponent
         }
     }
 
+    public IReadOnlyList<PlayerComponent> GetPlayers()
+        => _players.Values.ToList();
+
     public IReadOnlyList<(ulong AccountId, string Name)> GetPlayerList()
         => _players.Values.Select(p => (p.AccountId, p.Name)).ToList();
+
+    public void BroadcastPacket(GamePacket packet)
+    {
+        foreach (var p in _players.Values)
+            _ = p.Session.SendAsync(packet);
+    }
 
     public bool Broadcast(string message)
     {

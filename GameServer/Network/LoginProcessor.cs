@@ -137,12 +137,46 @@ internal static class LoginProcessor
 
         if (!lobbyEntered) return;
 
+        // 캐릭터 로드 (없으면 기본값으로 신규 생성)
+        try
+        {
+            var charRow = await DatabaseSystem.Instance.Game.Characters.SelectAsync(player.AccountId);
+            if (charRow == null)
+            {
+                charRow = new CharacterRow { account_id = player.AccountId };
+                await DatabaseSystem.Instance.Game.Characters.UpsertAsync(charRow);
+            }
+            player.Character.LoadFrom(charRow);
+            player.World.SetPosition(charRow.x, charRow.y);
+        }
+        catch (Exception ex)
+        {
+            GameLogger.Warn("Login", $"캐릭터 로드 실패 — 기본값 사용: {player.Name} ({ex.Message})");
+        }
+
         GameLogger.Info("Login", $"로그인 성공: {player.Name} (Id={player.AccountId})");
 
         // 로비 입장 완료 후 ResLogin 전송
         await session.SendAsync(new GamePacket
         {
             ResLogin = new ResLogin { PlayerId = player.AccountId, PlayerName = player.Name, ErrorCode = ErrorCode.Success }
+        });
+
+        // 캐릭터 정보 전송
+        await session.SendAsync(new GamePacket
+        {
+            ResCharacterInfo = new ResCharacterInfo
+            {
+                Level       = player.Character.Level,
+                Exp         = player.Character.Exp,
+                NextLevelExp = player.Character.NextLevelExp,
+                Hp          = player.Character.Hp,
+                MaxHp       = player.Character.MaxHp,
+                Attack      = player.Character.Attack,
+                Defense     = player.Character.Defense,
+                X           = player.World.X,
+                Y           = player.World.Y,
+            }
         });
 
         DatabaseSystem.Instance.GameLog.LoginLogs.InsertAsync(new LoginLogRow

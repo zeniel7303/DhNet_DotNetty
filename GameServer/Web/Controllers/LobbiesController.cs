@@ -13,7 +13,7 @@ public class LobbiesController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<LobbyDetailDto>), 200)]
     public IActionResult Get()
     {
-        var lobbies = LobbySystem.Instance.GetLobbyList()
+        var lobbies = LobbySystem.Instance.GetAllLobbies()
             .Select(l => new LobbyDetailDto(l.LobbyId, l.PlayerCount, l.MaxCapacity, l.IsFull))
             .ToList();
         return Ok(lobbies);
