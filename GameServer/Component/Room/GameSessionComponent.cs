@@ -21,6 +21,7 @@ public class GameSessionComponent
     private readonly WeaponSystem   _weaponSystem = new();
     private readonly object _stateLock = new();
     private int   _endedFlag;
+    private int   _cleanupCounter;
     private float _survivalElapsed;       // 총 생존 시간(초)
     private float _survivalBroadcastAcc;  // 10초 브로드캐스트 누적
     private const float ClearTimeSec = 1800f; // 30분 생존 시 클리어
@@ -277,8 +278,6 @@ public class GameSessionComponent
             _room.BroadcastPacket(pkt);
     }
 
-    private int _cleanupCounter;
-
     // PlayerRpgController → PlayerComponent 워커 스레드에서 호출 (_stateLock으로 Tick과 직렬화)
     public void ProcessAttack(PlayerComponent player, ulong monsterId)
     {
@@ -481,7 +480,7 @@ public class GameSessionComponent
             NotiGameEnd = new NotiGameEnd { IsClear = isClear, SurvivedSeconds = (int)_survivalElapsed }
         });
         _cts.Cancel();
-        MonsterSystem.Instance.Unregister(RoomId);
+        GameSessionRegistry.Instance.Unregister(RoomId);
         GameLogger.Info($"GameSession:{RoomId}", $"게임 종료 (clear={isClear})");
     }
 

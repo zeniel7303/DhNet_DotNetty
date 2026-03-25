@@ -8,7 +8,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace GameServer;
 
-static class ServerStartup
+internal static class ServerStartup
 {
     public static async Task RunAsync(IConfiguration config)
     {

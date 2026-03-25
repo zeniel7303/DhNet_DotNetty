@@ -10,7 +10,7 @@ namespace GameServer.Network;
 /// 아웃바운드: ProtobufEncoder가 출력한 IByteBuffer → BinaryWebSocketFrame으로 래핑하여 전송.
 /// WebSocket 프레임이 이미 메시지 경계를 보장하므로 LengthField 프레이밍은 사용하지 않는다.
 /// </summary>
-sealed class WebSocketFrameHandler : ChannelDuplexHandler
+internal sealed class WebSocketFrameHandler : ChannelDuplexHandler
 {
     public override void ChannelRead(IChannelHandlerContext ctx, object msg)
     {

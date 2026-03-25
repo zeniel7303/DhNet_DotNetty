@@ -7,13 +7,13 @@ namespace GameServer.Systems;
 /// 활성 게임 세션 레지스트리. 세션 조회 및 통계 제공.
 /// 실제 틱은 각 GameSessionComponent 내부 PeriodicTimer가 담당한다.
 /// </summary>
-public class MonsterSystem
+public class GameSessionRegistry
 {
-    public static readonly MonsterSystem Instance = new();
+    public static readonly GameSessionRegistry Instance = new();
 
     private readonly ConcurrentDictionary<ulong, GameSessionComponent> _sessions = new();
 
-    private MonsterSystem() { }
+    private GameSessionRegistry() { }
 
     public void Register(GameSessionComponent session)
         => _sessions.TryAdd(session.RoomId, session);

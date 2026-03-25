@@ -4,7 +4,7 @@ using DotNetty.Transport.Channels;
 
 namespace GameServer.Network;
 
-sealed class HeartbeatHandler : ChannelHandlerAdapter
+internal sealed class HeartbeatHandler : ChannelHandlerAdapter
 {
     public static readonly HeartbeatHandler Instance = new();
 
