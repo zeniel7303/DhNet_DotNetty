@@ -283,5 +283,6 @@ public class RoomComponent : BaseComponent
         }
 
         _players.Clear();
+        GameSession?.Dispose();
     }
 }

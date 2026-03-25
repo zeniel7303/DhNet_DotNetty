@@ -1,13 +1,13 @@
-using Common.Server.Component;
 using GameServer.Database.Rows;
 
 namespace GameServer.Component.Player;
 
-public class CharacterComponent(PlayerComponent player) : BaseComponent
+public class CharacterComponent(PlayerComponent player)
 {
     public int  Level   { get; private set; } = 1;
     public long Exp     { get; private set; } = 0;
-    private volatile int _hp = 500;
+    // _stateLock (GameSessionComponent) 하에서만 수정됨 — volatile 불필요
+    private int _hp = 500;
     public int  Hp      => _hp;
     public int  MaxHp   { get; private set; } = 500;
     public int  Attack  { get; private set; } = 20;
@@ -17,8 +17,6 @@ public class CharacterComponent(PlayerComponent player) : BaseComponent
     public long NextLevelExp => Level * 100L;
 
     private const int MaxLevel = 50;
-
-    public override void Initialize() { }
 
     public void LoadFrom(CharacterRow row)
     {
@@ -76,6 +74,4 @@ public class CharacterComponent(PlayerComponent player) : BaseComponent
         }
         return leveled;
     }
-
-    protected override void OnDispose() { }
 }

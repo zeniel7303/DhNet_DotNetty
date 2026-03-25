@@ -1,16 +1,12 @@
-using Common.Server.Component;
-
 namespace GameServer.Component.Player;
 
-public class PlayerWorldComponent : BaseComponent
+public class PlayerWorldComponent
 {
     public float X { get; private set; } = 100f;
     public float Y { get; private set; } = 100f;
 
     private DateTime _lastAttackAt = DateTime.MinValue;
     private const float AttackCooldownSec = 1f;
-
-    public override void Initialize() { }
 
     public void SetPosition(float x, float y)
     {
@@ -33,6 +29,4 @@ public class PlayerWorldComponent : BaseComponent
 
     public void ResetAttackCooldown()
         => _lastAttackAt = DateTime.UtcNow;
-
-    protected override void OnDispose() { }
 }
