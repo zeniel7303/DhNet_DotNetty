@@ -7,12 +7,13 @@ public class CharacterComponent(PlayerComponent player) : BaseComponent
 {
     public int  Level   { get; private set; } = 1;
     public long Exp     { get; private set; } = 0;
-    public int  Hp      { get; private set; } = 100;
-    public int  MaxHp   { get; private set; } = 100;
-    public int  Attack  { get; private set; } = 15;
-    public int  Defense { get; private set; } = 5;
+    private volatile int _hp = 500;
+    public int  Hp      => _hp;
+    public int  MaxHp   { get; private set; } = 500;
+    public int  Attack  { get; private set; } = 20;
+    public int  Defense { get; private set; } = 10;
 
-    public bool IsAlive    => Hp > 0;
+    public bool IsAlive => _hp > 0;
     public long NextLevelExp => Level * 100L;
 
     private const int MaxLevel = 50;
@@ -23,7 +24,7 @@ public class CharacterComponent(PlayerComponent player) : BaseComponent
     {
         Level   = row.level;
         Exp     = row.exp;
-        Hp      = row.hp;
+        _hp     = row.hp;
         MaxHp   = row.max_hp;
         Attack  = row.attack;
         Defense = row.defense;
@@ -43,14 +44,14 @@ public class CharacterComponent(PlayerComponent player) : BaseComponent
     };
 
     // 게임 시작 시 HP 완전 회복.
-    public void RestoreFullHp() => Hp = MaxHp;
+    public void RestoreFullHp() => _hp = MaxHp;
 
     // 데미지 적용. 사망 시 true 반환.
     public bool TakeDamage(int damage)
     {
         damage = Math.Max(1, damage);
-        Hp     = Math.Max(0, Hp - damage);
-        return Hp == 0;
+        _hp    = Math.Max(0, _hp - damage);
+        return _hp == 0;
     }
 
     // EXP 획득 + 레벨업 처리. 레벨 변경 시 true 반환.
@@ -68,7 +69,7 @@ public class CharacterComponent(PlayerComponent player) : BaseComponent
             Exp    -= NextLevelExp;
             Level++;
             MaxHp  += 20;
-            Hp      = MaxHp; // 레벨업 시 풀힐
+            _hp     = MaxHp; // 레벨업 시 풀힐
             Attack  += 3;
             Defense += 1;
             leveled  = true;

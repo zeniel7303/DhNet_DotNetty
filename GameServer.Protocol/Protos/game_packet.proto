@@ -69,5 +69,22 @@ message GamePacket {
     ReqRoomList   req_room_list   = 42;
     ResRoomList   res_room_list   = 43;
     ReqCreateRoom req_create_room = 44;
+
+    // World — 몬스터 이동 (배치 브로드캐스트)
+    NotiMonsterMove noti_monster_move = 45;
+
+    // Wave — 웨이브 시작 알림
+    NotiWaveStart noti_wave_start = 46;
+
+    // Gem — 경험치 젬
+    NotiGemSpawn   noti_gem_spawn   = 47;
+    NotiGemCollect noti_gem_collect = 48;
+
+    // Weapon — 레벨업 무기 선택
+    NotiWeaponChoice noti_weapon_choice = 49;
+    ReqChooseWeapon  req_choose_weapon  = 50;
+
+    // Survival — 생존 타이머
+    NotiSurvivalTime noti_survival_time = 51;
   }
 }

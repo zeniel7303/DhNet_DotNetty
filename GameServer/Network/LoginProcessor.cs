@@ -18,6 +18,20 @@ internal static class LoginProcessor
             return;
         }
 
+        // 로그인 처리 완료(성공/실패) 후 플래그 리셋 — 재시도 허용
+        // 성공 시 session.Player != null 체크가 중복 로그인을 막으므로 무조건 리셋해도 안전
+        try
+        {
+            await ProcessInternalAsync(session, req);
+        }
+        finally
+        {
+            session.ResetLoginStarted();
+        }
+    }
+
+    private static async Task ProcessInternalAsync(SessionComponent session, ReqLogin req)
+    {
         // 계정 인증 — 실패 시 에러 응답 전송 후 null 반환
         var account = await AuthenticateAsync(session, req.Username, req.Password);
         if (account == null) return;

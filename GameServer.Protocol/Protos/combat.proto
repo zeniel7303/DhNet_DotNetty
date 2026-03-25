@@ -10,3 +10,7 @@ message NotiMonsterAttack { uint64 monster_id = 1; uint64 target_player_id = 2; 
 message NotiHpChange     { uint64 entity_id = 1; int32 hp = 2; int32 max_hp = 3; bool is_monster = 4; }
 message NotiDeath        { uint64 entity_id = 1; bool is_monster = 2; }
 message NotiRespawn      { uint64 monster_id = 1; float x = 2; float y = 3; int32 hp = 4; }
+
+// Gem — 경험치 젬 드롭 / 수집
+message NotiGemSpawn   { uint64 gem_id = 1; float x = 2; float y = 3; int32 exp_value = 4; }
+message NotiGemCollect { uint64 gem_id = 1; uint64 player_id = 2; int32 exp_gained = 3; }

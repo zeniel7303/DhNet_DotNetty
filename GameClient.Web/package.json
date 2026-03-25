@@ -1,5 +1,9 @@
 {
   "dependencies": {
-    "protobufjs": "^8.0.0"
+    "protobufjs": "^8.0.0",
+    "protobufjs-cli": "^2.0.0"
+  },
+  "scripts": {
+    "proto": "node -e \"const p=require('./node_modules/protobufjs'),fs=require('fs'),path=require('path');const r=new p.Root();r.resolvePath=(o,t)=>t.startsWith('Protos/')?path.resolve('../GameServer.Protocol',t):path.resolve(path.dirname(o),t);r.loadSync('../GameServer.Protocol/Protos/game_packet.proto');fs.writeFileSync('wwwroot/js/proto-bundle.json',JSON.stringify(r.toJSON()));console.log('proto-bundle.json 재생성 완료');\""
   }
 }

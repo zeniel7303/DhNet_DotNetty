@@ -11,6 +11,7 @@ public class PlayerRpgController(PlayerComponent player) : PlayerBaseController(
             .With<ReqMove>(OnMove)
             .With<ReqAttack>(OnAttack)
             .With<ReqGameChat>(OnGameChat)
+            .With<ReqChooseWeapon>(OnChooseWeapon)
             .Build();
 
     private void OnMove(ReqMove req)
@@ -21,4 +22,7 @@ public class PlayerRpgController(PlayerComponent player) : PlayerBaseController(
 
     private void OnGameChat(ReqGameChat req)
         => Player.Room.CurrentRoom?.GameSession?.ProcessChat(Player, req.Message);
+
+    private void OnChooseWeapon(ReqChooseWeapon req)
+        => Player.Room.CurrentRoom?.GameSession?.ProcessChooseWeapon(Player, req.WeaponId);
 }
