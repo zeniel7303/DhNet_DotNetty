@@ -5,7 +5,7 @@ option csharp_namespace = "GameServer.Protocol";
 // PvE only — 플레이어 간 전투 없음
 
 message ReqAttack        { uint64 target_monster_id = 1; }
-message NotiCombat       { uint64 attacker_player_id = 1; uint64 target_monster_id = 2; int32 damage = 3; }
+message NotiCombat       { uint64 attacker_player_id = 1; uint64 target_monster_id = 2; int32 damage = 3; int32 weapon_id = 4; }
 message NotiMonsterAttack { uint64 monster_id = 1; uint64 target_player_id = 2; int32 damage = 3; }
 message NotiHpChange     { uint64 entity_id = 1; int32 hp = 2; int32 max_hp = 3; bool is_monster = 4; }
 message NotiDeath        { uint64 entity_id = 1; bool is_monster = 2; }
