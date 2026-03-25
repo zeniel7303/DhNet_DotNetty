@@ -161,7 +161,6 @@ internal static class LoginProcessor
                 await DatabaseSystem.Instance.Game.Characters.UpsertAsync(charRow);
             }
             player.Character.LoadFrom(charRow);
-            player.World.SetPosition(charRow.x, charRow.y);
         }
         catch (Exception ex)
         {

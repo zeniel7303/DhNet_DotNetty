@@ -42,17 +42,10 @@ CREATE TABLE `players` (
 DROP TABLE IF EXISTS `characters`;
 CREATE TABLE `characters` (
     `account_id`  BIGINT UNSIGNED NOT NULL               COMMENT 'accounts.account_id FK',
-    `level`       INT             NOT NULL DEFAULT 1,
-    `exp`         BIGINT          NOT NULL DEFAULT 0,
-    `hp`          INT             NOT NULL DEFAULT 100,
-    `max_hp`      INT             NOT NULL DEFAULT 100,
-    `attack`      INT             NOT NULL DEFAULT 15,
-    `defense`     INT             NOT NULL DEFAULT 5,
-    `x`           FLOAT           NOT NULL DEFAULT 100.0  COMMENT '마지막 위치 X',
-    `y`           FLOAT           NOT NULL DEFAULT 100.0  COMMENT '마지막 위치 Y',
+    `gold`        INT             NOT NULL DEFAULT 0      COMMENT '보유 골드 (세션 간 영속)',
     `updated_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`account_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RPG 캐릭터 영속 데이터';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RPG 캐릭터 영속 데이터 (인게임 스탯은 게임마다 초기화)';
 
 -- ──────────────────────────────────────────────
 -- TODO [미래 Phase A]: account_bans 테이블 (정지 계정)

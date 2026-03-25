@@ -32,6 +32,7 @@ public class MonsterComponent
     public int         Atk         { get; }
     public int         Def         { get; }
     public int         ExpReward   { get; }
+    public int         GoldReward  { get; }
     public float       Speed       { get; }
     public float       AttackRange { get; }
     public bool        IsBoss      => Type is MonsterType.Dragon or MonsterType.Reaper;
@@ -54,19 +55,19 @@ public class MonsterComponent
         X         = x;
         Y         = y;
 
-        // (MaxHp, Atk, Def, ExpReward, Speed, AttackRange, _respawnDelay, _attackInterval)
-        (MaxHp, Atk, Def, ExpReward, Speed, AttackRange, _respawnDelay, _attackInterval) = type switch
+        // (MaxHp, Atk, Def, ExpReward, GoldReward, Speed, AttackRange, _respawnDelay, _attackInterval)
+        (MaxHp, Atk, Def, ExpReward, GoldReward, Speed, AttackRange, _respawnDelay, _attackInterval) = type switch
         {
-            MonsterType.Slime       => (50,   10,  0,   20,  60f,  40f, 10f,  3.0f),
-            MonsterType.Orc         => (150,  18,  3,   50,  40f,  48f, 20f,  2.5f),
-            MonsterType.Dragon      => (300,  20,  5,  500,  30f,  64f,  0f,  2.0f),
-            MonsterType.Bat         => (10,    5,  0,    1, 120f,  32f, 8f,   1.5f),
-            MonsterType.Zombie      => (50,    8,  0,    3,  40f,  40f, 15f,  2.0f),
-            MonsterType.Skeleton    => (80,   12,  2,    5,  60f,  44f, 18f,  2.0f),
-            MonsterType.Ghost       => (60,   10,  0,    8, 100f,  36f, 12f,  1.8f),
-            MonsterType.GiantZombie => (300,  30,  5,   20,  25f,  56f, 30f,  3.0f),
-            MonsterType.Reaper      => (500,  50, 10,  100,  80f,  72f,  0f,  1.5f),
-            _                       => (50,   10,  0,   20,  60f,  40f, 10f,  3.0f),
+            MonsterType.Slime       => (50,   10,  0,   20,   2,  60f,  40f, 10f,  3.0f),
+            MonsterType.Orc         => (150,  18,  3,   50,   5,  40f,  48f, 20f,  2.5f),
+            MonsterType.Dragon      => (300,  20,  5,  500,  50,  30f,  64f,  0f,  2.0f),
+            MonsterType.Bat         => (10,    5,  0,    1,   1, 120f,  32f, 8f,   1.5f),
+            MonsterType.Zombie      => (50,    8,  0,    3,   2,  40f,  40f, 15f,  2.0f),
+            MonsterType.Skeleton    => (80,   12,  2,    5,   3,  60f,  44f, 18f,  2.0f),
+            MonsterType.Ghost       => (60,   10,  0,    8,   4, 100f,  36f, 12f,  1.8f),
+            MonsterType.GiantZombie => (300,  30,  5,   20,  15,  25f,  56f, 30f,  3.0f),
+            MonsterType.Reaper      => (500,  50, 10,  100, 100,  80f,  72f,  0f,  1.5f),
+            _                       => (50,   10,  0,   20,   2,  60f,  40f, 10f,  3.0f),
         };
 
         _hp = MaxHp;
