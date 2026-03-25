@@ -18,7 +18,7 @@ public class CharacterComponent(PlayerComponent player)
     public int Gold { get; private set; } = 0;
 
     public bool IsAlive => _hp > 0;
-    public long NextLevelExp => Level * 100L;
+    public long NextLevelExp => Level * 15L;
 
     private const int MaxLevel = 50;
 
