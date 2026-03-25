@@ -1,20 +1,17 @@
-using Common.Server.Component;
 using GameServer.Component.Room;
 using GameServer.Protocol;
 
 namespace GameServer.Component.Player;
 
 // PlayerComponent가 소유하는 서브 컴포넌트 — WorkerSystem에 등록되지 않는다.
-// 모든 메서드는 PlayerComponent 워커 스레드에서 직렬 호출되므로 EnqueueEvent 불필요.
+// 모든 메서드는 PlayerComponent 워커 스레드에서 직렬 호출되므로 별도 동기화 불필요.
 // CurrentRoom 쓰기 경로:
 //   - RoomComponent.Enter(player) → PlayerLobbyComponent.RoomEnter → 워커 스레드
 //   - RoomComponent.Leave(player, _) → PlayerRoomComponent.Exit/Disconnect → 워커 스레드
 // → 모든 쓰기가 PlayerComponent 워커 스레드 → volatile 불필요
-public class PlayerRoomComponent(PlayerComponent player) : BaseComponent
+public class PlayerRoomComponent(PlayerComponent player)
 {
     public RoomComponent? CurrentRoom { get; internal set; }
-
-    public override void Initialize() { }
 
     public void Chat(ReqRoomChat req)
     {
@@ -41,6 +38,4 @@ public class PlayerRoomComponent(PlayerComponent player) : BaseComponent
     {
         CurrentRoom?.Leave(player, true);
     }
-
-    protected override void OnDispose() { }
 }

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Common.Logging;
 using GameServer.Component.Player;
 using GameServer.Protocol;
@@ -8,8 +9,13 @@ namespace GameServer.Component.Room;
 /// <summary>
 /// 게임 진행 중 상태를 관리하는 컴포넌트. RoomComponent와 1:1로 생성된다.
 /// 몬스터 AI 틱은 내부 PeriodicTimer(100ms)로 구동된다.
+///
+/// 동시성 모델:
+///   - Tick() : PeriodicTimer 콜백 — _stateLock 하에서 AI, 웨이브, 입력 드레인 실행
+///   - ProcessXxx() : PlayerComponent 워커 스레드 — _inputQueue에만 적재, lock 없음
+///   → 워커 스레드가 _stateLock을 기다리는 경합 제거
 /// </summary>
-public class GameSessionComponent
+public class GameSessionComponent : IDisposable
 {
     private static long _monsterIdSeq;
     private static ulong NextMonsterId() => (ulong)Interlocked.Increment(ref _monsterIdSeq);
@@ -20,15 +26,20 @@ public class GameSessionComponent
     private readonly GemManager     _gemManager   = new();
     private readonly WeaponSystem   _weaponSystem = new();
     private readonly object _stateLock = new();
+
+    // 플레이어 입력 큐 — 워커 스레드가 lock 없이 적재, Tick에서 일괄 처리
+    private readonly ConcurrentQueue<Action<List<GamePacket>>> _inputQueue = new();
+
     private int   _endedFlag;
     private int   _cleanupCounter;
     private float _survivalElapsed;       // 총 생존 시간(초)
     private float _survivalBroadcastAcc;  // 10초 브로드캐스트 누적
     private const float ClearTimeSec = 1800f; // 30분 생존 시 클리어
 
-    public ulong RoomId => _room.RoomId;
+    private readonly CancellationTokenSource _cts = new();
+    private int _disposed;
 
-    private CancellationTokenSource _cts = new();
+    public ulong RoomId => _room.RoomId;
 
     public GameSessionComponent(RoomComponent room)
     {
@@ -143,6 +154,22 @@ public class GameSessionComponent
 
         lock (_stateLock)
         {
+            // 플레이어 입력 일괄 처리 — 워커 스레드 lock 경합 제거
+            // EndGame이 입력 처리 중 트리거된 경우 나머지 입력은 폐기
+            while (_inputQueue.TryDequeue(out var input))
+            {
+                if (_endedFlag == 1) break;
+                input(pending);
+            }
+
+            // 입력 처리 중 게임이 종료된 경우 AI 틱 스킵
+            if (_endedFlag == 1)
+            {
+                foreach (var pkt in pending)
+                    _room.BroadcastPacket(pkt);
+                return;
+            }
+
             // 생존 타이머
             _survivalElapsed      += dt;
             _survivalBroadcastAcc += dt;
@@ -278,18 +305,18 @@ public class GameSessionComponent
             _room.BroadcastPacket(pkt);
     }
 
-    // PlayerRpgController → PlayerComponent 워커 스레드에서 호출 (_stateLock으로 Tick과 직렬화)
+    // ──────────────────────────────────────────────────────────────────────────
+    // 플레이어 입력 처리 — 워커 스레드에서 호출, _inputQueue에만 적재 (lock 없음)
+    // 실제 처리는 Tick() 내부 _stateLock 하에서 일괄 실행된다.
+    // ──────────────────────────────────────────────────────────────────────────
+
     public void ProcessAttack(PlayerComponent player, ulong monsterId)
     {
         if (_endedFlag == 1) return;
-
-        var pending = new List<GamePacket>();
-
-        lock (_stateLock)
+        _inputQueue.Enqueue(pending =>
         {
             if (!player.Character.IsAlive) return;
             if (!player.World.CanAttack()) return;
-
             if (!_monsters.TryGetValue(monsterId, out var monster) || !monster.IsAlive) return;
 
             int damage = CalcDamage(player.Character.Attack, monster.Def);
@@ -320,20 +347,15 @@ public class GameSessionComponent
                 SpawnGem(monster.X, monster.Y, monster.ExpReward, pending);
                 if (monster.IsBoss) EndGame(true, pending);
             }
-        }
-
-        foreach (var pkt in pending)
-            _room.BroadcastPacket(pkt);
+        });
     }
 
     public void ProcessMove(PlayerComponent player, float x, float y)
     {
-        if (_endedFlag == 1 || !player.Character.IsAlive) return;
-
-        var pending = new List<GamePacket>();
-
-        lock (_stateLock)
+        if (_endedFlag == 1) return;
+        _inputQueue.Enqueue(pending =>
         {
+            if (!player.Character.IsAlive) return;
             player.World.Move(x, y);
             pending.Add(new GamePacket
             {
@@ -341,21 +363,16 @@ public class GameSessionComponent
             });
             // 이동 후 주변 젬 자동 수집
             CollectGems(player, pending);
-        }
-
-        foreach (var pkt in pending)
-            _room.BroadcastPacket(pkt);
+        });
     }
 
     public void ProcessChooseWeapon(PlayerComponent player, int weaponId)
     {
         if (_endedFlag == 1) return;
-        lock (_stateLock)
-        {
-            _weaponSystem.ApplyChoice(player, weaponId);
-        }
+        _inputQueue.Enqueue(_ => _weaponSystem.ApplyChoice(player, weaponId));
     }
 
+    // ProcessChat은 게임 상태를 수정하지 않으므로 큐 없이 직접 브로드캐스트
     public void ProcessChat(PlayerComponent player, string message)
     {
         if (string.IsNullOrWhiteSpace(message) || message.Length > 500) return;
@@ -364,6 +381,10 @@ public class GameSessionComponent
             NotiGameChat = new NotiGameChat { PlayerId = player.AccountId, PlayerName = player.Name, Message = message }
         });
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 내부 헬퍼 — _stateLock 하에서 호출된다
+    // ──────────────────────────────────────────────────────────────────────────
 
     /// <summary>젬 스폰 — 몬스터 사망 시 호출. _stateLock 하에서 실행된다.</summary>
     private void SpawnGem(float x, float y, int expValue, List<GamePacket> pending)
@@ -498,4 +519,11 @@ public class GameSessionComponent
         MonsterId = m.MonsterId, MonsterType = (int)m.Type,
         X = m.X, Y = m.Y, Hp = m.Hp, MaxHp = m.MaxHp
     };
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        _cts.Cancel();
+        _cts.Dispose();
+    }
 }

@@ -1,4 +1,3 @@
-using Common.Server.Component;
 using GameServer.Component.Lobby;
 using GameServer.Protocol;
 using GameServer.Systems;
@@ -6,16 +5,14 @@ using GameServer.Systems;
 namespace GameServer.Component.Player;
 
 // PlayerComponent가 소유하는 서브 컴포넌트 — WorkerSystem에 등록되지 않는다.
-// 모든 메서드는 PlayerComponent 워커 스레드에서 직렬 호출되므로 EnqueueEvent 불필요.
+// 모든 메서드는 PlayerComponent 워커 스레드에서 직렬 호출되므로 별도 동기화 불필요.
 // CurrentLobby 쓰기 경로:
 //   - LoginController → player.EnqueueEvent(() => lobby.TryEnter(player)) → 워커 틱
 //   - CreateRoom/RoomEnter/Disconnect → 워커 스레드 직접 호출
 // → 모든 쓰기가 PlayerComponent 워커 스레드 → volatile 불필요
-public class PlayerLobbyComponent(PlayerComponent player) : BaseComponent
+public class PlayerLobbyComponent(PlayerComponent player)
 {
     public LobbyComponent? CurrentLobby { get; internal set; }
-
-    public override void Initialize() { }
 
     // 현재 로비의 룸 목록 조회
     public void RoomList(ReqRoomList req)
@@ -89,6 +86,4 @@ public class PlayerLobbyComponent(PlayerComponent player) : BaseComponent
     {
         CurrentLobby?.Leave(player);
     }
-
-    protected override void OnDispose() { }
 }

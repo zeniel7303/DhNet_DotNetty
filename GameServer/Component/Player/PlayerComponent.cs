@@ -17,6 +17,7 @@ public class PlayerComponent : BaseComponent
     public SessionComponent Session { get; }
 
     private int _disconnected;
+    private readonly object _disposeLock = new();
 
     // DB InsertAsync 완료 여부 — DisconnectAsync에서 UpdateLogoutAsync 실행 조건
     // InsertAsync 이전에 Dispose되는 경우(세션 소실 등) UpdateLogout 실행 시 DB 오류 방지
@@ -49,10 +50,6 @@ public class PlayerComponent : BaseComponent
     public override void Initialize()
     {
         _routeTable = RegisterControllers();
-        World.Initialize();
-        Character.Initialize();
-        Lobby.Initialize();
-        Room.Initialize();
         Session.PacketHandler = HandlePacket;
     }
 
@@ -135,7 +132,7 @@ public class PlayerComponent : BaseComponent
             PlayerRoomComponent?  room;
             PlayerLobbyComponent? lobby;
             CharacterComponent?   character;
-            lock (this)
+            lock (_disposeLock)
             {
                 room      = Room;
                 lobby     = Lobby;
@@ -204,7 +201,7 @@ public class PlayerComponent : BaseComponent
     // DisconnectAsync가 항상 선행 실행되므로 참조 null 처리만 수행
     protected override void OnDispose()
     {
-        lock (this)
+        lock (_disposeLock)
         {
             Lobby     = null!;
             Room      = null!;
