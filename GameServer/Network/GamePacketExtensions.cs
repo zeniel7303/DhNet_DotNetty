@@ -17,7 +17,8 @@ public static class GamePacketExtensions
             GamePacket.PayloadOneofCase.ReqMove       => (typeof(ReqMove),       packet.ReqMove),
             GamePacket.PayloadOneofCase.ReqAttack     => (typeof(ReqAttack),     packet.ReqAttack),
             GamePacket.PayloadOneofCase.ReqGameChat   => (typeof(ReqGameChat),   packet.ReqGameChat),
-            GamePacket.PayloadOneofCase.ReqHeartbeat  => (typeof(ReqHeartbeat),  packet.ReqHeartbeat),
-            _                                         => (null, null)
+            GamePacket.PayloadOneofCase.ReqHeartbeat    => (typeof(ReqHeartbeat),    packet.ReqHeartbeat),
+            GamePacket.PayloadOneofCase.ReqChooseWeapon => (typeof(ReqChooseWeapon), packet.ReqChooseWeapon),
+            _                                           => (null, null)
         };
 }

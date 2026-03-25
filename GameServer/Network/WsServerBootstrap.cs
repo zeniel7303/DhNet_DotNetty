@@ -6,7 +6,7 @@ using DotNetty.Transport.Channels.Sockets;
 
 namespace GameServer.Network;
 
-sealed class WsServerBootstrap : IAsyncDisposable
+internal sealed class WsServerBootstrap : IAsyncDisposable
 {
     private readonly MultithreadEventLoopGroup _bossGroup   = new(1);
     private readonly MultithreadEventLoopGroup _workerGroup = new();

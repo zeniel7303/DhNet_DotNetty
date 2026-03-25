@@ -4,7 +4,7 @@ using Common.Logging;
 namespace GameServer.Systems;
 
 // 모든 게임 시스템의 생명주기(시작/종료)를 한 곳에서 관리
-static class GameSystems
+internal static class GameSystems
 {
     // 서버 바인딩 전 호출 — 모든 시스템 초기화 및 백그라운드 스레드 시작
     public static void Start(GameServerSettings settings, CancellationTokenSource cts)

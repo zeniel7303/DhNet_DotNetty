@@ -7,7 +7,7 @@ using GameServer.Protocol;
 
 namespace GameServer.Network;
 
-sealed class GamePipelineInitializer : ChannelInitializer<IChannel>
+internal sealed class GamePipelineInitializer : ChannelInitializer<IChannel>
 {
     // null = 암호화 비활성화 (EncryptionSettings.Key가 비어있을 때)
     private readonly byte[]? _encKey;

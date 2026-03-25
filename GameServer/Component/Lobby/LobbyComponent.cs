@@ -121,34 +121,6 @@ public class LobbyComponent : BaseComponent
             IsStarted   = r.IsGameStarted
         }).ToArray();
 
-    // 빈 방 탐색 + 없으면 신규 생성. lock으로 TOCTOU 방지 (순회+생성+추가 원자성).
-    public RoomComponent GetOrCreateRoom()
-    {
-        lock (_roomLock)
-        {
-            foreach (var room in _rooms.Values)
-            {
-                if (room.TryReserve()) return room;
-            }
-
-            var roomId = IdGenerators.Room.Next();
-            var newRoom = new RoomComponent(roomId, LobbyId,
-                onEmpty: () => RemoveRoom(roomId),
-                returnToLobby: p => TryEnter(p));
-            newRoom.Initialize();
-
-            _rooms.TryAdd(newRoom.RoomId, newRoom);
-
-            if (!newRoom.TryReserve())
-            {
-                GameLogger.Warn($"Lobby:{LobbyId}", $"신규 Room 첫 슬롯 예약 실패 (불가능한 경로): RoomId={newRoom.RoomId}");
-            }
-
-            GameLogger.Info($"Lobby:{LobbyId}", $"신규 Room 생성: RoomId={newRoom.RoomId}");
-            return newRoom;
-        }
-    }
-
     public RoomComponent? TryGetRoom(ulong roomId) => _rooms.GetValueOrDefault(roomId);
 
     public void RemoveRoom(ulong roomId)

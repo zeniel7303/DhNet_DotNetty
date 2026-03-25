@@ -5,6 +5,7 @@ using GameServer.Component.Player;
 using GameServer.Database;
 using GameServer.Database.Rows;
 using GameServer.Protocol;
+using GameServer.Systems;
 
 namespace GameServer.Component.Room;
 
@@ -162,7 +163,7 @@ public class RoomComponent : BaseComponent
         // 게임 세션 생성 및 시작 (NotiGameStart 이후)
         var session = new GameSessionComponent(this);
         GameSession = session;
-        Systems.MonsterSystem.Instance.Register(session);
+        GameSessionRegistry.Instance.Register(session);
         session.Start(_players.Values.ToList());
 
         _onGameStart?.Invoke(this);

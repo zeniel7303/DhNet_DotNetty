@@ -16,7 +16,7 @@ public class GameServerHandler : SimpleChannelInboundHandler<GamePacket>
     {
         _session = new SessionComponent(ctx.Channel);
         SessionSystem.Instance.EnqueueAdd(_session);
-        GameLogger.Info("연결", $"{ctx.Channel.RemoteAddress}");
+        GameLogger.Info("GameServerHandler", $"연결: {ctx.Channel.RemoteAddress}");
     }
 
     public override void ChannelInactive(IChannelHandlerContext ctx)
@@ -26,7 +26,7 @@ public class GameServerHandler : SimpleChannelInboundHandler<GamePacket>
             // SessionSystem이 Disconnect 처리 전담 — IsEntryHandshakeCompleted에 따라 경로 분기
             SessionSystem.Instance.EnqueueDisconnect(_session);
         }
-        GameLogger.Info("해제", $"{ctx.Channel.RemoteAddress}");
+        GameLogger.Info("GameServerHandler", $"연결 해제: {ctx.Channel.RemoteAddress}");
         _session = null;
     }
 
@@ -78,7 +78,7 @@ public class GameServerHandler : SimpleChannelInboundHandler<GamePacket>
 
     public override void ExceptionCaught(IChannelHandlerContext ctx, Exception ex)
     {
-        GameLogger.Error("예외", ex.Message, ex);
+        GameLogger.Error("GameServerHandler", ex.Message, ex);
         _ = ctx.CloseAsync().ContinueWith(
             t => GameLogger.Error("GameServerHandler", "CloseAsync 실패", t.Exception?.InnerException),
             CancellationToken.None,

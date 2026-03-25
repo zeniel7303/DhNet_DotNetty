@@ -4,7 +4,7 @@ using GameServer.Database.Rows;
 
 namespace GameServer.Systems;
 
-static class StatLogger
+internal static class StatLogger
 {
     private const int IntervalSeconds = 60;
 

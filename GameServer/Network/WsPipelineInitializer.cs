@@ -13,7 +13,7 @@ namespace GameServer.Network;
 /// — WebSocket 프레임이 메시지 경계를 보장하기 때문.
 /// 암호화는 브라우저 환경 특성상 생략 (TLS 레이어에서 보안 확보 가정).
 /// </summary>
-sealed class WsPipelineInitializer : ChannelInitializer<IChannel>
+internal sealed class WsPipelineInitializer : ChannelInitializer<IChannel>
 {
     private const string WsPath = "/ws";
 
