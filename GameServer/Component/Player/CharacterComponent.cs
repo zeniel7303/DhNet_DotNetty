@@ -4,6 +4,7 @@ namespace GameServer.Component.Player;
 
 public class CharacterComponent(PlayerComponent player)
 {
+    // 인게임 스탯 — 게임마다 초기값으로 시작, DB에 저장하지 않음
     public int  Level   { get; private set; } = 1;
     public long Exp     { get; private set; } = 0;
     // _stateLock (GameStage) 하에서만 수정됨 — volatile 불필요
@@ -13,33 +14,25 @@ public class CharacterComponent(PlayerComponent player)
     public int  Attack  { get; private set; } = 20;
     public int  Defense { get; private set; } = 10;
 
+    // 영속 데이터 — 세션 간 유지, DB에 저장
+    public int Gold { get; private set; } = 0;
+
     public bool IsAlive => _hp > 0;
     public long NextLevelExp => Level * 100L;
 
     private const int MaxLevel = 50;
 
-    public void LoadFrom(CharacterRow row)
-    {
-        Level   = row.level;
-        Exp     = row.exp;
-        _hp     = row.hp;
-        MaxHp   = row.max_hp;
-        Attack  = row.attack;
-        Defense = row.defense;
-    }
+    // gold만 로드 — 인게임 스탯은 항상 초기값으로 시작
+    public void LoadFrom(CharacterRow row) => Gold = row.gold;
 
-    public CharacterRow ToRow() => new()
+    // gold만 저장
+    public CharacterRow ToRow() => new() { account_id = player.AccountId, gold = Gold };
+
+    public void AddGold(int amount)
     {
-        account_id = player.AccountId,
-        level      = Level,
-        exp        = Exp,
-        hp         = Hp,
-        max_hp     = MaxHp,
-        attack     = Attack,
-        defense    = Defense,
-        x          = player.World.X,
-        y          = player.World.Y,
-    };
+        if (amount <= 0) return;
+        Gold += amount;
+    }
 
     // 게임 시작 시 HP 완전 회복.
     public void RestoreFullHp() => _hp = MaxHp;

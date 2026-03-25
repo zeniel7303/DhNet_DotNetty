@@ -86,5 +86,8 @@ message GamePacket {
 
     // Survival — 생존 타이머
     NotiSurvivalTime noti_survival_time = 51;
+
+    // Currency — 골드 획득
+    NotiGoldGain noti_gold_gain = 52;
   }
 }

@@ -17,23 +17,13 @@ public class CharacterDbSet
         return _conn.QuerySingleOrDefaultAsync<CharacterRow>(sql, new { account_id = accountId });
     }
 
-    /// <summary>캐릭터 저장. 최초 생성 및 로그아웃 시 호출 (INSERT ON DUPLICATE KEY UPDATE).</summary>
+    /// <summary>골드 저장. 로그아웃 시 호출 (INSERT ON DUPLICATE KEY UPDATE).</summary>
     public Task<int> UpsertAsync(CharacterRow row)
     {
         const string sql = @"
-            INSERT INTO `characters`
-                (`account_id`, `level`, `exp`, `hp`, `max_hp`, `attack`, `defense`, `x`, `y`)
-            VALUES
-                (@account_id, @level, @exp, @hp, @max_hp, @attack, @defense, @x, @y)
-            ON DUPLICATE KEY UPDATE
-                `level`   = VALUES(`level`),
-                `exp`     = VALUES(`exp`),
-                `hp`      = VALUES(`hp`),
-                `max_hp`  = VALUES(`max_hp`),
-                `attack`  = VALUES(`attack`),
-                `defense` = VALUES(`defense`),
-                `x`       = VALUES(`x`),
-                `y`       = VALUES(`y`)";
+            INSERT INTO `characters` (`account_id`, `gold`)
+            VALUES (@account_id, @gold)
+            ON DUPLICATE KEY UPDATE `gold` = VALUES(`gold`)";
         return _conn.ExecuteAsync(sql, row);
     }
 }

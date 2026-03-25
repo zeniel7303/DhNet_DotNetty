@@ -347,6 +347,7 @@ public class GameStage : IDisposable
                     NotiDeath = new NotiDeath { EntityId = monsterId, IsMonster = true }
                 });
                 SpawnGem(monster.X, monster.Y, monster.ExpReward, pending);
+                GiveGold(player, monster.GoldReward, pending);
                 if (monster.IsBoss) EndGame(true, pending);
             }
         });
@@ -480,7 +481,26 @@ public class GameStage : IDisposable
 
         SpawnGem(monster.X, monster.Y, monster.ExpReward, pending);
 
+        // 킬한 플레이어에게 골드 직접 지급
+        var attacker = _room.GetPlayers().FirstOrDefault(p => p.AccountId == attackerAccountId);
+        if (attacker != null)
+            GiveGold(attacker, monster.GoldReward, pending);
+
         if (monster.IsBoss) EndGame(true, pending);
+    }
+
+    /// <summary>골드 지급 + NotiGoldGain 전송. _stateLock 하에서 실행된다.</summary>
+    private static void GiveGold(PlayerComponent player, int amount, List<GamePacket> pending)
+    {
+        if (amount <= 0) return;
+        player.Character.AddGold(amount);
+        _ = player.Session.SendAsync(new GamePacket
+        {
+            NotiGoldGain = new NotiGoldGain
+            {
+                PlayerId = player.AccountId, GoldGained = amount, TotalGold = player.Character.Gold
+            }
+        });
     }
 
     private void SendWeaponChoices(PlayerComponent player)
