@@ -1,7 +1,7 @@
-namespace GameServer.Component.Room;
+namespace GameServer.Component.Stage;
 
 /// <summary>
-/// 경험치 젬 관리. GameSessionComponent._stateLock 하에서만 접근된다.
+/// 경험치 젬 관리. GameStage._stateLock 하에서만 접근된다.
 /// </summary>
 public class GemManager
 {

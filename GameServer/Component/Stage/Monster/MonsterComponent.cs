@@ -1,4 +1,4 @@
-namespace GameServer.Component.Room;
+namespace GameServer.Component.Stage;
 
 public enum MonsterType
 {
@@ -16,7 +16,7 @@ public enum MonsterType
 }
 
 /// <summary>
-/// 몬스터 상태 컴포넌트. GameSessionComponent._stateLock 하에서만 변경된다.
+/// 몬스터 상태 컴포넌트. GameStage._stateLock 하에서만 변경된다.
 /// </summary>
 public class MonsterComponent
 {
@@ -121,6 +121,14 @@ public class MonsterComponent
         if (!IsAlive || _attackElapsed < _attackInterval) return false;
         _attackElapsed = 0;
         return true;
+    }
+
+    /// <summary>넉백 — 플레이어 반대 방향으로 밀어냄. 맵 순환 적용. 사망 상태면 무시.</summary>
+    public void Knockback(float pushX, float pushY)
+    {
+        if (!IsAlive) return;
+        X = ((X + pushX) % MapWidth  + MapWidth)  % MapWidth;
+        Y = ((Y + pushY) % MapHeight + MapHeight) % MapHeight;
     }
 
     /// <summary>데미지 적용. 사망 시 true 반환.</summary>

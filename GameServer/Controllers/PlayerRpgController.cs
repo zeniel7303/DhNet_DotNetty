@@ -15,14 +15,14 @@ public class PlayerRpgController(PlayerComponent player) : PlayerBaseController(
             .Build();
 
     private void OnMove(ReqMove req)
-        => Player.Room.CurrentRoom?.GameSession?.ProcessMove(Player, req.X, req.Y);
+        => Player.Room.CurrentRoom?.Stage?.ProcessMove(Player, req.X, req.Y);
 
     private void OnAttack(ReqAttack req)
-        => Player.Room.CurrentRoom?.GameSession?.ProcessAttack(Player, req.TargetMonsterId);
+        => Player.Room.CurrentRoom?.Stage?.ProcessAttack(Player, req.TargetMonsterId);
 
     private void OnGameChat(ReqGameChat req)
-        => Player.Room.CurrentRoom?.GameSession?.ProcessChat(Player, req.Message);
+        => Player.Room.CurrentRoom?.Stage?.ProcessChat(Player, req.Message);
 
     private void OnChooseWeapon(ReqChooseWeapon req)
-        => Player.Room.CurrentRoom?.GameSession?.ProcessChooseWeapon(Player, req.WeaponId);
+        => Player.Room.CurrentRoom?.Stage?.ProcessChooseWeapon(Player, req.WeaponId);
 }

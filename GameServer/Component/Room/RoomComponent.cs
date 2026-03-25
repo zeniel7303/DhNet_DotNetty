@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Common.Logging;
 using Common.Server.Component;
+using GameServer.Component.Stage;
 using GameServer.Component.Player;
 using GameServer.Database;
 using GameServer.Database.Rows;
@@ -23,7 +24,7 @@ public class RoomComponent : BaseComponent
     private readonly ConcurrentDictionary<ulong, PlayerComponent> _players = new();
     private readonly ConcurrentDictionary<ulong, bool> _readyState = new();
 
-    public GameSessionComponent? GameSession { get; private set; }
+    public GameStage? Stage { get; private set; }
 
     // 방이 비었을 때 호출 — LobbyComponent.RemoveRoom() 주입
     private readonly Action _onEmpty;
@@ -161,8 +162,8 @@ public class RoomComponent : BaseComponent
             _ = p.Session.SendAsync(notiStart);
 
         // 게임 세션 생성 및 시작 (NotiGameStart 이후)
-        var session = new GameSessionComponent(this);
-        GameSession = session;
+        var session = new GameStage(this);
+        Stage = session;
         GameSessionRegistry.Instance.Register(session);
         session.Start(_players.Values.ToList());
 
@@ -283,6 +284,6 @@ public class RoomComponent : BaseComponent
         }
 
         _players.Clear();
-        GameSession?.Dispose();
+        Stage?.Dispose();
     }
 }

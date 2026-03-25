@@ -1,11 +1,10 @@
 using GameServer.Component.Player;
-using GameServer.Component.Room.Weapons;
 
-namespace GameServer.Component.Room;
+namespace GameServer.Component.Stage.Weapons;
 
 /// <summary>
 /// 플레이어별 무기 목록을 관리하고 서버사이드 자동 공격 틱을 처리한다.
-/// GameSessionComponent._stateLock 하에서만 호출된다.
+/// GameStage._stateLock 하에서만 호출된다.
 /// </summary>
 public class WeaponSystem
 {
@@ -83,12 +82,12 @@ public class WeaponSystem
     /// 모든 플레이어의 무기를 틱 처리.
     /// 반환: (attackerAccountId, targetMonsterId, damage)[] — 이번 틱에 발생한 자동공격.
     /// </summary>
-    public List<(ulong AttackerId, ulong MonsterId, int Damage)> Tick(
+    public List<(ulong AttackerId, ulong MonsterId, int Damage, WeaponId WeaponId, float PushX, float PushY)> Tick(
         float dt,
         IReadOnlyList<PlayerComponent> players,
         IEnumerable<MonsterComponent> monsters)
     {
-        var results = new List<(ulong, ulong, int)>();
+        var results = new List<(ulong, ulong, int, WeaponId, float, float)>();
 
         foreach (var player in players)
         {
@@ -98,8 +97,8 @@ public class WeaponSystem
             foreach (var weapon in weapons)
             {
                 var hits = weapon.Tick(dt, player.World.X, player.World.Y, monsters);
-                foreach (var (monsterId, damage) in hits)
-                    results.Add((player.AccountId, monsterId, damage));
+                foreach (var hit in hits)
+                    results.Add((player.AccountId, hit.MonsterId, hit.Damage, weapon.Id, hit.PushX, hit.PushY));
             }
         }
 

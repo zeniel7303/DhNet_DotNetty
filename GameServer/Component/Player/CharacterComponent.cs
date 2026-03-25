@@ -6,7 +6,7 @@ public class CharacterComponent(PlayerComponent player)
 {
     public int  Level   { get; private set; } = 1;
     public long Exp     { get; private set; } = 0;
-    // _stateLock (GameSessionComponent) 하에서만 수정됨 — volatile 불필요
+    // _stateLock (GameStage) 하에서만 수정됨 — volatile 불필요
     private int _hp = 500;
     public int  Hp      => _hp;
     public int  MaxHp   { get; private set; } = 500;

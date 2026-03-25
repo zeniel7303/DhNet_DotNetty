@@ -1,9 +1,9 @@
-namespace GameServer.Component.Room;
+namespace GameServer.Component.Stage;
 
 /// <summary>
 /// 웨이브 기반 몬스터 스포너.
 /// 30초 인터벌로 웨이브 번호를 증가시키며 맵 외곽에서 몬스터를 스폰한다.
-/// GameSessionComponent._stateLock 하에서 호출된다.
+/// GameStage._stateLock 하에서 호출된다.
 /// </summary>
 public class WaveSpawner
 {

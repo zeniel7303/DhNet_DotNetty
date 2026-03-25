@@ -1,10 +1,13 @@
-namespace GameServer.Component.Room.Weapons;
+namespace GameServer.Component.Stage.Weapons;
 
 public enum WeaponId { Garlic = 0, Knife = 1, Axe = 2 }
 
+/// <summary>무기 1회 적중 결과. PushX/PushY가 0이면 넉백 없음.</summary>
+public readonly record struct WeaponHit(ulong MonsterId, int Damage, float PushX = 0f, float PushY = 0f);
+
 /// <summary>
 /// 서버사이드 자동 무기 기반 클래스.
-/// GameSessionComponent._stateLock 하에서 Tick이 호출된다.
+/// GameStage._stateLock 하에서 Tick이 호출된다.
 /// </summary>
 public abstract class WeaponBase
 {
@@ -24,7 +27,7 @@ public abstract class WeaponBase
     /// 틱 처리. 쿨다운이 차면 TryAttack을 호출하여 데미지 결과를 반환한다.
     /// 반환: (targetMonsterId, damage)[] — 이번 틱에 공격한 몬스터 목록.
     /// </summary>
-    public List<(ulong MonsterId, int Damage)> Tick(
+    public List<WeaponHit> Tick(
         float dt,
         float ownerX, float ownerY,
         IEnumerable<MonsterComponent> monsters)
@@ -36,7 +39,7 @@ public abstract class WeaponBase
         return TryAttack(ownerX, ownerY, monsters);
     }
 
-    protected abstract List<(ulong MonsterId, int Damage)> TryAttack(
+    protected abstract List<WeaponHit> TryAttack(
         float ownerX, float ownerY,
         IEnumerable<MonsterComponent> monsters);
 

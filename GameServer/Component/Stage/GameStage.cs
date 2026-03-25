@@ -1,10 +1,12 @@
 using System.Collections.Concurrent;
 using Common.Logging;
+using GameServer.Component.Stage.Weapons;
 using GameServer.Component.Player;
+using GameServer.Component.Room;
 using GameServer.Protocol;
 using GameServer.Systems;
 
-namespace GameServer.Component.Room;
+namespace GameServer.Component.Stage;
 
 /// <summary>
 /// 게임 진행 중 상태를 관리하는 컴포넌트. RoomComponent와 1:1로 생성된다.
@@ -15,7 +17,7 @@ namespace GameServer.Component.Room;
 ///   - ProcessXxx() : PlayerComponent 워커 스레드 — _inputQueue에만 적재, lock 없음
 ///   → 워커 스레드가 _stateLock을 기다리는 경합 제거
 /// </summary>
-public class GameSessionComponent : IDisposable
+public class GameStage : IDisposable
 {
     private static long _monsterIdSeq;
     private static ulong NextMonsterId() => (ulong)Interlocked.Increment(ref _monsterIdSeq);
@@ -41,7 +43,7 @@ public class GameSessionComponent : IDisposable
 
     public ulong RoomId => _room.RoomId;
 
-    public GameSessionComponent(RoomComponent room)
+    public GameStage(RoomComponent room)
     {
         _room = room;
     }
@@ -292,8 +294,8 @@ public class GameSessionComponent : IDisposable
 
                 // 서버사이드 자동 무기 틱
                 var weaponHits = _weaponSystem.Tick(dt, alivePlayers, _monsters.Values);
-                foreach (var (attackerId, monsterId, dmg) in weaponHits)
-                    ApplyWeaponHit(attackerId, monsterId, dmg, pending);
+                foreach (var (attackerId, monsterId, dmg, wid, pushX, pushY) in weaponHits)
+                    ApplyWeaponHit(attackerId, monsterId, dmg, wid, pushX, pushY, pending);
 
                 // 웨이브 스포너 틱
                 var waveSpawns = _waveSpawner.Tick(dt, _monsters.Count);
@@ -437,7 +439,8 @@ public class GameSessionComponent : IDisposable
     }
 
     /// <summary>자동 무기 히트 처리. _stateLock 하에서 실행된다.</summary>
-    private void ApplyWeaponHit(ulong attackerAccountId, ulong monsterId, int damage, List<GamePacket> pending)
+    private void ApplyWeaponHit(ulong attackerAccountId, ulong monsterId, int damage, WeaponId weaponId,
+        float pushX, float pushY, List<GamePacket> pending)
     {
         if (!_monsters.TryGetValue(monsterId, out var monster) || !monster.IsAlive) return;
 
@@ -447,9 +450,19 @@ public class GameSessionComponent : IDisposable
         {
             NotiCombat = new NotiCombat
             {
-                AttackerPlayerId = attackerAccountId, TargetMonsterId = monsterId, Damage = damage
+                AttackerPlayerId = attackerAccountId, TargetMonsterId = monsterId,
+                Damage = damage, WeaponId = (int)weaponId
             }
         });
+
+        // 넉백 — 사망 전에 위치를 밀어줘야 클라이언트가 올바른 위치에서 사망 처리
+        if (!died && (pushX != 0f || pushY != 0f))
+        {
+            monster.Knockback(pushX, pushY);
+            var movePacket = new NotiMonsterMove();
+            movePacket.Moves.Add(new MonsterMoveInfo { MonsterId = monsterId, X = monster.X, Y = monster.Y });
+            pending.Add(new GamePacket { NotiMonsterMove = movePacket });
+        }
         pending.Add(new GamePacket
         {
             NotiHpChange = new NotiHpChange
