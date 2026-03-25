@@ -6,7 +6,7 @@ public class PlayerWorldComponent
     public float Y { get; private set; } = 100f;
 
     private DateTime _lastAttackAt = DateTime.MinValue;
-    private const float AttackCooldownSec = 1f;
+    private const float AttackCooldownSec = 0.3f;
 
     public void SetPosition(float x, float y)
     {

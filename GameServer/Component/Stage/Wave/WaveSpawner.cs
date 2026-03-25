@@ -16,7 +16,7 @@ public class WaveSpawner
     public int WaveNumber { get; private set; } = 0;
 
     private float _elapsed = 0f;
-    private const float WaveInterval = 30f; // 초
+    private const float WaveInterval = 8f; // 초
 
     // 웨이브 테이블: 웨이브 번호 → (MonsterType, 마리 수)[]
     // 홀수 웨이브: 박쥐/좀비 위주, 짝수 웨이브: 스켈레톤/유령, 5의 배수: 미니보스 포함
