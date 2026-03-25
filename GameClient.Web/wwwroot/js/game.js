@@ -853,7 +853,22 @@ function onNotiCombat(noti) {
   const attacker = gamePlayers.get(toId(noti.attackerPlayerId));
   const target   = gameMonsters.get(toId(noti.targetMonsterId));
   if (!attacker || !target) return;
-  spawnEffect(attacker.x, attacker.y, target.x, target.y, '#f1c40f', 250);
+
+  const wid = noti.weaponId ?? 0;
+  switch (wid) {
+    case 0: // Garlic — 플레이어 주변 오라 펄스
+      effects.push({ type: 'aura', x: attacker.x, y: attacker.y, radius: 80, color: '#a8e063', duration: 600, startTime: performance.now() });
+      effects.push({ type: 'flash', x: target.x, y: target.y, color: '#a8e063', duration: 200, startTime: performance.now() });
+      break;
+    case 1: // Knife — 빠른 선형 관통 투사체
+      effects.push({ type: 'line', sx: attacker.x, sy: attacker.y, tx: target.x, ty: target.y, color: '#ecf0f1', size: 3, duration: 150, startTime: performance.now() });
+      break;
+    case 2: // Axe — 느리고 큰 포물선 아크
+      effects.push({ type: 'arc', sx: attacker.x, sy: attacker.y, tx: target.x, ty: target.y, color: '#e67e22', size: 9, arcHeight: 60, duration: 400, startTime: performance.now() });
+      break;
+    default:
+      spawnEffect(attacker.x, attacker.y, target.x, target.y, '#f1c40f', 250);
+  }
 }
 
 // 원거리 투사체를 쏘는 몬스터 타입 (Ghost=6, Reaper=8)
@@ -1024,7 +1039,59 @@ function drawEffects(ctx, cam) {
       continue;
     }
 
-    // 투사체 위치 (선형 보간) + 카메라 오프셋
+    if (e.type === 'aura') {
+      // 마늘 오라 — 플레이어 중심에서 반경이 팽창하며 사라지는 링
+      const s = toScreen(e.x, e.y, cam);
+      ctx.globalAlpha = (1 - t) * 0.6;
+      ctx.strokeStyle = e.color;
+      ctx.lineWidth   = 3;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, e.radius * (0.4 + t * 0.6), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth   = 1;
+      ctx.globalAlpha = 1;
+      continue;
+    }
+
+    if (e.type === 'line') {
+      // 단검 🗡️ — 방향을 향해 회전하며 날아가는 이모지
+      const wx    = e.sx + (e.tx - e.sx) * t;
+      const wy    = e.sy + (e.ty - e.sy) * t;
+      const s     = toScreen(wx, wy, cam);
+      const angle = Math.atan2(e.ty - e.sy, e.tx - e.sx) + Math.PI / 4; // 🗡️ 기울기 보정
+      ctx.globalAlpha = 1 - t * 0.4;
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(angle);
+      ctx.font         = '18px serif';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🗡️', 0, 0);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+      continue;
+    }
+
+    if (e.type === 'arc') {
+      // 도끼 🪓 — 포물선 아크를 따라 회전하며 날아가는 이모지
+      const wx   = e.sx + (e.tx - e.sx) * t;
+      const wy   = e.sy + (e.ty - e.sy) * t - Math.sin(t * Math.PI) * (e.arcHeight ?? 60);
+      const s    = toScreen(wx, wy, cam);
+      const spin = t * Math.PI * 3; // 1.5 바퀴 회전
+      ctx.globalAlpha = 1 - t * 0.2;
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(spin);
+      ctx.font         = '24px serif';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🪓', 0, 0);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+      continue;
+    }
+
+    // 기본 선형 투사체 (spawnEffect 호환)
     const wx = e.sx + (e.tx - e.sx) * t;
     const wy = e.sy + (e.ty - e.sy) * t;
     const s  = toScreen(wx, wy, cam);
