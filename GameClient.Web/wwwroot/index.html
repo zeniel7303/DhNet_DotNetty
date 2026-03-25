@@ -100,10 +100,26 @@
     <div class="hud-stat">EXP <span id="hud-exp">-</span></div>
     <div class="hud-stat">ATK <span id="hud-atk">-</span></div>
     <div class="hud-stat">DEF <span id="hud-def">-</span></div>
+    <div class="hud-stat" style="color:#f1c40f">🌊 <span id="hud-wave">Wave 0</span></div>
+    <div class="hud-stat" style="color:#3498db">⏱ <span id="hud-survival">00:00</span></div>
     <div style="font-size:0.75rem;color:#666">WASD 이동 · 몬스터 클릭 공격</div>
   </div>
 
-  <canvas id="game-canvas" width="800" height="600"></canvas>
+  <div id="wave-banner" style="position:absolute;top:60px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,.7);color:#f1c40f;font-size:1.4rem;font-weight:bold;
+    padding:8px 24px;border-radius:8px;pointer-events:none;opacity:0;
+    transition:opacity 0.4s;z-index:10"></div>
+
+  <div style="position:relative;width:800px;height:600px">
+    <div id="weapon-choice-overlay" class="hidden" style="position:absolute;top:0;left:0;width:100%;height:100%;
+      background:rgba(0,0,0,.75);display:flex;flex-direction:column;align-items:center;
+      justify-content:center;z-index:20;gap:16px;">
+      <div style="color:#f1c40f;font-size:1.3rem;font-weight:bold">레벨업! 무기를 선택하세요</div>
+      <div id="weapon-choice-list" style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center"></div>
+    </div>
+
+    <canvas id="game-canvas" width="800" height="600"></canvas>
+  </div>
 
   <div id="game-chat-area">
     <div id="chat-log"></div>
@@ -120,7 +136,9 @@
 
   <div style="text-align:center;margin:20px 0;color:#a8dadc;">
     <div style="margin-bottom:8px">최종 레벨: <strong id="result-level">-</strong></div>
-    <div>누적 EXP: <strong id="result-exp">-</strong></div>
+    <div style="margin-bottom:8px">누적 EXP: <strong id="result-exp">-</strong></div>
+    <div style="margin-bottom:8px;color:#f1c40f"><strong id="result-survived">생존 시간: -</strong></div>
+    <div style="color:#e67e22"><strong id="result-wave">도달 웨이브: -</strong></div>
   </div>
 
   <button class="btn-primary" onclick="backToLobby()">로비로 돌아가기</button>

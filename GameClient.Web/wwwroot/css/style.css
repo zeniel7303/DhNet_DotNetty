@@ -276,5 +276,19 @@ button {
 
 .status-ok { color: #27ae60; }
 
+/* ── 무기 선택 버튼 ──────────────────── */
+.weapon-choice-btn {
+  background: #1a2332;
+  border: 2px solid #f1c40f;
+  color: #f1c40f;
+  padding: 16px 24px;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  min-width: 160px;
+  transition: background 0.2s;
+}
+.weapon-choice-btn:hover { background: #2c3e50; }
+
 /* ── 숨김 ────────────────────────────── */
 .hidden { display: none !important; }

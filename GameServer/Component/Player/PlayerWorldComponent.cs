@@ -18,10 +18,14 @@ public class PlayerWorldComponent : BaseComponent
         Y = y;
     }
 
+    private const float MapW = 3200f;
+    private const float MapH = 2400f;
+
     public void Move(float x, float y)
     {
-        X = Math.Clamp(x, 0f, 800f);
-        Y = Math.Clamp(y, 0f, 600f);
+        // 맵 순환 — 경계를 넘으면 반대편으로
+        X = ((x % MapW) + MapW) % MapW;
+        Y = ((y % MapH) + MapH) % MapH;
     }
 
     public bool CanAttack()

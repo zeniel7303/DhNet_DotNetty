@@ -83,6 +83,13 @@ public class SessionComponent : IDisposable
         }
     }
 
+    // 게임 세션 시작 직전 호출 — 이전 게임 세션의 잔류 패킷 폐기
+    // DrainPackets와 동일 워커 스레드에서만 호출되므로 동시성 안전
+    public void ClearPacketQueue()
+    {
+        while (_packetQueue.TryDequeue(out _)) { }
+    }
+
     public Task SendAsync(GamePacket packet) => Channel.WriteAndFlushAsync(packet);
 
     public bool IsDisconnected => _disconnectedFlag == 1;
@@ -94,6 +101,9 @@ public class SessionComponent : IDisposable
     // ReqLogin 중복 전송 시 LoginProcessor 병렬 실행 방지
     // 첫 번째 호출만 true 반환 — 이후 호출은 false (로그인 이미 시작됨)
     public bool TrySetLoginStarted() => Interlocked.CompareExchange(ref _loginStarted, 1, 0) == 0;
+
+    // 로그인 처리 완료(성공/실패) 후 플래그 리셋 — 재시도 허용
+    public void ResetLoginStarted() => Interlocked.Exchange(ref _loginStarted, 0);
 
     // ReqRegister 중복 전송 시 RegisterProcessor 병렬 실행 방지
     public bool TrySetRegisterStarted() => Interlocked.CompareExchange(ref _registerStarted, 1, 0) == 0;

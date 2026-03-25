@@ -18,4 +18,5 @@ message NotiRoomExit  { uint64 player_id = 1; string player_name = 2; }
 message ReqReadyGame  {}
 message NotiReadyGame { uint64 player_id = 1; bool is_ready = 2; }
 message NotiGameStart { repeated uint64 player_ids = 1; }
-message NotiGameEnd   { bool is_clear = 1; }
+message NotiGameEnd      { bool is_clear = 1; int32 survived_seconds = 2; }
+message NotiSurvivalTime { int32 elapsed_seconds = 1; }

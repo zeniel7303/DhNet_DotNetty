@@ -5,3 +5,11 @@ option csharp_namespace = "GameServer.Protocol";
 message NotiExpGain      { uint64 player_id = 1; int32 exp_gained = 2; int64 total_exp = 3; int64 next_level_exp = 4; }
 message NotiLevelUp      { uint64 player_id = 1; int32 new_level = 2; int32 new_max_hp = 3; int32 new_attack = 4; int32 new_defense = 5; }
 message ResCharacterInfo { int32 level = 1; int64 exp = 2; int64 next_level_exp = 3; int32 hp = 4; int32 max_hp = 5; int32 attack = 6; int32 defense = 7; float x = 8; float y = 9; }
+
+// Wave — 웨이브 번호 및 스폰 알림
+message NotiWaveStart { int32 wave_number = 1; int32 monster_count = 2; }
+
+// Weapon — 레벨업 무기 선택
+message WeaponChoiceInfo { int32 weapon_id = 1; string name = 2; int32 next_level = 3; bool is_upgrade = 4; }
+message NotiWeaponChoice { repeated WeaponChoiceInfo choices = 1; }
+message ReqChooseWeapon  { int32 weapon_id = 1; }
