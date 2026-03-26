@@ -28,6 +28,12 @@ public class WeaponSystem
 
     public void Unregister(ulong accountId) => _playerWeapons.Remove(accountId);
 
+    /// <summary>플레이어의 첫 번째(기본) 무기 ID 반환. 무기가 없으면 Knife.</summary>
+    public WeaponId GetPrimaryWeaponId(ulong accountId)
+        => _playerWeapons.TryGetValue(accountId, out var weapons) && weapons.Count > 0
+            ? weapons[0].Id
+            : WeaponId.Knife;
+
     /// <summary>
     /// 레벨업 시 3개의 선택지를 반환한다.
     /// 이미 보유한 무기가 있으면 업그레이드 선택지, 없으면 신규 추가.
