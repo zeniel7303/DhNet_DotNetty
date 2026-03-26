@@ -19,6 +19,7 @@
         <PackageReference Include="DotNetty.Handlers" Version="0.7.6" />
         <PackageReference Include="DotNetty.Transport" Version="0.7.6" />
         <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.0" />
+        <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
     </ItemGroup>
 

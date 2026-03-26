@@ -10,7 +10,7 @@ namespace GameServer.Network;
 /// 회원가입 처리. ReqRegister 패킷을 받아 계정을 생성하고 ResRegister를 반환한다.
 /// account_id는 IdGenerators.Account.Next()로 미리 생성하여 INSERT에 포함하므로
 /// INSERT 후 SELECT가 불필요하다.
-/// DB에는 Phase 2에서 평문 password를 저장하며, Phase 3(BCrypt)에서 해시로 교체된다.
+/// 비밀번호는 BCrypt(workFactor=11)로 해시하여 저장한다.
 /// </summary>
 internal static class RegisterProcessor
 {
@@ -60,7 +60,7 @@ internal static class RegisterProcessor
             {
                 account_id    = accountId,
                 username      = username,
-                password_hash = password,  // Phase 3에서 BCrypt.HashPassword(password, 11)로 교체
+                password_hash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 11),
                 created_at    = DateTime.UtcNow
             });
         }

@@ -204,7 +204,6 @@ internal static class LoginProcessor
     /// <summary>
     /// 계정 인증. 성공 시 AccountRow 반환, 실패 시 에러 응답 전송 후 null 반환.
     /// username 없거나 password 불일치 → INVALID_CREDENTIALS (어느 쪽인지 노출 안 함).
-    /// Phase 3에서 BCrypt.Verify(password, account.password_hash)로 교체 예정.
     /// </summary>
     private const int MinLength = 4;
     private const int MaxLength = 16;
@@ -237,8 +236,10 @@ internal static class LoginProcessor
             return null;
         }
 
-        // Phase 3: account.password_hash 대신 BCrypt.Verify(password, account.password_hash) 사용
-        if (account == null || account.password_hash != password)
+        // BCrypt.Verify는 블로킹 연산(~200ms) — Task.Run으로 ThreadPool 분리
+        var verified = account != null &&
+                       await Task.Run(() => BCrypt.Net.BCrypt.Verify(password, account.password_hash));
+        if (!verified)
         {
             GameLogger.Warn("Login", $"인증 실패: {username}");
             await session.SendAsync(new GamePacket

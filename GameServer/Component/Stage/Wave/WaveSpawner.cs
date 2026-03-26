@@ -1,4 +1,6 @@
-namespace GameServer.Component.Stage;
+using GameServer.Component.Stage.Monster;
+
+namespace GameServer.Component.Stage.Wave;
 
 /// <summary>
 /// 웨이브 기반 몬스터 스포너.
@@ -7,7 +9,7 @@ namespace GameServer.Component.Stage;
 /// </summary>
 public class WaveSpawner
 {
-    // 맵 크기 — Phase 6에서 3200x2400으로 확장 예정
+    // 맵 크기
     private const float MapWidth    = 3200f;
     private const float MapHeight   = 2400f;
     private const float SpawnMargin = 40f;   // 맵 외곽 스폰 오프셋

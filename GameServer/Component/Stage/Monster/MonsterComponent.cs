@@ -1,4 +1,4 @@
-namespace GameServer.Component.Stage;
+namespace GameServer.Component.Stage.Monster;
 
 public enum MonsterType
 {
@@ -20,7 +20,7 @@ public enum MonsterType
 /// </summary>
 public class MonsterComponent
 {
-    // 맵 경계 — Phase 6에서 3200x2400으로 확장 예정
+    // 맵 경계
     private const float MapWidth  = 3200f;
     private const float MapHeight = 2400f;
 
@@ -87,8 +87,9 @@ public class MonsterComponent
             _deadElapsed += dt;
             if (_deadElapsed < _respawnDelay) return (false, false);
 
-            _hp          = MaxHp;
-            _deadElapsed = 0;
+            _hp            = MaxHp;
+            _deadElapsed   = 0;
+            _attackElapsed = 0;
             return (true, false);
         }
 

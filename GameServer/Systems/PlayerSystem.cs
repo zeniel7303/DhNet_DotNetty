@@ -22,10 +22,20 @@ public class PlayerSystem
 
     public int Count => _players.Count;
 
-    // LoginProcessor에서 DB Insert 전 호출 — account_id 중복 로그인 차단 (race-free)
+    // LoginProcessor에서 DB Insert 전 호출 — account_id 중복 로그인 차단
     // 이미 활성(_players) 또는 로그인 진행 중(_reservedAccounts)이면 false 반환
+    // 이중 검증: TryAdd 성공 후 _players 재확인으로 ContainsKey-TryAdd 사이 TOCTOU 방지
     public bool TryReserveLogin(ulong accountId)
-        => !_players.ContainsKey(accountId) && _reservedAccounts.TryAdd(accountId, 0);
+    {
+        if (_players.ContainsKey(accountId)) return false;
+        if (!_reservedAccounts.TryAdd(accountId, 0)) return false;
+        if (_players.ContainsKey(accountId))
+        {
+            _reservedAccounts.TryRemove(accountId, out _);
+            return false;
+        }
+        return true;
+    }
 
     public void Add(PlayerComponent player)
     {

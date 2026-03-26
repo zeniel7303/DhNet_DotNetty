@@ -14,7 +14,7 @@ DROP TABLE IF EXISTS `accounts`;
 CREATE TABLE `accounts` (
     `account_id`    BIGINT UNSIGNED NOT NULL              COMMENT 'IdGenerators.Account.Next() 값',
     `username`      VARCHAR(64)     NOT NULL,
-    `password_hash` VARCHAR(255)    NOT NULL              COMMENT 'Phase 2: 평문. Phase 3: BCrypt 해시.',
+    `password_hash` VARCHAR(255)    NOT NULL              COMMENT 'BCrypt(workFactor=11) 해시',
     `created_at`    DATETIME        NOT NULL              COMMENT '계정 생성 시각 (UTC)',
     PRIMARY KEY (`account_id`),
     UNIQUE KEY `ux_accounts_username` (`username`)
