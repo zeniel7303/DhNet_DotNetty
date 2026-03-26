@@ -329,7 +329,8 @@ public class GameStage : IDisposable
             {
                 NotiCombat = new NotiCombat
                 {
-                    AttackerPlayerId = player.AccountId, TargetMonsterId = monsterId, Damage = damage
+                    AttackerPlayerId = player.AccountId, TargetMonsterId = monsterId, Damage = damage,
+                    WeaponId = (int)_weaponSystem.GetPrimaryWeaponId(player.AccountId)
                 }
             });
             pending.Add(new GamePacket
