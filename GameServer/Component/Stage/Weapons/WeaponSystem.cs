@@ -19,10 +19,10 @@ public class WeaponSystem
         (WeaponId.Axe,    "도끼"),
     ];
 
-    /// <summary>플레이어를 무기 시스템에 등록 (기본 무기: 마늘).</summary>
+    /// <summary>플레이어를 무기 시스템에 등록 (기본 무기: 단검).</summary>
     public void Register(PlayerComponent player)
     {
-        var weapons = new List<WeaponBase> { new GarlicWeapon() };
+        var weapons = new List<WeaponBase> { new KnifeWeapon() };
         _playerWeapons[player.AccountId] = weapons;
     }
 
