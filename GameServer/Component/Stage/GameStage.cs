@@ -410,10 +410,11 @@ public class GameStage : IDisposable
     /// <summary>젬 수집 후 EXP 지급. _stateLock 하에서 실행된다.</summary>
     private void CollectGems(PlayerComponent player, List<GamePacket> pending)
     {
-        var collected = _gemManager.CollectNearby(player.World.X, player.World.Y);
+        var collected = _gemManager.CollectNearby(player.World.X, player.World.Y, player.Character.ExpRadiusBonus);
         foreach (var gem in collected)
         {
-            bool leveled = player.Character.GainExp(gem.ExpValue);
+            int expGained = (int)(gem.ExpValue * player.Character.ExpMultiplier);
+            int levelUps  = player.Character.GainExp(expGained);
             pending.Add(new GamePacket
             {
                 NotiGemCollect = new NotiGemCollect
@@ -425,12 +426,12 @@ public class GameStage : IDisposable
             {
                 NotiExpGain = new NotiExpGain
                 {
-                    PlayerId = player.AccountId, ExpGained = gem.ExpValue,
+                    PlayerId = player.AccountId, ExpGained = expGained,
                     TotalExp = player.Character.Exp, NextLevelExp = player.Character.NextLevelExp
                 }
             }).ContinueWith(t => GameLogger.Error("GameSession", "NotiExpGain SendAsync 실패", t.Exception!.GetBaseException()),
                 TaskContinuationOptions.OnlyOnFaulted);
-            if (leveled)
+            if (levelUps > 0)
             {
                 pending.Add(new GamePacket
                 {
@@ -442,8 +443,9 @@ public class GameStage : IDisposable
                     }
                 });
 
-                // 레벨업 → 무기 선택지 발송 (해당 플레이어에게만)
-                SendWeaponChoices(player);
+                // 레벨업 횟수만큼 무기 선택지 큐에 적재 (현재 선택 중이면 완료 후 순차 전송)
+                for (int i = 0; i < levelUps; i++)
+                    _weaponManager.EnqueueChoice(player);
             }
         }
     }
@@ -511,22 +513,6 @@ public class GameStage : IDisposable
             }
         }).ContinueWith(t => GameLogger.Error("GameSession", "NotiGoldGain SendAsync 실패", t.Exception!.GetBaseException()),
             TaskContinuationOptions.OnlyOnFaulted);
-    }
-
-    private void SendWeaponChoices(PlayerComponent player)
-    {
-        var choices = _weaponManager.GenerateChoices(player);
-        if (choices.Count == 0) return;
-
-        var noti = new NotiWeaponChoice();
-        foreach (var c in choices)
-            noti.Choices.Add(new WeaponChoiceInfo
-            {
-                WeaponId  = c.WeaponId, Name = c.Name,
-                NextLevel = c.NextLevel, IsUpgrade = c.IsUpgrade
-            });
-
-        _ = player.Session.SendAsync(new GamePacket { NotiWeaponChoice = noti });
     }
 
     private void CheckAllPlayersDead(List<GamePacket> pending)

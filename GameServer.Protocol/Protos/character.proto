@@ -14,3 +14,14 @@ message NotiWaveStart { int32 wave_number = 1; int32 monster_count = 2; }
 message WeaponChoiceInfo { int32 weapon_id = 1; string name = 2; int32 next_level = 3; bool is_upgrade = 4; }
 message NotiWeaponChoice { repeated WeaponChoiceInfo choices = 1; }
 message ReqChooseWeapon  { int32 weapon_id = 1; }
+
+// Stat Boost — 스탯 업그레이드 선택 후 현재 스탯 전송 (delta 아닌 현재값)
+message NotiStatBoost {
+    uint64 player_id  = 1;
+    int32  attack     = 2;
+    int32  max_hp     = 3;
+    float  move_speed = 4;
+    float  exp_multi  = 5;
+    float  exp_radius = 6;
+    int32  current_hp = 7;
+}

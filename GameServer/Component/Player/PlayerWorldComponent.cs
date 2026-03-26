@@ -5,6 +5,9 @@ public class PlayerWorldComponent
     public float X { get; private set; } = 100f;
     public float Y { get; private set; } = 100f;
 
+    // 기본 이동속도 200 (클라이언트 speed=5 × 60fps ≈ 300px/s 기준)
+    public float MoveSpeed { get; private set; } = 200f;
+
     private DateTime _lastAttackAt = DateTime.MinValue;
     private const float AttackCooldownSec = 0.3f;
 
@@ -29,4 +32,6 @@ public class PlayerWorldComponent
 
     public void ResetAttackCooldown()
         => _lastAttackAt = DateTime.UtcNow;
+
+    public void IncreaseSpeed(float amount) => MoveSpeed = Math.Min(MoveSpeed + amount, 350f);
 }

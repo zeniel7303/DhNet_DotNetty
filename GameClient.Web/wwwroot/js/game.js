@@ -43,6 +43,7 @@ const activeProjectiles = new Map(); // projectileId(string) → { id, x, y, vel
 let   orbitalWeaponList = [];        // [{ ownerId, weaponId, angle, lastUpdate }, …] — 다중 도끼 지원
 
 const keys        = {};
+let   moveSpeed   = 5;  // 픽셀/프레임 — 서버 NotiStatBoost로 갱신됨
 let   lastMove    = 0;
 let   lastAttack  = 0;
 let   animId      = null;
@@ -477,6 +478,7 @@ function handlePacket(pkt) {
     case 'notiGemSpawn':     onNotiGemSpawn(pkt.notiGemSpawn);         break;
     case 'notiGemCollect':   onNotiGemCollect(pkt.notiGemCollect);     break;
     case 'notiWeaponChoice':  onNotiWeaponChoice(pkt.notiWeaponChoice);   break;
+    case 'notiStatBoost':     onNotiStatBoost(pkt.notiStatBoost);         break;
     case 'notiSurvivalTime':  onNotiSurvivalTime(pkt.notiSurvivalTime);   break;
     case 'notiGameEnd':           onNotiGameEnd(pkt.notiGameEnd);                       break;
     case 'notiGameChat':         onNotiGameChat(pkt.notiGameChat);                     break;
@@ -922,6 +924,15 @@ function onNotiLevelUp(noti) {
     addChat('시스템', `레벨 업! Lv.${character.level}`);
     updateHud();
   }
+}
+
+function onNotiStatBoost(noti) {
+  if (toId(noti.playerId) !== me.id) return;
+  // 이동속도: 서버 기준 200 → 클라이언트 5px/frame 기준으로 환산 (200 / 200 * 5)
+  moveSpeed = (noti.moveSpeed / 200) * 5;
+  character.atk   = noti.attack;
+  character.maxHp = noti.maxHp;
+  updateHud();
 }
 
 function onNotiGameEnd(noti) {
@@ -1371,7 +1382,7 @@ function handleMovement(ts) {
   const myPlayer = gamePlayers.get(me.id);
   if (!myPlayer || !myPlayer.alive) return;
 
-  const speed = 5; // 픽셀/프레임 (60fps ≈ 300px/s)
+  const speed = moveSpeed;
   let nx = me.x, ny = me.y;
   let moving = false;
   if (keys['KeyW'] || keys['ArrowUp'])    { ny -= speed; moving = true; }
