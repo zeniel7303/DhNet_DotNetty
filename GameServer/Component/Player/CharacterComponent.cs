@@ -14,6 +14,10 @@ public class CharacterComponent(PlayerComponent player)
     public int  Attack  { get; private set; } = 20;
     public int  Defense { get; private set; } = 10;
 
+    // 레벨업 선택 스탯 보너스 — 게임마다 초기화
+    public float ExpMultiplier  { get; private set; } = 1f;  // EXP 획득 배율
+    public float ExpRadiusBonus { get; private set; } = 0f;  // 젬 수집 반경 보너스(px)
+
     // 영속 데이터 — 세션 간 유지, DB에 저장
     public int Gold { get; private set; } = 0;
 
@@ -34,6 +38,27 @@ public class CharacterComponent(PlayerComponent player)
         Gold += amount;
     }
 
+    // 스탯 업그레이드 — 레벨업 선택지 적용 시 호출
+    // 각 스탯은 선택 누적에 의한 밸런스 붕괴를 막기 위해 상한을 갖는다.
+    public void ApplyAttackUp()
+    {
+        const int max = 80;
+        if (Attack >= max) return;
+        Attack = Math.Min(Attack + 2, max);
+    }
+
+    public void ApplyMaxHpUp()
+    {
+        const int max = 1000;
+        if (MaxHp >= max) return;
+        int gain = Math.Min(25, max - MaxHp);
+        MaxHp += gain;
+        _hp    = Math.Min(_hp + gain, MaxHp);
+    }
+
+    public void ApplyExpMultiUp()  => ExpMultiplier  = Math.Min(ExpMultiplier * 1.10f, 2.5f);
+    public void ApplyExpRadiusUp() => ExpRadiusBonus = Math.Min(ExpRadiusBonus + 15f, 120f);
+
     // 게임 시작 시 HP 완전 회복.
     public void RestoreFullHp() => _hp = MaxHp;
 
@@ -45,16 +70,16 @@ public class CharacterComponent(PlayerComponent player)
         return _hp == 0;
     }
 
-    // EXP 획득 + 레벨업 처리. 레벨 변경 시 true 반환.
-    public bool GainExp(int exp)
+    // EXP 획득 + 레벨업 처리. 레벨업 횟수 반환 (0이면 레벨업 없음).
+    public int GainExp(int exp)
     {
         Exp += exp;
         return TryLevelUp();
     }
 
-    private bool TryLevelUp()
+    private int TryLevelUp()
     {
-        bool leveled = false;
+        int levelUps = 0;
         while (Level < MaxLevel && Exp >= NextLevelExp)
         {
             Exp    -= NextLevelExp;
@@ -63,8 +88,8 @@ public class CharacterComponent(PlayerComponent player)
             _hp     = MaxHp; // 레벨업 시 풀힐
             Attack  += 3;
             Defense += 1;
-            leveled  = true;
+            levelUps++;
         }
-        return leveled;
+        return levelUps;
     }
 }

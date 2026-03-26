@@ -96,5 +96,8 @@ message GamePacket {
 
     // Orbital — 공전 무기 동기화
     NotiOrbitalWeaponSync noti_orbital_weapon_sync = 55;
+
+    // Stat Boost — 스탯 업그레이드 선택 후 알림
+    NotiStatBoost noti_stat_boost = 56;
   }
 }
