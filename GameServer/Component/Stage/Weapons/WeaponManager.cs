@@ -1,4 +1,6 @@
 using GameServer.Component.Player;
+using GameServer.Component.Stage.Monster;
+using GameServer.Protocol;
 
 namespace GameServer.Component.Stage.Weapons;
 
@@ -6,7 +8,7 @@ namespace GameServer.Component.Stage.Weapons;
 /// 플레이어별 무기 목록을 관리하고 서버사이드 자동 공격 틱을 처리한다.
 /// GameStage._stateLock 하에서만 호출된다.
 /// </summary>
-public class WeaponSystem
+public class WeaponManager
 {
     // 플레이어 계정 ID → 보유 무기 목록
     private readonly Dictionary<ulong, List<WeaponBase>> _playerWeapons = new();
@@ -28,6 +30,9 @@ public class WeaponSystem
 
     public void Unregister(ulong accountId) => _playerWeapons.Remove(accountId);
 
+    /// <summary>게임 세션 종료 시 전체 정리.</summary>
+    public void Clear() => _playerWeapons.Clear();
+
     /// <summary>플레이어의 첫 번째(기본) 무기 ID 반환. 무기가 없으면 Knife.</summary>
     public WeaponId GetPrimaryWeaponId(ulong accountId)
         => _playerWeapons.TryGetValue(accountId, out var weapons) && weapons.Count > 0
@@ -48,7 +53,10 @@ public class WeaponSystem
 
         // 보유 무기 업그레이드 선택지 먼저
         foreach (var w in owned)
-            choices.Add(new WeaponChoice((int)w.Id, WeaponPool[(int)w.Id].Name, w.Level + 1, IsUpgrade: true));
+        {
+            var name = WeaponPool.FirstOrDefault(e => e.Id == w.Id).Name ?? w.Id.ToString();
+            choices.Add(new WeaponChoice((int)w.Id, name, w.Level + 1, IsUpgrade: true));
+        }
 
         // 미보유 신규 무기 선택지
         foreach (var (id, name) in WeaponPool)
@@ -74,26 +82,30 @@ public class WeaponSystem
             return;
         }
 
-        WeaponBase newWeapon = wId switch
+        WeaponBase? newWeapon = wId switch
         {
             WeaponId.Garlic => new GarlicWeapon(),
             WeaponId.Knife  => new KnifeWeapon(),
             WeaponId.Axe    => new AxeWeapon(),
-            _               => new GarlicWeapon(),
+            _               => null,
         };
+        if (newWeapon == null) return;
         owned.Add(newWeapon);
     }
 
     /// <summary>
     /// 모든 플레이어의 무기를 틱 처리.
-    /// 반환: (attackerAccountId, targetMonsterId, damage)[] — 이번 틱에 발생한 자동공격.
+    /// 반환: Hits — 이번 틱에 발생한 자동공격 목록, Packets — 무기가 생성한 추가 패킷 목록.
     /// </summary>
-    public List<(ulong AttackerId, ulong MonsterId, int Damage, WeaponId WeaponId, float PushX, float PushY)> Tick(
+    public (List<(ulong AttackerId, ulong MonsterId, int Damage, WeaponId WeaponId, float PushX, float PushY, ulong ProjectileId)> Hits,
+            List<GamePacket> Packets) Tick(
         float dt,
         IReadOnlyList<PlayerComponent> players,
         IEnumerable<MonsterComponent> monsters)
     {
-        var results = new List<(ulong, ulong, int, WeaponId, float, float)>();
+        var hits    = new List<(ulong, ulong, int, WeaponId, float, float, ulong)>();
+        var packets = new List<GamePacket>();
+        var orbital = new NotiOrbitalWeaponSync();
 
         foreach (var player in players)
         {
@@ -102,13 +114,30 @@ public class WeaponSystem
 
             foreach (var weapon in weapons)
             {
-                var hits = weapon.Tick(dt, player.World.X, player.World.Y, monsters);
-                foreach (var hit in hits)
-                    results.Add((player.AccountId, hit.MonsterId, hit.Damage, weapon.Id, hit.PushX, hit.PushY));
+                var weaponHits = weapon.Tick(dt, player.World.X, player.World.Y, monsters);
+                foreach (var hit in weaponHits)
+                    hits.Add((player.AccountId, hit.MonsterId, hit.Damage, weapon.Id, hit.PushX, hit.PushY, hit.ProjectileId));
+
+                // 무기 생성 패킷 수집 — GetPendingPackets 내부에서 OwnerId 주입
+                foreach (var pkt in weapon.GetPendingPackets(player.AccountId))
+                    packets.Add(pkt);
+
+                // 공전 무기 각도 동기화 — 도끼 개수만큼 OrbitalWeaponInfo 생성
+                if (weapon is AxeWeapon axe)
+                    foreach (var angle in axe.Angles)
+                        orbital.Orbitals.Add(new OrbitalWeaponInfo
+                        {
+                            OwnerId  = player.AccountId,
+                            WeaponId = (int)WeaponId.Axe,
+                            Angle    = angle
+                        });
             }
         }
 
-        return results;
+        if (orbital.Orbitals.Count > 0)
+            packets.Add(new GamePacket { NotiOrbitalWeaponSync = orbital });
+
+        return (hits, packets);
     }
 }
 

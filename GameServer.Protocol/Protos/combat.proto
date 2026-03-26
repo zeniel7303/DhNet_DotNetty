@@ -5,11 +5,19 @@ option csharp_namespace = "GameServer.Protocol";
 // PvE only — 플레이어 간 전투 없음
 
 message ReqAttack        { uint64 target_monster_id = 1; }
-message NotiCombat       { uint64 attacker_player_id = 1; uint64 target_monster_id = 2; int32 damage = 3; int32 weapon_id = 4; }
+message NotiCombat       { uint64 attacker_player_id = 1; uint64 target_monster_id = 2; int32 damage = 3; int32 weapon_id = 4; uint64 projectile_id = 5; }
 message NotiMonsterAttack { uint64 monster_id = 1; uint64 target_player_id = 2; int32 damage = 3; }
 message NotiHpChange     { uint64 entity_id = 1; int32 hp = 2; int32 max_hp = 3; bool is_monster = 4; }
 message NotiDeath        { uint64 entity_id = 1; bool is_monster = 2; }
 message NotiRespawn      { uint64 monster_id = 1; float x = 2; float y = 3; int32 hp = 4; }
+
+// Projectile — 투사체 (단검 등)
+message NotiProjectileSpawn   { uint64 projectile_id = 1; uint64 owner_id = 2; int32 weapon_id = 3; float x = 4; float y = 5; float vel_x = 6; float vel_y = 7; }
+message NotiProjectileDestroy { uint64 projectile_id = 1; }
+
+// Orbital — 공전 무기 (도끼 등) 각도 동기화
+message OrbitalWeaponInfo     { uint64 owner_id = 1; int32 weapon_id = 2; float angle = 3; }
+message NotiOrbitalWeaponSync { repeated OrbitalWeaponInfo orbitals = 1; }
 
 // Gem — 경험치 젬 드롭 / 수집
 message NotiGemSpawn   { uint64 gem_id = 1; float x = 2; float y = 3; int32 exp_value = 4; }

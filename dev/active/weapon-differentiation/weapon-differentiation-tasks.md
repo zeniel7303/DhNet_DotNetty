@@ -28,4 +28,15 @@ Last Updated: 2026-03-25
 - ✅ NotiCombat에 weapon_id 포함 확인
 - ✅ 커밋 완료
 
+## Phase 5: 네이밍/Namespace 정리
+- ✅ `WeaponSystem` → `WeaponManager` 클래스명 + 파일명 변경
+- ✅ `MonsterComponent` namespace: `Stage` → `Stage.Monster`
+- ✅ `GemManager` namespace: `Stage` → `Stage.Gem`
+- ✅ `WaveSpawner` namespace: `Stage` → `Stage.Wave`
+- ✅ 영향받는 파일들 `using` 추가 (WeaponBase, 무기 3종, GameStage, WaveSpawner)
+- ✅ 빌드 경고 0, 오류 0
+
+## 미커밋 변경사항
+- 9개 파일 수정 (WeaponManager.cs 리네임 포함) — 커밋 대기 중
+
 ## 작업 완료
