@@ -35,10 +35,12 @@ const rooms       = new Map(); // roomId(string) → { id, playerCount, maxPlaye
 const roomPlayers = new Map(); // playerId(string) → { id, name, isReady }
 let   currentRoomId = '0';
 
-const gamePlayers  = new Map(); // playerId(string) → { id, name, x, y, hp, maxHp, level, alive }
-const gameMonsters = new Map(); // monsterId(string) → { id, type, x, y, hp, maxHp, alive }
-const gameGems     = new Map(); // gemId(string) → { id, x, y, expValue, spawnTime }
-const effects      = [];        // 투사체 이펙트 { sx, sy, tx, ty, startTime, duration, color }
+const gamePlayers      = new Map(); // playerId(string) → { id, name, x, y, hp, maxHp, level, alive }
+const gameMonsters     = new Map(); // monsterId(string) → { id, type, x, y, hp, maxHp, alive }
+const gameGems         = new Map(); // gemId(string) → { id, x, y, expValue, spawnTime }
+const effects          = [];        // 이펙트 { type, ... }
+const activeProjectiles = new Map(); // projectileId(string) → { id, x, y, velX, velY, spawnTime, ownerId, weaponId }
+let   orbitalWeaponList = [];        // [{ ownerId, weaponId, angle, lastUpdate }, …] — 다중 도끼 지원
 
 const keys        = {};
 let   lastMove    = 0;
@@ -476,8 +478,11 @@ function handlePacket(pkt) {
     case 'notiGemCollect':   onNotiGemCollect(pkt.notiGemCollect);     break;
     case 'notiWeaponChoice':  onNotiWeaponChoice(pkt.notiWeaponChoice);   break;
     case 'notiSurvivalTime':  onNotiSurvivalTime(pkt.notiSurvivalTime);   break;
-    case 'notiGameEnd':      onNotiGameEnd(pkt.notiGameEnd);           break;
-    case 'notiGameChat':     onNotiGameChat(pkt.notiGameChat);         break;
+    case 'notiGameEnd':           onNotiGameEnd(pkt.notiGameEnd);                       break;
+    case 'notiGameChat':         onNotiGameChat(pkt.notiGameChat);                     break;
+    case 'notiProjectileSpawn':  onNotiProjectileSpawn(pkt.notiProjectileSpawn);       break;
+    case 'notiProjectileDestroy':onNotiProjectileDestroy(pkt.notiProjectileDestroy);   break;
+    case 'notiOrbitalWeaponSync':onNotiOrbitalWeaponSync(pkt.notiOrbitalWeaponSync);   break;
 
     case 'resHeartbeat':     /* 타이머가 주기적으로 전송하므로 별도 처리 불필요 */ break;
 
@@ -650,6 +655,7 @@ function onNotiReadyGame(noti) {
 function onNotiGameStart() {
   gamePlayers.clear();
   gameMonsters.clear(); gameGems.clear();
+  activeProjectiles.clear(); orbitalWeaponList = [];
   // ResEnterGame이 뒤따라오면 거기서 showScreen('game')
 }
 
@@ -727,7 +733,10 @@ function onNotiMove(noti) {
     return;
   }
   // 자신 — 클라이언트 예측 유지. 오차 100px 초과 시에만 강제 보정
-  const dx = noti.x - me.x, dy = noti.y - me.y;
+  // wrap-aware: 맵 경계를 넘으면 반대쪽이 더 가까운 경로로 비교
+  let dx = noti.x - me.x, dy = noti.y - me.y;
+  if (dx >  MAP_W / 2) dx -= MAP_W; else if (dx < -MAP_W / 2) dx += MAP_W;
+  if (dy >  MAP_H / 2) dy -= MAP_H; else if (dy < -MAP_H / 2) dy += MAP_H;
   if (dx * dx + dy * dy > 10000) { me.x = noti.x; me.y = noti.y; }
   // myPlayer는 항상 me와 동기화 — 카메라·스프라이트 분리 방지
   if (p) { p.x = me.x; p.y = me.y; }
@@ -858,16 +867,18 @@ function onNotiCombat(noti) {
   if (!attacker || !target) return;
 
   const wid = noti.weaponId ?? 0;
+  const now = performance.now();
   switch (wid) {
     case 0: // Garlic — 플레이어 주변 오라 펄스
-      effects.push({ type: 'aura', x: attacker.x, y: attacker.y, radius: 80, color: '#a8e063', duration: 600, startTime: performance.now() });
-      effects.push({ type: 'flash', x: target.x, y: target.y, color: '#a8e063', duration: 200, startTime: performance.now() });
+      effects.push({ type: 'aura',  x: attacker.x, y: attacker.y, radius: 80, color: '#a8e063', duration: 600, startTime: now });
+      effects.push({ type: 'flash', x: target.x,   y: target.y,               color: '#a8e063', duration: 200, startTime: now });
       break;
-    case 1: // Knife — 빠른 선형 관통 투사체
-      effects.push({ type: 'line', sx: attacker.x, sy: attacker.y, tx: target.x, ty: target.y, color: '#ecf0f1', size: 3, duration: 150, startTime: performance.now() });
+    case 1: // Knife — 투사체 적중 플래시 + 해당 투사체 즉시 제거
+      effects.push({ type: 'flash', x: target.x, y: target.y, color: '#ecf0f1', duration: 180, startTime: now });
+      if (noti.projectileId) activeProjectiles.delete(toId(noti.projectileId));
       break;
-    case 2: // Axe — 느리고 큰 포물선 아크
-      effects.push({ type: 'arc', sx: attacker.x, sy: attacker.y, tx: target.x, ty: target.y, color: '#e67e22', size: 9, arcHeight: 60, duration: 400, startTime: performance.now() });
+    case 2: // Axe — 공전 도끼 적중 플래시
+      effects.push({ type: 'flash', x: target.x, y: target.y, color: '#e67e22', duration: 180, startTime: now });
       break;
     default:
       spawnEffect(attacker.x, attacker.y, target.x, target.y, '#f1c40f', 250);
@@ -936,6 +947,84 @@ function onNotiGameEnd(noti) {
 
 function onNotiGameChat(noti) {
   addChat(noti.playerName || '?', noti.message || '');
+}
+
+// ─────────────────────────────────────────────────────
+// 투사체 (단검)
+// ─────────────────────────────────────────────────────
+function onNotiProjectileSpawn(noti) {
+  if (!noti) return;
+  const pid = toId(noti.projectileId);
+  activeProjectiles.set(pid, {
+    id: pid,
+    x: noti.x, y: noti.y,
+    velX: noti.velX, velY: noti.velY,
+    spawnTime: performance.now(),
+    ownerId:  toId(noti.ownerId),
+    weaponId: noti.weaponId,
+  });
+}
+
+function onNotiProjectileDestroy(noti) {
+  if (!noti) return;
+  activeProjectiles.delete(toId(noti.projectileId));
+}
+
+function drawProjectile(ctx, proj, cam) {
+  const dt = (performance.now() - proj.spawnTime) / 1000; // 초
+  // 클라이언트 측 위치 추정 (서버와 동일한 속도·출발점 기반)
+  const wx = ((proj.x + proj.velX * dt) % MAP_W + MAP_W) % MAP_W;
+  const wy = ((proj.y + proj.velY * dt) % MAP_H + MAP_H) % MAP_H;
+  const s  = toScreen(wx, wy, cam);
+  // 🗡️ 비행 방향으로 회전 (이모지 기본 방향이 우상향 45°이므로 -45° 보정)
+  const angle = Math.atan2(proj.velY, proj.velX) - Math.PI / 4;
+  ctx.save();
+  ctx.translate(s.x, s.y);
+  ctx.rotate(angle);
+  ctx.font         = '18px serif';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🗡️', 0, 0);
+  ctx.restore();
+}
+
+// ─────────────────────────────────────────────────────
+// 공전 무기 (도끼)
+// ─────────────────────────────────────────────────────
+const ORBIT_RADIUS    = 100;       // AxeWeapon.OrbitRadius와 일치
+const ORBITAL_RAD_PER_SEC = Math.PI; // AxeWeapon._angularSpeed 초기값 (1바퀴/2초)
+
+function onNotiOrbitalWeaponSync(noti) {
+  if (!noti || !noti.orbitals) return;
+  const now = performance.now();
+  // 서버가 보내는 전체 목록으로 교체 — 도끼 개수 변화에 즉시 대응
+  orbitalWeaponList = noti.orbitals.map(info => ({
+    ownerId:    toId(info.ownerId),
+    weaponId:   info.weaponId,
+    angle:      info.angle,
+    lastUpdate: now,
+  }));
+}
+
+function drawOrbitalWeapon(ctx, orbital, cam) {
+  const owner = gamePlayers.get(orbital.ownerId);
+  if (!owner || !owner.alive) return;
+
+  // 서버 업데이트(100ms 주기) 사이를 클라이언트에서 각속도로 extrapolate → 부드러운 60fps 회전
+  const dtSec = (performance.now() - orbital.lastUpdate) / 1000;
+  const angle = orbital.angle + ORBITAL_RAD_PER_SEC * dtSec;
+
+  const wx = owner.x + Math.cos(angle) * ORBIT_RADIUS;
+  const wy = owner.y + Math.sin(angle) * ORBIT_RADIUS;
+  const s  = toScreen(wx, wy, cam);
+  ctx.save();
+  ctx.translate(s.x, s.y);
+  ctx.rotate(angle); // 공전 각도 = 도끼 자체 회전각 → 빙글빙글 돌아보임
+  ctx.font         = '22px serif';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🪓', 0, 0);
+  ctx.restore();
 }
 
 function addChat(name, msg) {
@@ -1015,9 +1104,11 @@ function render() {
   ctx.lineWidth   = 2;
   ctx.strokeRect(-cam.x, -cam.y, MAP_W, MAP_H);
 
-  gameGems.forEach(g     => drawGem(ctx, g, cam));
-  gameMonsters.forEach(m => drawMonster(ctx, m, cam));
-  gamePlayers.forEach(p  => drawPlayer(ctx, p, cam));
+  gameGems.forEach(g      => drawGem(ctx, g, cam));
+  gameMonsters.forEach(m  => drawMonster(ctx, m, cam));
+  gamePlayers.forEach(p   => drawPlayer(ctx, p, cam));
+  orbitalWeaponList.forEach(o => drawOrbitalWeapon(ctx, o, cam));
+  activeProjectiles.forEach(p => drawProjectile(ctx, p, cam));
   drawEffects(ctx, cam);
 }
 
