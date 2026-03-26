@@ -1,3 +1,5 @@
+using GameServer.Component.Stage.Monster;
+
 namespace GameServer.Component.Stage.Weapons;
 
 /// <summary>
@@ -51,8 +53,8 @@ public class GarlicWeapon : WeaponBase
 
     protected override void OnUpgrade()
     {
-        base.OnUpgrade();
-        _radius        += 10f;
-        _knockbackDist += 10f;
+        base.OnUpgrade(); // 데미지 +20%, 쿨다운 단축
+        _radius += 10f;   // 범위 확대
+        // _knockbackDist는 고정 — 레벨업으로 미는 힘은 증가하지 않음
     }
 }

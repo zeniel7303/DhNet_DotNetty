@@ -1,5 +1,8 @@
 using System.Collections.Concurrent;
 using Common.Logging;
+using GameServer.Component.Stage.Gem;
+using GameServer.Component.Stage.Monster;
+using GameServer.Component.Stage.Wave;
 using GameServer.Component.Stage.Weapons;
 using GameServer.Component.Player;
 using GameServer.Component.Room;
@@ -26,7 +29,7 @@ public class GameStage : IDisposable
     private readonly Dictionary<ulong, MonsterComponent> _monsters = new();
     private readonly WaveSpawner    _waveSpawner  = new();
     private readonly GemManager     _gemManager   = new();
-    private readonly WeaponSystem   _weaponSystem = new();
+    private readonly WeaponManager  _weaponManager = new();
     private readonly object _stateLock = new();
 
     // 플레이어 입력 큐 — 워커 스레드가 lock 없이 적재, Tick에서 일괄 처리
@@ -70,7 +73,7 @@ public class GameStage : IDisposable
         }
 
         foreach (var p in players)
-            _weaponSystem.Register(p);
+            _weaponManager.Register(p);
 
         SpawnMonsters();
         SendInitialState(players);
@@ -142,6 +145,7 @@ public class GameStage : IDisposable
                 Tick(0.1f);
         }
         catch (OperationCanceledException) { }
+        catch (ObjectDisposedException) { }
         catch (Exception ex)
         {
             GameLogger.Error($"GameSession:{RoomId}", "틱 루프 예외", ex);
@@ -236,10 +240,12 @@ public class GameStage : IDisposable
                         movedList.Add(new MonsterMoveInfo { MonsterId = monster.MonsterId, X = monster.X, Y = monster.Y });
                     }
 
-                    // 공격 — 살아있고, 쿨다운 해제됐고, AttackRange 이내일 때만
-                    if (!monster.IsAlive || nearestPlayer == null || !monster.ShouldAttack()) continue;
+                    // 공격 — 살아있고, AttackRange 이내이고, 쿨다운 해제됐을 때만
+                    // ShouldAttack() 은 쿨다운을 소모하므로 반드시 거리 판정 뒤에 호출해야 한다
+                    if (!monster.IsAlive || nearestPlayer == null) continue;
                     float attackRangeSq = monster.AttackRange * monster.AttackRange;
                     if (nearestDistSq > attackRangeSq) continue;
+                    if (!monster.ShouldAttack()) continue;
 
                     int damage = CalcDamage(monster.Atk, nearestPlayer.Character.Defense);
                     bool died  = nearestPlayer.Character.TakeDamage(damage);
@@ -293,13 +299,14 @@ public class GameStage : IDisposable
                 }
 
                 // 서버사이드 자동 무기 틱
-                var weaponHits = _weaponSystem.Tick(dt, alivePlayers, _monsters.Values);
-                foreach (var (attackerId, monsterId, dmg, wid, pushX, pushY) in weaponHits)
-                    ApplyWeaponHit(attackerId, monsterId, dmg, wid, pushX, pushY, pending);
+                var (weaponHits, weaponPackets) = _weaponManager.Tick(dt, alivePlayers, _monsters.Values);
+                foreach (var (attackerId, monsterId, dmg, wid, pushX, pushY, projectileId) in weaponHits)
+                    ApplyWeaponHit(attackerId, monsterId, dmg, wid, pushX, pushY, projectileId, pending);
+                pending.AddRange(weaponPackets);
 
                 // 웨이브 스포너 틱
                 var waveSpawns = _waveSpawner.Tick(dt, _monsters.Count);
-                if (waveSpawns != null) DoWaveSpawn(waveSpawns, pending);
+                if (waveSpawns is { Count: > 0 }) DoWaveSpawn(waveSpawns, pending);
             }
         }
 
@@ -330,7 +337,7 @@ public class GameStage : IDisposable
                 NotiCombat = new NotiCombat
                 {
                     AttackerPlayerId = player.AccountId, TargetMonsterId = monsterId, Damage = damage,
-                    WeaponId = (int)_weaponSystem.GetPrimaryWeaponId(player.AccountId)
+                    WeaponId = (int)_weaponManager.GetPrimaryWeaponId(player.AccountId)
                 }
             });
             pending.Add(new GamePacket
@@ -373,7 +380,7 @@ public class GameStage : IDisposable
     public void ProcessChooseWeapon(PlayerComponent player, int weaponId)
     {
         if (_endedFlag == 1) return;
-        _inputQueue.Enqueue(_ => _weaponSystem.ApplyChoice(player, weaponId));
+        _inputQueue.Enqueue(_ => _weaponManager.ApplyChoice(player, weaponId));
     }
 
     // ProcessChat은 게임 상태를 수정하지 않으므로 큐 없이 직접 브로드캐스트
@@ -414,14 +421,15 @@ public class GameStage : IDisposable
                     GemId = gem.Id, PlayerId = player.AccountId, ExpGained = gem.ExpValue
                 }
             });
-            _ = player.Session.SendAsync(new GamePacket
+            player.Session.SendAsync(new GamePacket
             {
                 NotiExpGain = new NotiExpGain
                 {
                     PlayerId = player.AccountId, ExpGained = gem.ExpValue,
                     TotalExp = player.Character.Exp, NextLevelExp = player.Character.NextLevelExp
                 }
-            });
+            }).ContinueWith(t => GameLogger.Error("GameSession", "NotiExpGain SendAsync 실패", t.Exception!.GetBaseException()),
+                TaskContinuationOptions.OnlyOnFaulted);
             if (leveled)
             {
                 pending.Add(new GamePacket
@@ -442,7 +450,7 @@ public class GameStage : IDisposable
 
     /// <summary>자동 무기 히트 처리. _stateLock 하에서 실행된다.</summary>
     private void ApplyWeaponHit(ulong attackerAccountId, ulong monsterId, int damage, WeaponId weaponId,
-        float pushX, float pushY, List<GamePacket> pending)
+        float pushX, float pushY, ulong projectileId, List<GamePacket> pending)
     {
         if (!_monsters.TryGetValue(monsterId, out var monster) || !monster.IsAlive) return;
 
@@ -453,7 +461,7 @@ public class GameStage : IDisposable
             NotiCombat = new NotiCombat
             {
                 AttackerPlayerId = attackerAccountId, TargetMonsterId = monsterId,
-                Damage = damage, WeaponId = (int)weaponId
+                Damage = damage, WeaponId = (int)weaponId, ProjectileId = projectileId
             }
         });
 
@@ -495,18 +503,19 @@ public class GameStage : IDisposable
     {
         if (amount <= 0) return;
         player.Character.AddGold(amount);
-        _ = player.Session.SendAsync(new GamePacket
+        player.Session.SendAsync(new GamePacket
         {
             NotiGoldGain = new NotiGoldGain
             {
                 PlayerId = player.AccountId, GoldGained = amount, TotalGold = player.Character.Gold
             }
-        });
+        }).ContinueWith(t => GameLogger.Error("GameSession", "NotiGoldGain SendAsync 실패", t.Exception!.GetBaseException()),
+            TaskContinuationOptions.OnlyOnFaulted);
     }
 
     private void SendWeaponChoices(PlayerComponent player)
     {
-        var choices = _weaponSystem.GenerateChoices(player);
+        var choices = _weaponManager.GenerateChoices(player);
         if (choices.Count == 0) return;
 
         var noti = new NotiWeaponChoice();
@@ -558,6 +567,9 @@ public class GameStage : IDisposable
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _cts.Cancel();
+        // _stateLock 하에서 Clear — _cts.Cancel() 후 다음 틱은 차단되지만
+        // 현재 진행 중인 Tick()과의 레이스를 완전히 제거
+        lock (_stateLock) _weaponManager.Clear();
         _cts.Dispose();
     }
 }

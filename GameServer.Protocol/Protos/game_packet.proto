@@ -89,5 +89,12 @@ message GamePacket {
 
     // Currency — 골드 획득
     NotiGoldGain noti_gold_gain = 52;
+
+    // Projectile — 투사체 스폰/소멸
+    NotiProjectileSpawn   noti_projectile_spawn   = 53;
+    NotiProjectileDestroy noti_projectile_destroy = 54;
+
+    // Orbital — 공전 무기 동기화
+    NotiOrbitalWeaponSync noti_orbital_weapon_sync = 55;
   }
 }
