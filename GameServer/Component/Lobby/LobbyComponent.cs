@@ -22,7 +22,8 @@ public class LobbyComponent : BaseComponent
     public bool IsFull => _playerCount >= MaxCapacity;
 
     private readonly ConcurrentDictionary<ulong, PlayerComponent> _players = new();
-    private readonly ConcurrentDictionary<ulong, RoomComponent> _rooms = new();
+    // _rooms는 모든 접근(읽기 포함)이 _roomLock으로 보호 — 단일 동기화 메커니즘
+    private readonly Dictionary<ulong, RoomComponent> _rooms = new();
     private readonly object _roomLock = new();
 
     public LobbyComponent(ulong lobbyId, int maxCapacity)
@@ -113,22 +114,29 @@ public class LobbyComponent : BaseComponent
 
     // 현재 로비의 룸 목록 반환 (게임 시작 여부 포함)
     public RoomInfo[] GetRoomList()
-        => _rooms.Values.Select(r => new RoomInfo
-        {
-            RoomId      = r.RoomId,
-            PlayerCount = r.PlayerCount,
-            MaxPlayers  = r.Capacity,
-            IsStarted   = r.IsGameStarted
-        }).ToArray();
+    {
+        lock (_roomLock)
+            return _rooms.Values.Select(r => new RoomInfo
+            {
+                RoomId      = r.RoomId,
+                PlayerCount = r.PlayerCount,
+                MaxPlayers  = r.Capacity,
+                IsStarted   = r.IsGameStarted
+            }).ToArray();
+    }
 
-    public RoomComponent? TryGetRoom(ulong roomId) => _rooms.GetValueOrDefault(roomId);
+    public RoomComponent? TryGetRoom(ulong roomId)
+    {
+        lock (_roomLock)
+            return _rooms.GetValueOrDefault(roomId);
+    }
 
     public void RemoveRoom(ulong roomId)
     {
         RoomComponent? room;
         lock (_roomLock)
         {
-            if (!_rooms.TryRemove(roomId, out room)) return;
+            if (!_rooms.Remove(roomId, out room)) return;
         }
 
         // lock 외부 Dispose — BaseComponent.Dispose()의 Interlocked 가드가 이중 실행을 방지하므로 안전
@@ -136,9 +144,13 @@ public class LobbyComponent : BaseComponent
         GameLogger.Info($"Lobby:{LobbyId}", $"Room 제거: RoomId={roomId}");
     }
 
-    public int RoomCount => _rooms.Count;
+    public int RoomCount { get { lock (_roomLock) return _rooms.Count; } }
 
-    public IReadOnlyList<RoomComponent> GetRooms() => _rooms.Values.ToList();
+    public IReadOnlyList<RoomComponent> GetRooms()
+    {
+        lock (_roomLock)
+            return _rooms.Values.ToList();
+    }
 
     protected override void OnDispose()
     {

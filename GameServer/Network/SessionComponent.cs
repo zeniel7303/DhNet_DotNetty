@@ -18,6 +18,8 @@ public class SessionComponent : IDisposable
     public PlayerComponent? Player { get; private set; }
 
     private readonly ConcurrentQueue<GamePacket> _packetQueue = new();
+    // 패킷 타입별 큐 적재 수 카운터 — LINQ O(n) 순회 대신 O(1) 조회 (PacketPairPolicy용)
+    private readonly ConcurrentDictionary<GamePacket.PayloadOneofCase, int> _typeCounters = new();
     private int _disposed;
     private int _disconnectedFlag;
     private int _entryHandshakeCompleted;
@@ -29,7 +31,7 @@ public class SessionComponent : IDisposable
         Channel = channel;
         _packetPolicies =
         [
-            PacketPairPolicy.Create(t => _packetQueue.Count(p => p.PayloadCase == t)),
+            PacketPairPolicy.Create(t => _typeCounters.GetValueOrDefault(t, 0)),
             PacketRatePolicy.Create(),
         ];
     }
@@ -64,6 +66,7 @@ public class SessionComponent : IDisposable
             }
         }
         _packetQueue.Enqueue(packet);
+        _typeCounters.AddOrUpdate(type, 1, (_, c) => c + 1);
         return true;
     }
 
@@ -76,6 +79,7 @@ public class SessionComponent : IDisposable
             PacketHandler?.Invoke(packet);
 
             var type = packet.PayloadCase;
+            _typeCounters.AddOrUpdate(type, 0, (_, c) => Math.Max(0, c - 1));
             foreach (var policy in _packetPolicies)
             {
                 policy.UpdatePolicy(type);
@@ -88,6 +92,7 @@ public class SessionComponent : IDisposable
     public void ClearPacketQueue()
     {
         while (_packetQueue.TryDequeue(out _)) { }
+        _typeCounters.Clear();
     }
 
     public Task SendAsync(GamePacket packet) => Channel.WriteAndFlushAsync(packet);

@@ -40,7 +40,7 @@ public class SessionSystem
     private readonly ConcurrentQueue<EventData> _eventQueue = new();
 
     private Thread? _thread;
-    private bool _running;
+    private CancellationTokenSource? _cts;
 
     public void EnqueueAdd(SessionComponent session)
         => _eventQueue.Enqueue(EventData.OfAdd(session));
@@ -67,7 +67,7 @@ public class SessionSystem
             return;
         }
 
-        _running = true;
+        _cts = new CancellationTokenSource();
         _thread = new Thread(Loop) { IsBackground = true, Name = "SessionSystem" };
         _thread.Start();
     }
@@ -85,7 +85,7 @@ public class SessionSystem
     public void Stop()
     {
         DisconnectAll();
-        _running = false;
+        _cts?.Cancel();
         if (_thread != null && !_thread.Join(TimeSpan.FromSeconds(30)))
         {
             GameLogger.Error("SessionSystem", "[Shutdown] SessionSystem 스레드 30초 내 종료 실패 — 강제 진행");
@@ -94,7 +94,7 @@ public class SessionSystem
 
     private void Loop()
     {
-        while (_running)
+        while (_cts?.IsCancellationRequested == false)
         {
             Thread.Sleep(10);
             ProcessEvent();

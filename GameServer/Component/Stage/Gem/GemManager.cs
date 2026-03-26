@@ -1,4 +1,4 @@
-namespace GameServer.Component.Stage;
+namespace GameServer.Component.Stage.Gem;
 
 /// <summary>
 /// 경험치 젬 관리. GameStage._stateLock 하에서만 접근된다.
