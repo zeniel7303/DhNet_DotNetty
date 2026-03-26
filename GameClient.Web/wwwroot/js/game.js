@@ -721,13 +721,16 @@ function onResEnterGame(res) {
 function onNotiMove(noti) {
   const pid = toId(noti.playerId);
   const p   = gamePlayers.get(pid);
-  if (p) { p.x = noti.x; p.y = noti.y; }
-  // 다른 플레이어 위치는 서버 권위를 따름; 자신은 클라이언트 예측 유지
-  // (서버 위치와 크게 어긋날 경우만 보정)
-  if (pid === me.id) {
-    const dx = noti.x - me.x, dy = noti.y - me.y;
-    if (dx * dx + dy * dy > 10000) { me.x = noti.x; me.y = noti.y; }
+  if (pid !== me.id) {
+    // 타 플레이어 — 서버 권위 위치 그대로 적용
+    if (p) { p.x = noti.x; p.y = noti.y; }
+    return;
   }
+  // 자신 — 클라이언트 예측 유지. 오차 100px 초과 시에만 강제 보정
+  const dx = noti.x - me.x, dy = noti.y - me.y;
+  if (dx * dx + dy * dy > 10000) { me.x = noti.x; me.y = noti.y; }
+  // myPlayer는 항상 me와 동기화 — 카메라·스프라이트 분리 방지
+  if (p) { p.x = me.x; p.y = me.y; }
 }
 
 function onNotiHpChange(noti) {
