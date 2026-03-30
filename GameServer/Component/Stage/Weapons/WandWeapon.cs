@@ -54,8 +54,6 @@ public class WandWeapon : WeaponBase
 
     private void MoveProjectiles(float dt, List<MonsterComponent> monsters, List<WeaponHit> hits)
     {
-        float hitRadSq = HitRadius * HitRadius;
-
         for (int i = _projectiles.Count - 1; i >= 0; i--)
         {
             var p = _projectiles[i];
@@ -70,7 +68,8 @@ public class WandWeapon : WeaponBase
             {
                 if (p.HitMonsters.Contains(m.MonsterId)) continue;
 
-                if (WrappedDistSq(m.X, m.Y, nx, ny) > hitRadSq) continue;
+                float combined = HitRadius + m.HitRadius;
+                if (WrappedDistSq(m.X, m.Y, nx, ny) > combined * combined) continue;
 
                 hits.Add(new WeaponHit(m.MonsterId, Damage, ProjectileId: p.Id));
                 p.HitMonsters.Add(m.MonsterId);
