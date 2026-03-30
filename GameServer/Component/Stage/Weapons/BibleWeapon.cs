@@ -35,8 +35,7 @@ public class BibleWeapon : WeaponBase
         for (int i = 0; i < _angles.Count; i++)
             _angles[i] = (_angles[i] + AngularSpeed * dt) % (2f * MathF.PI);
 
-        float hitRadSq = HitRadius * HitRadius;
-        var   hits     = new List<WeaponHit>();
+        var hits = new List<WeaponHit>();
 
         var expired  = new List<ulong>();
         var toUpdate = new List<(ulong Id, float Elapsed)>();
@@ -60,7 +59,8 @@ public class BibleWeapon : WeaponBase
                 if (_enemyCooldowns.ContainsKey(m.MonsterId)) continue;
 
                 float dx = m.X - bibleX, dy = m.Y - bibleY;
-                if (dx * dx + dy * dy <= hitRadSq)
+                float combined = HitRadius + m.HitRadius;
+                if (dx * dx + dy * dy <= combined * combined)
                 {
                     hits.Add(new WeaponHit(m.MonsterId, Damage));
                     _enemyCooldowns[m.MonsterId] = 0f;

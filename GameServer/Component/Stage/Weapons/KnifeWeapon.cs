@@ -16,7 +16,7 @@ public class KnifeWeapon : WeaponBase
 {
     private const float Speed          = 800f;
     private const float Lifetime       = 1.2f;
-    private const float HitRadius      = 18f;
+    private const float HitRadius      = 28f;
     private const int   MaxProjectiles = 15;
 
     /// <summary>WeaponManager가 매 틱 플레이어의 이동 방향으로 갱신한다.</summary>
@@ -59,8 +59,6 @@ public class KnifeWeapon : WeaponBase
 
     private void MoveProjectiles(float dt, List<MonsterComponent> monsters, List<WeaponHit> hits)
     {
-        float hitRadSq = HitRadius * HitRadius;
-
         for (int i = _projectiles.Count - 1; i >= 0; i--)
         {
             var p = _projectiles[i];
@@ -75,7 +73,8 @@ public class KnifeWeapon : WeaponBase
             {
                 if (p.HitMonsters.Contains(m.MonsterId)) continue;
 
-                if (WrappedDistSq(m.X, m.Y, nx, ny) > hitRadSq) continue;
+                float combined = HitRadius + m.HitRadius;
+                if (WrappedDistSq(m.X, m.Y, nx, ny) > combined * combined) continue;
 
                 hits.Add(new WeaponHit(m.MonsterId, Damage, ProjectileId: p.Id));
                 p.HitMonsters.Add(m.MonsterId);

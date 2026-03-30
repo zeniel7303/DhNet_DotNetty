@@ -67,7 +67,6 @@ public class CrossWeapon : WeaponBase
 
     private void MoveProjectiles(float dt, float ownerX, float ownerY, List<MonsterComponent> monsters, List<WeaponHit> hits)
     {
-        float hitRadSq   = HitRadius * HitRadius;
         float halfLife   = Lifetime * 0.5f;
 
         for (int i = _projectiles.Count - 1; i >= 0; i--)
@@ -100,7 +99,8 @@ public class CrossWeapon : WeaponBase
             {
                 if (hitSet.Contains(m.MonsterId)) continue;
 
-                if (WrappedDistSq(m.X, m.Y, curX, curY) > hitRadSq) continue;
+                float combined = HitRadius + m.HitRadius;
+                if (WrappedDistSq(m.X, m.Y, curX, curY) > combined * combined) continue;
 
                 hits.Add(new WeaponHit(m.MonsterId, Damage, ProjectileId: p.Id));
                 hitSet.Add(m.MonsterId);
