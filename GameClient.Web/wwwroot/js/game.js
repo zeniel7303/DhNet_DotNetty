@@ -45,14 +45,11 @@ let   orbitalWeaponList = [];        // [{ ownerId, weaponId, angle, lastUpdate 
 const keys        = {};
 let   moveSpeed   = 5;  // 픽셀/프레임 — 서버 NotiStatBoost로 갱신됨
 let   lastMove    = 0;
-let   lastAttack  = 0;
 let   animId      = null;
 let   isReady     = false;
 let   waveNumber  = 0;     // 현재 웨이브 번호
 let   lastSentX   = 0;    // 서버에 마지막으로 보낸 X 좌표
 let   lastSentY   = 0;    // 서버에 마지막으로 보낸 Y 좌표
-
-const ATTACK_INTERVAL = 1000; // ms — 서버 쿨다운(1s)에 맞춤
 
 // ─────────────────────────────────────────────────────
 // 화면 전환
@@ -855,6 +852,8 @@ function onNotiMonsterMove(noti) {
     const m = gameMonsters.get(toId(info.monsterId));
     if (!m || !m.alive) continue;
     // 보간 타깃 설정 (렌더러가 lerp로 부드럽게 이동시킴)
+    m.serverX    = info.x;  // 서버 확정 위치 — 이벤트 핸들러(onNotiCombat 등)에서 정확한 위치 사용
+    m.serverY    = info.y;
     m.targetX    = info.x;
     m.targetY    = info.y;
     m.lerpStart  = now;
@@ -870,20 +869,34 @@ function onNotiCombat(noti) {
 
   const wid = noti.weaponId ?? 0;
   const now = performance.now();
+  // serverX/Y: NotiMonsterMove가 같은 배치로 오면 m.x/m.y는 아직 렌더 루프에서 갱신 전.
+  // 서버 확정 위치(serverX/Y)를 우선 사용해 플래시 위치를 정확히 맞춤.
+  const tx = target.serverX ?? target.x;
+  const ty = target.serverY ?? target.y;
   switch (wid) {
     case 0: // Garlic — 플레이어 주변 오라 펄스
       effects.push({ type: 'aura',  x: attacker.x, y: attacker.y, radius: 80, color: '#a8e063', duration: 600, startTime: now });
-      effects.push({ type: 'flash', x: target.x,   y: target.y,               color: '#a8e063', duration: 200, startTime: now });
+      effects.push({ type: 'flash', x: tx, y: ty, color: '#a8e063', duration: 200, startTime: now });
       break;
-    case 1: // Knife — 투사체 적중 플래시 + 해당 투사체 즉시 제거
-      effects.push({ type: 'flash', x: target.x, y: target.y, color: '#ecf0f1', duration: 180, startTime: now });
+    case 1: // Wand — 마법 투사체 적중 플래시 (보라빛)
+      effects.push({ type: 'flash', x: tx, y: ty, color: '#9b59b6', duration: 180, startTime: now });
       if (noti.projectileId) activeProjectiles.delete(toId(noti.projectileId));
       break;
-    case 2: // Axe — 공전 도끼 적중 플래시
-      effects.push({ type: 'flash', x: target.x, y: target.y, color: '#e67e22', duration: 180, startTime: now });
+    case 4: // Knife — 단검 적중 플래시 (흰빛) + 즉시 소멸
+      effects.push({ type: 'flash', x: tx, y: ty, color: '#ecf0f1', duration: 180, startTime: now });
+      if (noti.projectileId) activeProjectiles.delete(toId(noti.projectileId));
+      break;
+    case 2: // Bible — 공전 성경 적중 플래시 (금빛)
+      effects.push({ type: 'flash', x: tx, y: ty, color: '#f1c40f', duration: 200, startTime: now });
+      break;
+    case 3: // Axe — 포물선 도끼 관통 적중 플래시 (주황)
+      effects.push({ type: 'flash', x: tx, y: ty, color: '#e67e22', duration: 180, startTime: now });
+      break;
+    case 5: // Cross — 부메랑 십자가 관통 적중 플래시 (흰 금빛)
+      effects.push({ type: 'flash', x: tx, y: ty, color: '#fffde7', duration: 220, startTime: now });
       break;
     default:
-      spawnEffect(attacker.x, attacker.y, target.x, target.y, '#f1c40f', 250);
+      spawnEffect(attacker.x, attacker.y, tx, ty, '#f1c40f', 250);
   }
 }
 
@@ -981,29 +994,93 @@ function onNotiProjectileDestroy(noti) {
   activeProjectiles.delete(toId(noti.projectileId));
 }
 
+const AXE_GRAVITY    = 1000; // AxeWeapon.Gravity와 동일 값
+const CROSS_LIFETIME = 1.4;  // CrossWeapon.Lifetime과 동일 값
+
 function drawProjectile(ctx, proj, cam) {
   const dt = (performance.now() - proj.spawnTime) / 1000; // 초
-  // 클라이언트 측 위치 추정 (서버와 동일한 속도·출발점 기반)
-  const wx = ((proj.x + proj.velX * dt) % MAP_W + MAP_W) % MAP_W;
-  const wy = ((proj.y + proj.velY * dt) % MAP_H + MAP_H) % MAP_H;
-  const s  = toScreen(wx, wy, cam);
-  // 🗡️ 비행 방향으로 회전 (이모지 기본 방향이 우상향 45°이므로 -45° 보정)
-  const angle = Math.atan2(proj.velY, proj.velX) - Math.PI / 4;
-  ctx.save();
-  ctx.translate(s.x, s.y);
-  ctx.rotate(angle);
-  ctx.font         = '18px serif';
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('🗡️', 0, 0);
-  ctx.restore();
+  let wx, wy, angle;
+
+  if (proj.weaponId === 5) {
+    // ✝️ 십자가 — 전진: sin 궤적, 귀환: 현재 플레이어 위치로 선형보간
+    const halfLife = CROSS_LIFETIME / 2;
+    let rawX, rawY;
+    if (dt < halfLife) {
+      // 전진 페이즈
+      const sinVal = Math.sin(Math.PI * dt / CROSS_LIFETIME);
+      rawX = proj.x + proj.velX * sinVal;
+      rawY = proj.y + proj.velY * sinVal;
+    } else {
+      // 귀환 페이즈: 정점 → 현재 플레이어 위치
+      const peakX   = proj.x + proj.velX; // sin(π/2) = 1
+      const peakY   = proj.y + proj.velY;
+      const progress = Math.min(1, (dt - halfLife) / halfLife);
+      const owner   = gamePlayers.get(proj.ownerId);
+      const ownerX  = owner ? owner.x : proj.x;
+      const ownerY  = owner ? owner.y : proj.y;
+      rawX = peakX + (ownerX - peakX) * progress;
+      rawY = peakY + (ownerY - peakY) * progress;
+    }
+    wx = ((rawX % MAP_W) + MAP_W) % MAP_W;
+    wy = ((rawY % MAP_H) + MAP_H) % MAP_H;
+    const s = toScreen(wx, wy, cam);
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(dt * Math.PI * 4); // 2회전/초 자체 스핀
+    ctx.font         = '20px serif';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✝️', 0, 0);
+    ctx.restore();
+    return;
+  } else if (proj.weaponId === 3) {
+    // 🪓 도끼 — 중력 포물선 (해석적 공식)
+    const curVelY = proj.velY + AXE_GRAVITY * dt;
+    wx = ((proj.x + proj.velX * dt) % MAP_W + MAP_W) % MAP_W;
+    wy = ((proj.y + proj.velY * dt + 0.5 * AXE_GRAVITY * dt * dt) % MAP_H + MAP_H) % MAP_H;
+    angle = Math.atan2(curVelY, proj.velX); // 현재 비행 방향
+    const s = toScreen(wx, wy, cam);
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(angle);
+    ctx.font         = '20px serif';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🪓', 0, 0);
+    ctx.restore();
+  } else {
+    // 직선 투사체 (마법 지팡이/단검) — 비행 방향으로 회전
+    wx = ((proj.x + proj.velX * dt) % MAP_W + MAP_W) % MAP_W;
+    wy = ((proj.y + proj.velY * dt) % MAP_H + MAP_H) % MAP_H;
+    const s = toScreen(wx, wy, cam);
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    if (proj.weaponId === 1) {
+      // 마법 투사체 — 보라빛 글로우 구체
+      ctx.shadowColor = '#9b59b6';
+      ctx.shadowBlur  = 14;
+      ctx.beginPath();
+      ctx.arc(0, 0, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#c39bd3';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    } else {
+      // 🗡️ 단검 — 비행 방향으로 회전 (이모지 기본 방향 우상향 45° 보정)
+      ctx.rotate(Math.atan2(proj.velY, proj.velX) - Math.PI / 4);
+      ctx.font         = '18px serif';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🗡️', 0, 0);
+    }
+    ctx.restore();
+  }
 }
 
 // ─────────────────────────────────────────────────────
-// 공전 무기 (도끼)
+// 공전 무기 (성경)
 // ─────────────────────────────────────────────────────
-const ORBIT_RADIUS    = 100;       // AxeWeapon.OrbitRadius와 일치
-const ORBITAL_RAD_PER_SEC = Math.PI; // AxeWeapon._angularSpeed 초기값 (1바퀴/2초)
+const ORBIT_RADIUS    = 100;       // BibleWeapon.OrbitRadius와 일치
+const ORBITAL_RAD_PER_SEC = Math.PI; // BibleWeapon.AngularSpeed 초기값 (1바퀴/2초)
 
 function onNotiOrbitalWeaponSync(noti) {
   if (!noti || !noti.orbitals) return;
@@ -1030,11 +1107,11 @@ function drawOrbitalWeapon(ctx, orbital, cam) {
   const s  = toScreen(wx, wy, cam);
   ctx.save();
   ctx.translate(s.x, s.y);
-  ctx.rotate(angle); // 공전 각도 = 도끼 자체 회전각 → 빙글빙글 돌아보임
+  ctx.rotate(angle); // 공전 각도 = 성경 자체 회전각 → 빙글빙글 돌아보임
   ctx.font         = '22px serif';
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('🪓', 0, 0);
+  ctx.fillText('📖', 0, 0);
   ctx.restore();
 }
 
@@ -1351,7 +1428,6 @@ function drawMonster(ctx, m, cam) {
 // ─────────────────────────────────────────────────────
 function startGameLoop() {
   if (animId) return;
-  lastAttack = 0;
   lastSentX = me.x; lastSentY = me.y;
   document.addEventListener('keydown', onKeyDown);
   document.addEventListener('keyup',   onKeyUp);
@@ -1360,7 +1436,6 @@ function startGameLoop() {
 
   function loop(ts) {
     handleMovement(ts);
-    handleAutoAttack(ts);
     render();
     animId = requestAnimationFrame(loop);
   }
@@ -1415,25 +1490,6 @@ function handleMovement(ts) {
   }
 }
 
-function handleAutoAttack(ts) {
-  if (ts - lastAttack < ATTACK_INTERVAL) return;
-
-  const myPlayer = gamePlayers.get(me.id);
-  if (!myPlayer || !myPlayer.alive) return;
-
-  let target = null, minDist = Infinity;
-  gameMonsters.forEach(m => {
-    if (!m.alive) return;
-    const dx = me.x - m.x, dy = me.y - m.y;
-    const d  = Math.sqrt(dx * dx + dy * dy);
-    if (d < minDist) { minDist = d; target = m; }
-  });
-
-  if (!target) return;
-
-  lastAttack = ts;
-  send({ reqAttack: { targetMonsterId: target.id } });
-}
 
 function onCanvasClick(e) {
   const canvas = document.getElementById('game-canvas');

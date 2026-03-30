@@ -4,45 +4,38 @@ using GameServer.Protocol;
 namespace GameServer.Component.Stage.Weapons;
 
 /// <summary>
-/// 도끼 — 가장 가까운 적 방향으로 포물선 아크를 그리며 날아가는 관통 투사체.
-/// 중력의 영향을 받아 위로 솟구쳤다가 내려오며, 경로 상의 모든 적을 관통.
+/// 마법 지팡이 — 가장 가까운 적을 자동으로 조준하여 마법 투사체 발사.
+/// 비관통 (첫 번째 적중 시 즉시 소멸).
 ///
 /// 투사체 프로토콜 계약:
 ///   - 수명 만료: NotiProjectileDestroy
-///   - 관통 적중: NotiCombat.projectile_id만 (투사체 계속 날아감)
-///
-/// 위치 계산 (해석적 공식, 서버·클라이언트 동일):
-///   x(t) = x0 + velX * t
-///   y(t) = y0 + velY0 * t + 0.5 * Gravity * t²
+///   - 비관통 적중: NotiCombat.projectile_id + NotiProjectileDestroy (즉시 소멸)
 /// </summary>
-public class AxeWeapon : WeaponBase
+public class WandWeapon : WeaponBase
 {
-    public  const float Gravity          = 1000f; // px/s² (클라이언트와 동일 값 유지)
-    private const float HorizontalSpeed  = 400f;  // px/s
-    private const float VerticalSpeed    = 500f;  // px/s (초기 상향 속도)
-    private const float Lifetime         = 1.0f;  // 초 — 완전한 포물선 1회
-    private const float HitRadius        = 25f;   // px
-    private const int   MaxProjectiles   = 5;
+    private const float Speed          = 700f;
+    private const float Lifetime       = 1.5f;
+    private const float HitRadius      = 20f;
+    private const int   MaxProjectiles = 10;
 
-
-    private sealed class AxeProjectile
+    private sealed class WandProjectile
     {
         public ulong          Id          { get; init; }
-        public float          StartX      { get; init; }
-        public float          StartY      { get; init; }
+        public float          X           { get; set; }
+        public float          Y           { get; set; }
         public float          VelX        { get; init; }
-        public float          VelY0       { get; init; }
+        public float          VelY        { get; init; }
         public float          Elapsed     { get; set; }
         public HashSet<ulong> HitMonsters { get; } = new();
     }
 
-    private readonly List<AxeProjectile> _projectiles    = new();
-    private readonly List<GamePacket>    _pendingPackets = new();
+    private readonly List<WandProjectile> _projectiles    = new();
+    private readonly List<GamePacket>     _pendingPackets = new();
 
-    public AxeWeapon() : base(WeaponId.Axe)
+    public WandWeapon() : base(WeaponId.Wand)
     {
-        Damage      = 25;
-        CooldownSec = 1.5f;
+        Damage      = 15;
+        CooldownSec = 1.0f;
     }
 
     public override List<WeaponHit> Tick(
@@ -65,25 +58,36 @@ public class AxeWeapon : WeaponBase
 
         for (int i = _projectiles.Count - 1; i >= 0; i--)
         {
-            var p       = _projectiles[i];
-            float t = p.Elapsed + dt;
-            // 맵 경계 순환 적용 — 클라이언트 렌더링과 동일한 공식
-            var (curX, curY) = WrapPos(
-                p.StartX + p.VelX  * t,
-                p.StartY + p.VelY0 * t + 0.5f * Gravity * t * t);
+            var p = _projectiles[i];
 
-            // 관통: 경로 상 미명중 적 모두 체크
+            float elapsed = p.Elapsed + dt;
+            bool  destroyed = false;
+
+            // 맵 경계 순환 적용 — 클라이언트 렌더링과 동일한 공식
+            var (nx, ny) = WrapPos(p.X + p.VelX * dt, p.Y + p.VelY * dt);
+
             foreach (var m in monsters)
             {
                 if (p.HitMonsters.Contains(m.MonsterId)) continue;
 
-                if (WrappedDistSq(m.X, m.Y, curX, curY) > hitRadSq) continue;
+                if (WrappedDistSq(m.X, m.Y, nx, ny) > hitRadSq) continue;
 
                 hits.Add(new WeaponHit(m.MonsterId, Damage, ProjectileId: p.Id));
                 p.HitMonsters.Add(m.MonsterId);
+
+                // 비관통: 첫 적중 즉시 소멸
+                _pendingPackets.Add(new GamePacket
+                {
+                    NotiProjectileDestroy = new NotiProjectileDestroy { ProjectileId = p.Id }
+                });
+                _projectiles.RemoveAt(i);
+                destroyed = true;
+                break;
             }
 
-            if (t >= Lifetime)
+            if (destroyed) continue;
+
+            if (elapsed >= Lifetime)
             {
                 _pendingPackets.Add(new GamePacket
                 {
@@ -93,7 +97,7 @@ public class AxeWeapon : WeaponBase
             }
             else
             {
-                p.Elapsed = t;
+                p.X = nx; p.Y = ny; p.Elapsed = elapsed;
             }
         }
     }
@@ -108,22 +112,24 @@ public class AxeWeapon : WeaponBase
         float             minDistSq = float.MaxValue;
         foreach (var m in monsters)
         {
-            float dSq = DistSq(ownerX, ownerY, m.X, m.Y);
+            float dSq = WrappedDistSq(ownerX, ownerY, m.X, m.Y);
             if (dSq < minDistSq) { minDistSq = dSq; nearest = m; }
         }
         if (nearest == null) return [];
 
-        // 가장 가까운 적 방향의 수평 성분만 사용, 수직은 항상 위쪽
-        float dirX = nearest.X >= ownerX ? 1f : -1f;
-        float velX = dirX * HorizontalSpeed;
-        float velY = -VerticalSpeed; // 위로 발사 (Y 축: 아래가 양수)
+        float dx  = nearest.X - ownerX;
+        float dy  = nearest.Y - ownerY;
+        float len = MathF.Sqrt(dx * dx + dy * dy);
+        if (len < 1f) return [];
 
+        float ux = dx / len, uy = dy / len;
         ulong id = NextProjectileId();
-        _projectiles.Add(new AxeProjectile
+
+        _projectiles.Add(new WandProjectile
         {
-            Id     = id,
-            StartX = ownerX, StartY = ownerY,
-            VelX   = velX,   VelY0  = velY,
+            Id   = id,
+            X    = ownerX, Y    = ownerY,
+            VelX = ux * Speed, VelY = uy * Speed,
         });
 
         _pendingPackets.Add(new GamePacket
@@ -131,9 +137,9 @@ public class AxeWeapon : WeaponBase
             NotiProjectileSpawn = new NotiProjectileSpawn
             {
                 ProjectileId = id,
-                WeaponId     = (int)WeaponId.Axe,
-                X    = ownerX, Y    = ownerY,
-                VelX = velX,   VelY = velY,
+                WeaponId     = (int)WeaponId.Wand,
+                X = ownerX, Y = ownerY,
+                VelX = ux * Speed, VelY = uy * Speed,
             }
         });
 
