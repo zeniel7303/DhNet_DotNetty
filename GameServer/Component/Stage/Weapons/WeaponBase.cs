@@ -3,7 +3,7 @@ using GameServer.Protocol;
 
 namespace GameServer.Component.Stage.Weapons;
 
-public enum WeaponId { Garlic = 0, Knife = 1, Axe = 2 }
+public enum WeaponId { Garlic = 0, Wand = 1, Bible = 2, Axe = 3, Knife = 4, Cross = 5 }
 
 /// <summary>무기 1회 적중 결과. PushX/PushY가 0이면 넉백 없음. ProjectileId가 0이면 투사체 없음.</summary>
 public readonly record struct WeaponHit(ulong MonsterId, int Damage, float PushX = 0f, float PushY = 0f, ulong ProjectileId = 0);
@@ -68,9 +68,40 @@ public abstract class WeaponBase
         CooldownSec = MathF.Max(0.3f, CooldownSec * 0.9f);
     }
 
+    // 투사체 위치 계산 시 맵 경계 처리에 사용
+    protected const float MapW = 3200f;
+    protected const float MapH = 2400f;
+
+    /// <summary>투사체·몬스터 위치를 맵 범위 [0, MapW) × [0, MapH)로 정규화.</summary>
+    protected static (float x, float y) WrapPos(float x, float y)
+        => (((x % MapW) + MapW) % MapW, ((y % MapH) + MapH) % MapH);
+
     protected static float DistSq(float ax, float ay, float bx, float by)
     {
         float dx = ax - bx, dy = ay - by;
         return dx * dx + dy * dy;
     }
+
+    /// <summary>
+    /// 맵 경계 순환을 고려한 두 점 사이 거리 제곱.
+    /// 투사체 히트 판정에 사용 — 경계 바로 너머 적을 누락하는 오류를 방지한다.
+    /// </summary>
+    protected static float WrappedDistSq(float ax, float ay, float bx, float by)
+    {
+        float dx = ax - bx;
+        float dy = ay - by;
+        if      (dx >  MapW * 0.5f) dx -= MapW;
+        else if (dx < -MapW * 0.5f) dx += MapW;
+        if      (dy >  MapH * 0.5f) dy -= MapH;
+        else if (dy < -MapH * 0.5f) dy += MapH;
+        return dx * dx + dy * dy;
+    }
+
+    /// <summary>
+    /// 모든 투사체 무기가 공유하는 전역 ID 시퀀스.
+    /// 무기별 독립 시퀀스를 사용하면 서로 다른 무기가 동일 ID를 발급할 수 있으므로
+    /// 반드시 이 메서드를 통해 ID를 발급한다.
+    /// </summary>
+    private static long _projectileIdSeq;
+    protected static ulong NextProjectileId() => (ulong)Interlocked.Increment(ref _projectileIdSeq);
 }

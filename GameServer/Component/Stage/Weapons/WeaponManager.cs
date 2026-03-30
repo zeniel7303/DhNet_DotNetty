@@ -23,8 +23,11 @@ public class WeaponManager
     private static readonly (WeaponId Id, string Name)[] WeaponPool =
     [
         (WeaponId.Garlic, "마늘"),
-        (WeaponId.Knife,  "단검"),
+        (WeaponId.Wand,   "마법 지팡이"),
+        (WeaponId.Bible,  "성경"),
         (WeaponId.Axe,    "도끼"),
+        (WeaponId.Knife,  "단검"),
+        (WeaponId.Cross,  "십자가"),
     ];
 
     // 레벨업 시 제시할 스탯 업그레이드 선택지 풀 (항상 제공, 중복 선택 가능)
@@ -164,8 +167,11 @@ public class WeaponManager
                 WeaponBase? newWeapon = wId switch
                 {
                     WeaponId.Garlic => new GarlicWeapon(),
-                    WeaponId.Knife  => new KnifeWeapon(),
+                    WeaponId.Wand   => new WandWeapon(),
+                    WeaponId.Bible  => new BibleWeapon(),
                     WeaponId.Axe    => new AxeWeapon(),
+                    WeaponId.Knife  => new KnifeWeapon(),
+                    WeaponId.Cross  => new CrossWeapon(),
                     _               => null,
                 };
                 if (newWeapon == null) return;
@@ -231,6 +237,13 @@ public class WeaponManager
 
             foreach (var weapon in weapons)
             {
+                // 단검: 매 틱 플레이어의 이동 방향을 주입
+                if (weapon is KnifeWeapon knife)
+                {
+                    knife.FacingDirX = player.World.FacingDirX;
+                    knife.FacingDirY = player.World.FacingDirY;
+                }
+
                 var weaponHits = weapon.Tick(dt, player.World.X, player.World.Y, monsters);
                 foreach (var hit in weaponHits)
                     hits.Add((player.AccountId, hit.MonsterId, hit.Damage, weapon.Id, hit.PushX, hit.PushY, hit.ProjectileId));
@@ -239,13 +252,13 @@ public class WeaponManager
                 foreach (var pkt in weapon.GetPendingPackets(player.AccountId))
                     packets.Add(pkt);
 
-                // 공전 무기 각도 동기화 — 도끼 개수만큼 OrbitalWeaponInfo 생성
-                if (weapon is AxeWeapon axe)
-                    foreach (var angle in axe.Angles)
+                // 공전 무기 각도 동기화 — 성경 개수만큼 OrbitalWeaponInfo 생성
+                if (weapon is BibleWeapon bible)
+                    foreach (var angle in bible.Angles)
                         orbital.Orbitals.Add(new OrbitalWeaponInfo
                         {
                             OwnerId  = player.AccountId,
-                            WeaponId = (int)WeaponId.Axe,
+                            WeaponId = (int)WeaponId.Bible,
                             Angle    = angle
                         });
             }
