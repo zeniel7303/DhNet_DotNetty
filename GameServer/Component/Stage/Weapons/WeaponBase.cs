@@ -10,7 +10,7 @@ public readonly record struct WeaponHit(ulong MonsterId, int Damage, float PushX
 
 /// <summary>
 /// 서버사이드 자동 무기 기반 클래스.
-/// GameStage._stateLock 하에서 Tick이 호출된다.
+/// StageComponent._stateLock 하에서 Tick이 호출된다.
 /// </summary>
 public abstract class WeaponBase
 {

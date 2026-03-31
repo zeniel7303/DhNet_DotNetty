@@ -5,9 +5,9 @@ namespace GameServer.Component.Stage.Wave;
 /// <summary>
 /// 웨이브 기반 몬스터 스포너.
 /// 30초 인터벌로 웨이브 번호를 증가시키며 맵 외곽에서 몬스터를 스폰한다.
-/// GameStage._stateLock 하에서 호출된다.
+/// StageComponent._stateLock 하에서 호출된다.
 /// </summary>
-public class WaveSpawner
+public class WaveComponent
 {
     // 맵 크기
     private const float MapWidth    = 3200f;

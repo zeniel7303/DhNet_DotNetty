@@ -24,7 +24,7 @@ public class RoomComponent : BaseComponent
     private readonly ConcurrentDictionary<ulong, PlayerComponent> _players = new();
     private readonly ConcurrentDictionary<ulong, bool> _readyState = new();
 
-    public GameStage? Stage { get; private set; }
+    public StageComponent? Stage { get; private set; }
 
     // 방이 비었을 때 호출 — LobbyComponent.RemoveRoom() 주입
     private readonly Action _onEmpty;
@@ -162,7 +162,7 @@ public class RoomComponent : BaseComponent
             _ = p.Session.SendAsync(notiStart);
 
         // 게임 세션 생성 및 시작 (NotiGameStart 이후)
-        var session = new GameStage(this);
+        var session = new StageComponent(this);
         Stage = session;
         GameSessionRegistry.Instance.Register(session);
         session.Start(_players.Values.ToList());

@@ -1,5 +1,6 @@
 using Common.Logging;
 using DotNetty.Transport.Channels;
+using GameServer.Auth;
 using GameServer.Protocol;
 using GameServer.Systems;
 

@@ -1,6 +1,6 @@
 using GameServer.Protocol;
 
-namespace GameServer.Network;
+namespace GameServer.Controllers;
 
 public static class GamePacketExtensions
 {

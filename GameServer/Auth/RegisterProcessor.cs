@@ -1,10 +1,11 @@
 using Common.Logging;
 using GameServer.Database;
+using GameServer.Network;
 using GameServer.Database.Rows;
 using GameServer.Protocol;
 using GameServer.Systems;
 
-namespace GameServer.Network;
+namespace GameServer.Auth;
 
 /// <summary>
 /// 회원가입 처리. ReqRegister 패킷을 받아 계정을 생성하고 ResRegister를 반환한다.

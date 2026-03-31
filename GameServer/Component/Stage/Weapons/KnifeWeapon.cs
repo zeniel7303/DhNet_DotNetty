@@ -6,7 +6,7 @@ namespace GameServer.Component.Stage.Weapons;
 /// <summary>
 /// 단검 — 캐릭터가 바라보는 방향으로 투사체 발사.
 /// 비관통 (첫 번째 적중 시 즉시 소멸).
-/// WeaponManager가 매 틱 FacingDirX/Y를 주입한다.
+/// WeaponComponent가 매 틱 FacingDirX/Y를 주입한다.
 ///
 /// 투사체 프로토콜 계약:
 ///   - 수명 만료: NotiProjectileDestroy
@@ -19,7 +19,7 @@ public class KnifeWeapon : WeaponBase
     private const float HitRadius      = 28f;
     private const int   MaxProjectiles = 15;
 
-    /// <summary>WeaponManager가 매 틱 플레이어의 이동 방향으로 갱신한다.</summary>
+    /// <summary>WeaponComponent가 매 틱 플레이어의 이동 방향으로 갱신한다.</summary>
     public float FacingDirX { get; set; } = 1f;
     public float FacingDirY { get; set; } = 0f;
 

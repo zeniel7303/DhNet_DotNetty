@@ -7,15 +7,15 @@ namespace GameServer.Component.Stage.Weapons;
 
 /// <summary>
 /// 플레이어별 무기 목록을 관리하고 서버사이드 자동 공격 틱을 처리한다.
-/// GameStage._stateLock 하에서만 호출된다.
+/// StageComponent._stateLock 하에서만 호출된다.
 /// </summary>
-public class WeaponManager
+public class WeaponComponent
 {
     // 플레이어 계정 ID → 보유 무기 목록
     private readonly Dictionary<ulong, List<WeaponBase>> _playerWeapons = new();
 
     // 레벨업 선택 큐 — 선택 대기 중 추가 레벨업이 발생하면 카운터 증가
-    // GameStage._stateLock 하에서만 접근하므로 일반 Dictionary/HashSet 사용
+    // StageComponent._stateLock 하에서만 접근하므로 일반 Dictionary/HashSet 사용
     private readonly Dictionary<ulong, int> _pendingLevelUps = new();
     private readonly HashSet<ulong>         _waitingForChoice = new();
 
@@ -136,7 +136,7 @@ public class WeaponManager
             });
 
         player.Session.SendAsync(new GamePacket { NotiWeaponChoice = noti })
-            .ContinueWith(t => GameLogger.Error("WeaponManager", "NotiWeaponChoice 전송 실패", t.Exception!.GetBaseException()),
+            .ContinueWith(t => GameLogger.Error("WeaponComponent", "NotiWeaponChoice 전송 실패", t.Exception!.GetBaseException()),
                 TaskContinuationOptions.OnlyOnFaulted);
     }
 
@@ -212,7 +212,7 @@ public class WeaponManager
                 ExpMulti  = player.Character.ExpMultiplier,
                 ExpRadius = player.Character.ExpRadiusBonus
             }
-        }).ContinueWith(t => GameLogger.Error("WeaponManager", "NotiStatBoost 전송 실패", t.Exception!.GetBaseException()),
+        }).ContinueWith(t => GameLogger.Error("WeaponComponent", "NotiStatBoost 전송 실패", t.Exception!.GetBaseException()),
             TaskContinuationOptions.OnlyOnFaulted);
     }
 

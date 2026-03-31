@@ -18,7 +18,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Common.Shared\Common.Shared.csproj" />
-        <ProjectReference Include="..\Common.Client\Common.Client.csproj" />
         <ProjectReference Include="..\GameServer.Protocol\GameServer.Protocol.csproj" />
     </ItemGroup>
 
