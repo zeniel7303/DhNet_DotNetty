@@ -7,7 +7,7 @@ namespace GameServer.Component.Stage.Weapons;
 /// 레벨업:
 ///   - 홀수 레벨(3,5,7…): 성경 개수 +1, 각도 균등 재배치
 ///   - 짝수 레벨(2,4,6…): 데미지 +20%
-/// 매 틱 NotiOrbitalWeaponSync로 모든 성경 Angle 브로드캐스트 (WeaponManager에서 처리).
+/// 매 틱 NotiOrbitalWeaponSync로 모든 성경 Angle 브로드캐스트 (WeaponComponent에서 처리).
 /// </summary>
 public class BibleWeapon : WeaponBase
 {
@@ -16,7 +16,7 @@ public class BibleWeapon : WeaponBase
     private const float PerEnemyCooldown = 0.5f;
     private const float AngularSpeed     = MathF.PI; // rad/s — 레벨 무관 고정
 
-    /// <summary>현재 각 성경의 공전 각도 (radians). WeaponManager가 읽어 NotiOrbitalWeaponSync 생성.</summary>
+    /// <summary>현재 각 성경의 공전 각도 (radians). WeaponComponent가 읽어 NotiOrbitalWeaponSync 생성.</summary>
     public IReadOnlyList<float> Angles => _angles;
     private readonly List<float> _angles = [0f]; // 초기 성경 1개
 

@@ -1,9 +1,9 @@
 namespace GameServer.Component.Stage.Gem;
 
 /// <summary>
-/// 경험치 젬 관리. GameStage._stateLock 하에서만 접근된다.
+/// 경험치 젬 관리. StageComponent._stateLock 하에서만 접근된다.
 /// </summary>
-public class GemManager
+public class GemComponent
 {
     private static long _gemIdSeq;
     private static ulong NextGemId() => (ulong)Interlocked.Increment(ref _gemIdSeq);

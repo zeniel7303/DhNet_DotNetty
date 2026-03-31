@@ -1,11 +1,12 @@
 using Common.Logging;
 using GameServer.Component.Player;
+using GameServer.Network;
 using GameServer.Database;
 using GameServer.Database.Rows;
 using GameServer.Protocol;
 using GameServer.Systems;
 
-namespace GameServer.Network;
+namespace GameServer.Auth;
 
 internal static class LoginProcessor
 {

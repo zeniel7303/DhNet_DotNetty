@@ -2,12 +2,12 @@ using GameServer.Database.Rows;
 
 namespace GameServer.Component.Player;
 
-public class CharacterComponent(PlayerComponent player)
+public class PlayerCharacterComponent(PlayerComponent player)
 {
     // 인게임 스탯 — 게임마다 초기값으로 시작, DB에 저장하지 않음
     public int  Level   { get; private set; } = 1;
     public long Exp     { get; private set; } = 0;
-    // _stateLock (GameStage) 하에서만 수정됨 — volatile 불필요
+    // _stateLock (StageComponent) 하에서만 수정됨 — volatile 불필요
     private int _hp = 500;
     public int  Hp      => _hp;
     public int  MaxHp   { get; private set; } = 500;

@@ -16,7 +16,7 @@ public enum MonsterType
 }
 
 /// <summary>
-/// 몬스터 상태 컴포넌트. GameStage._stateLock 하에서만 변경된다.
+/// 몬스터 상태 컴포넌트. StageComponent._stateLock 하에서만 변경된다.
 /// </summary>
 public class MonsterComponent
 {

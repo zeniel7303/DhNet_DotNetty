@@ -20,16 +20,16 @@ namespace GameServer.Component.Stage;
 ///   - ProcessXxx() : PlayerComponent 워커 스레드 — _inputQueue에만 적재, lock 없음
 ///   → 워커 스레드가 _stateLock을 기다리는 경합 제거
 /// </summary>
-public class GameStage : IDisposable
+public class StageComponent : IDisposable
 {
     private static long _monsterIdSeq;
     private static ulong NextMonsterId() => (ulong)Interlocked.Increment(ref _monsterIdSeq);
 
     private readonly RoomComponent  _room;
     private readonly Dictionary<ulong, MonsterComponent> _monsters = new();
-    private readonly WaveSpawner    _waveSpawner  = new();
-    private readonly GemManager     _gemManager   = new();
-    private readonly WeaponManager  _weaponManager = new();
+    private readonly WaveComponent    _waveSpawner  = new();
+    private readonly GemComponent     _gemManager   = new();
+    private readonly WeaponComponent  _weaponManager = new();
     private readonly object _stateLock = new();
 
     // 플레이어 입력 큐 — 워커 스레드가 lock 없이 적재, Tick에서 일괄 처리
@@ -46,7 +46,7 @@ public class GameStage : IDisposable
 
     public ulong RoomId => _room.RoomId;
 
-    public GameStage(RoomComponent room)
+    public StageComponent(RoomComponent room)
     {
         _room = room;
     }
@@ -92,7 +92,7 @@ public class GameStage : IDisposable
     }
 
     /// <summary>
-    /// WaveSpawner가 반환한 스폰 목록을 _monsters에 추가하고 pending에 적재한다.
+    /// WaveComponent가 반환한 스폰 목록을 _monsters에 추가하고 pending에 적재한다.
     /// _stateLock 하에서 호출된다.
     /// </summary>
     private void DoWaveSpawn(List<(MonsterType Type, float X, float Y)> spawns, List<GamePacket> pending)

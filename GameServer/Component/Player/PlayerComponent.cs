@@ -3,7 +3,6 @@ using Common.Server.Component;
 using Common.Server.Routing;
 using GameServer.Controllers;
 using GameServer.Database;
-using GameServer.Database.Rows;
 using GameServer.Network;
 using GameServer.Protocol;
 using GameServer.Systems;
@@ -28,7 +27,7 @@ public class PlayerComponent : BaseComponent
     // private set — OnDispose에서 lock 안에 null 처리를 위해 쓰기 가능
     public PlayerLobbyComponent Lobby     { get; private set; }
     public PlayerRoomComponent  Room      { get; private set; }
-    public CharacterComponent   Character { get; private set; }
+    public PlayerCharacterComponent   Character { get; private set; }
     public PlayerWorldComponent World     { get; private set; }
 
     public PlayerComponent(SessionComponent session, string name, ulong accountId)
@@ -37,7 +36,7 @@ public class PlayerComponent : BaseComponent
         Name = string.IsNullOrWhiteSpace(name) ? "TempUser" + AccountId : name;
         Session = session;
         World     = new PlayerWorldComponent();
-        Character = new CharacterComponent(this);
+        Character = new PlayerCharacterComponent(this);
         Lobby     = new PlayerLobbyComponent(this);
         Room      = new PlayerRoomComponent(this);
 
@@ -131,7 +130,7 @@ public class PlayerComponent : BaseComponent
             // lock(this): Room/Lobby/Character 참조 캡처 원자화
             PlayerRoomComponent?  room;
             PlayerLobbyComponent? lobby;
-            CharacterComponent?   character;
+            PlayerCharacterComponent?   character;
             lock (_disposeLock)
             {
                 room      = Room;
