@@ -50,6 +50,8 @@ let   isReady     = false;
 let   waveNumber  = 0;     // 현재 웨이브 번호
 let   lastSentX   = 0;    // 서버에 마지막으로 보낸 X 좌표
 let   lastSentY   = 0;    // 서버에 마지막으로 보낸 Y 좌표
+let   mouseCanvasX = CANVAS_W / 2; // 마우스 캔버스 좌표 (방향 화살표용)
+let   mouseCanvasY = CANVAS_H / 2;
 
 // ─────────────────────────────────────────────────────
 // 화면 전환
@@ -1336,6 +1338,29 @@ function drawPlayer(ctx, p, cam) {
     ctx.arc(s.x, s.y, size / 2 + 4, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
+
+    // 마우스 방향 삼각형 화살표
+    const angle    = Math.atan2(mouseCanvasY - s.y, mouseCanvasX - s.x);
+    const tipDist  = size / 2 + 12;
+    const baseDist = size / 2 + 5;
+    const halfBase = 5;
+    const tipX  = s.x + Math.cos(angle) * tipDist;
+    const tipY  = s.y + Math.sin(angle) * tipDist;
+    const perpX = -Math.sin(angle) * halfBase;
+    const perpY =  Math.cos(angle) * halfBase;
+    const baseX = s.x + Math.cos(angle) * baseDist;
+    const baseY = s.y + Math.sin(angle) * baseDist;
+    ctx.save();
+    ctx.fillStyle   = '#fbbf24';
+    ctx.shadowColor = '#f59e0b';
+    ctx.shadowBlur  = 8;
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(baseX + perpX, baseY + perpY);
+    ctx.lineTo(baseX - perpX, baseY - perpY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   // SVG 스프라이트 (없으면 이모지 폴백)
@@ -1433,6 +1458,7 @@ function startGameLoop() {
   document.addEventListener('keyup',   onKeyUp);
   const canvas = document.getElementById('game-canvas');
   if (canvas) canvas.addEventListener('click', onCanvasClick);
+  if (canvas) canvas.addEventListener('mousemove', onMouseMove);
 
   function loop(ts) {
     handleMovement(ts);
@@ -1448,10 +1474,18 @@ function stopGameLoop() {
   document.removeEventListener('keyup',   onKeyUp);
   const canvas = document.getElementById('game-canvas');
   if (canvas) canvas.removeEventListener('click', onCanvasClick);
+  if (canvas) canvas.removeEventListener('mousemove', onMouseMove);
 }
 
 function onKeyDown(e) { if (e.target.tagName !== 'INPUT') keys[e.code] = true; }
 function onKeyUp(e)   { keys[e.code] = false; }
+function onMouseMove(e) {
+  const canvas = document.getElementById('game-canvas');
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  mouseCanvasX = e.clientX - rect.left;
+  mouseCanvasY = e.clientY - rect.top;
+}
 
 function handleMovement(ts) {
   const myPlayer = gamePlayers.get(me.id);
