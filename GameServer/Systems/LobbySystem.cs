@@ -11,16 +11,16 @@ public class LobbySystem
 
     private LobbyComponent[] _lobbies = Array.Empty<LobbyComponent>();
 
-    public void Initialize(int lobbyCount, int lobbyCapacity)
+    public void Initialize(int lobbyCount, int lobbyCapacity, int maxPlayersPerRoom)
     {
         _lobbies = Enumerable.Range(0, lobbyCount)
-            .Select(_ => new LobbyComponent(IdGenerators.Lobby.Next(), lobbyCapacity))
+            .Select(_ => new LobbyComponent(IdGenerators.Lobby.Next(), lobbyCapacity, maxPlayersPerRoom))
             .ToArray();
 
         foreach (var lobby in _lobbies)
             lobby.Initialize();
 
-        GameLogger.Info("LobbySystem", $"로비 {lobbyCount}개 생성 완료 (capacity={lobbyCapacity})");
+        GameLogger.Info("LobbySystem", $"로비 {lobbyCount}개 생성 완료 (capacity={lobbyCapacity}, roomMax={maxPlayersPerRoom})");
     }
 
     // 가득 차지 않은 로비 중 현재 인원이 가장 많은 로비 반환 — 소규모 접속 시 클러스터링

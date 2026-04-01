@@ -1,7 +1,11 @@
+using Common.Server.Component;
+
 namespace GameServer.Component.Player;
 
-public class PlayerWorldComponent
+public class PlayerWorldComponent : BaseComponent
 {
+    public override void Initialize() { }
+    protected override void OnDispose() { }
     public float X { get; private set; } = 100f;
     public float Y { get; private set; } = 100f;
 

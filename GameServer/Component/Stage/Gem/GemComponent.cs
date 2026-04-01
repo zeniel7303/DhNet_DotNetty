@@ -1,10 +1,14 @@
+using Common.Server.Component;
+
 namespace GameServer.Component.Stage.Gem;
 
 /// <summary>
-/// 경험치 젬 관리. StageComponent._stateLock 하에서만 접근된다.
+/// 경험치 젬 관리. StageComponent 단일 틱 스레드에서만 접근된다.
 /// </summary>
-public class GemComponent
+public class GemComponent : BaseComponent
 {
+    public override void Initialize() => _gems.Clear();
+    protected override void OnDispose() => _gems.Clear();
     private static long _gemIdSeq;
     private static ulong NextGemId() => (ulong)Interlocked.Increment(ref _gemIdSeq);
 

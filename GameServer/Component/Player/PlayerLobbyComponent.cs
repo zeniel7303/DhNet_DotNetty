@@ -1,3 +1,4 @@
+using Common.Server.Component;
 using GameServer.Component.Lobby;
 using GameServer.Protocol;
 using GameServer.Systems;
@@ -10,8 +11,10 @@ namespace GameServer.Component.Player;
 //   - LoginController → player.EnqueueEvent(() => lobby.TryEnter(player)) → 워커 틱
 //   - CreateRoom/RoomEnter/Disconnect → 워커 스레드 직접 호출
 // → 모든 쓰기가 PlayerComponent 워커 스레드 → volatile 불필요
-public class PlayerLobbyComponent(PlayerComponent player)
+public class PlayerLobbyComponent(PlayerComponent player) : BaseComponent
 {
+    public override void Initialize() { }
+    protected override void OnDispose() { }
     public LobbyComponent? CurrentLobby { get; internal set; }
 
     // 현재 로비의 룸 목록 조회
