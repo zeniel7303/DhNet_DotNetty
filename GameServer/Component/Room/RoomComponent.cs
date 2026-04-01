@@ -16,10 +16,10 @@ public class RoomComponent : BaseComponent
     public ulong LobbyId { get; }
     public string Name => $"Room {RoomId}";
     public int PlayerCount => Math.Max(0, _state);
-    public int Capacity => MaxPlayers;
+    public int Capacity => _maxPlayers;
     public bool IsGameStarted => _gameStarted == 1;
 
-    private const int MaxPlayers = 2;
+    private readonly int _maxPlayers;
 
     private readonly ConcurrentDictionary<ulong, PlayerComponent> _players = new();
     private readonly ConcurrentDictionary<ulong, bool> _readyState = new();
@@ -34,7 +34,7 @@ public class RoomComponent : BaseComponent
     private readonly Action<RoomComponent>? _onGameStart;
 
     // _reservedCount + _closing을 단일 int로 통합.
-    // -1 = 닫히는 중, 0~MaxPlayers = 예약된 슬롯 수.
+    // -1 = 닫히는 중, 0~_maxPlayers = 예약된 슬롯 수.
     // 마지막 슬롯 반환(1→-1)이 단일 CAS로 처리되므로 TryReserve와의 레이스가 완전히 제거됨.
     private int _state = 0;
     // 0 = 대기 중, 1 = 게임 시작됨 (CAS로 중복 트리거 방지)
@@ -47,8 +47,8 @@ public class RoomComponent : BaseComponent
         do
         {
             current = _state;
-            // -1 = 닫히는 중, MaxPlayers = 정원 초과
-            if (current < 0 || current >= MaxPlayers) return false;
+            // -1 = 닫히는 중, _maxPlayers = 정원 초과
+            if (current < 0 || current >= _maxPlayers) return false;
         } while (Interlocked.CompareExchange(ref _state, current + 1, current) != current);
         return true;
     }
@@ -71,17 +71,24 @@ public class RoomComponent : BaseComponent
         } while (true);
     }
 
-    public RoomComponent(ulong roomId, ulong lobbyId, Action onEmpty, Func<PlayerComponent, bool> returnToLobby,
-        Action<RoomComponent>? onGameStart = null)
+    public RoomComponent(ulong roomId, ulong lobbyId, int maxPlayers, Action onEmpty,
+        Func<PlayerComponent, bool> returnToLobby, Action<RoomComponent>? onGameStart = null)
     {
         RoomId = roomId;
         LobbyId = lobbyId;
+        _maxPlayers = maxPlayers;
         _onEmpty = onEmpty;
         _returnToLobby = returnToLobby;
         _onGameStart = onGameStart;
     }
 
     public override void Initialize() { }
+
+    public override void Update(float dt)
+    {
+        base.Update(dt);
+        Stage?.Update(dt);
+    }
 
     public void Enter(PlayerComponent player)
     {
@@ -102,7 +109,7 @@ public class RoomComponent : BaseComponent
         // PlayerLobbyComponent.RoomEnter → PlayerComponent 워커 스레드에서 호출
         player.Room.CurrentRoom = this;
 
-        GameLogger.Info($"Room:{RoomId}", $"입장: {player.Name} ({_players.Count}/{MaxPlayers})");
+        GameLogger.Info($"Room:{RoomId}", $"입장: {player.Name} ({_players.Count}/{_maxPlayers})");
 
         DatabaseSystem.Instance.GameLog.RoomLogs.InsertAsync(new RoomLogRow
         {
@@ -165,7 +172,7 @@ public class RoomComponent : BaseComponent
         var session = new StageComponent(this);
         Stage = session;
         GameSessionRegistry.Instance.Register(session);
-        session.Start(_players.Values.ToList());
+        session.Initialize();
 
         _onGameStart?.Invoke(this);
     }

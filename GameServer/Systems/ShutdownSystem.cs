@@ -18,7 +18,12 @@ public class ShutdownSystem
     public void Request()
     {
         if (Interlocked.Exchange(ref _requested, 1) != 0) return;
+        if (_cts == null)
+        {
+            GameLogger.Warn("ShutdownSystem", "Request() called before Initialize() — shutdown ignored");
+            return;
+        }
         GameLogger.Info("ShutdownSystem", "Shutdown requested");
-        _cts?.Cancel();
+        _cts.Cancel();
     }
 }

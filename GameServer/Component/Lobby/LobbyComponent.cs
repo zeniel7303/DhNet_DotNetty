@@ -22,14 +22,18 @@ public class LobbyComponent : BaseComponent
     public bool IsFull => _playerCount >= MaxCapacity;
 
     private readonly ConcurrentDictionary<ulong, PlayerComponent> _players = new();
-    // _rooms는 모든 접근(읽기 포함)이 _roomLock으로 보호 — 단일 동기화 메커니즘
+    // _rooms 레지스트리를 소유하는 쪽이 RoomComponent의 생명주기(Dispose)도 책임진다.
+    // RoomSystem은 틱 스레드 제공자일 뿐 — Dispose 호출은 LobbyComponent가 직접 수행한다.
     private readonly Dictionary<ulong, RoomComponent> _rooms = new();
     private readonly object _roomLock = new();
 
-    public LobbyComponent(ulong lobbyId, int maxCapacity)
+    private readonly int _maxPlayersPerRoom;
+
+    public LobbyComponent(ulong lobbyId, int maxCapacity, int maxPlayersPerRoom)
     {
         LobbyId = lobbyId;
         MaxCapacity = maxCapacity;
+        _maxPlayersPerRoom = maxPlayersPerRoom;
     }
 
     public override void Initialize() { }
@@ -92,24 +96,27 @@ public class LobbyComponent : BaseComponent
     // 신규 룸 생성 + 첫 슬롯 예약. 실패 시 null (불가능한 경로이나 방어적 처리).
     public RoomComponent? CreateRoom()
     {
+        RoomComponent newRoom;
         lock (_roomLock)
         {
             var roomId = IdGenerators.Room.Next();
-            var newRoom = new RoomComponent(roomId, LobbyId,
+            newRoom = new RoomComponent(roomId, LobbyId, _maxPlayersPerRoom,
                 onEmpty: () => RemoveRoom(roomId),
                 returnToLobby: p => TryEnter(p));
-            newRoom.Initialize();
             _rooms.TryAdd(newRoom.RoomId, newRoom);
 
             if (!newRoom.TryReserve())
             {
-                GameLogger.Warn($"Lobby:{LobbyId}", $"CreateRoom 첫 슬롯 예약 실패: RoomId={roomId}");
+                _rooms.Remove(newRoom.RoomId);
+                GameLogger.Warn($"Lobby:{LobbyId}", $"CreateRoom 첫 슬롯 예약 실패: RoomId={newRoom.RoomId}");
                 return null;
             }
 
-            GameLogger.Info($"Lobby:{LobbyId}", $"Room 생성: RoomId={roomId}");
-            return newRoom;
+            GameLogger.Info($"Lobby:{LobbyId}", $"Room 생성: RoomId={newRoom.RoomId}");
         }
+
+        RoomSystem.Instance.Add(newRoom);  // Initialize() 자동 호출 — lock 외부
+        return newRoom;
     }
 
     // 현재 로비의 룸 목록 반환 (게임 시작 여부 포함)
@@ -139,8 +146,8 @@ public class LobbyComponent : BaseComponent
             if (!_rooms.Remove(roomId, out room)) return;
         }
 
-        // lock 외부 Dispose — BaseComponent.Dispose()의 Interlocked 가드가 이중 실행을 방지하므로 안전
-        room.Dispose();
+        RoomSystem.Instance.Remove(room);  // 워커에서 제거
+        room.Dispose();                    // LobbyComponent가 Dispose 책임자
         GameLogger.Info($"Lobby:{LobbyId}", $"Room 제거: RoomId={roomId}");
     }
 
@@ -171,7 +178,8 @@ public class LobbyComponent : BaseComponent
 
         foreach (var room in rooms)
         {
-            room.Dispose();
+            RoomSystem.Instance.Remove(room);  // 워커에서 제거
+            room.Dispose();                    // LobbyComponent가 Dispose 책임자
         }
     }
 }

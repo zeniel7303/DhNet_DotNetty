@@ -1,27 +1,31 @@
+using Common.Server.Component;
 using GameServer.Component.Stage.Monster;
 
 namespace GameServer.Component.Stage.Wave;
 
 /// <summary>
 /// 웨이브 기반 몬스터 스포너.
-/// 30초 인터벌로 웨이브 번호를 증가시키며 맵 외곽에서 몬스터를 스폰한다.
-/// StageComponent._stateLock 하에서 호출된다.
+/// Update() 호출 전 MonsterCount를 설정하면, 웨이브 트리거 시 LastSpawns에 스폰 목록이 저장된다.
+/// StageComponent 단일 틱 스레드에서 호출된다.
 /// </summary>
-public class WaveComponent
+public class WaveComponent : BaseComponent
 {
-    // 맵 크기
     private const float MapWidth    = 3200f;
     private const float MapHeight   = 2400f;
-    private const float SpawnMargin = 40f;   // 맵 외곽 스폰 오프셋
-    private const int   MaxMonsters = 200;   // 룸당 동시 최대 몬스터 수
+    private const float SpawnMargin = 40f;
+    private const int   MaxMonsters = 200;
 
-    public int WaveNumber { get; private set; } = 0;
+    public int WaveNumber { get; private set; }
 
-    private float _elapsed = 0f;
-    private const float WaveInterval = 8f; // 초
+    /// <summary>Update() 호출 전 StageComponent가 현재 몬스터 수를 설정한다.</summary>
+    public int MonsterCount { get; set; }
 
-    // 웨이브 테이블: 웨이브 번호 → (MonsterType, 마리 수)[]
-    // 홀수 웨이브: 박쥐/좀비 위주, 짝수 웨이브: 스켈레톤/유령, 5의 배수: 미니보스 포함
+    /// <summary>Update() 이후 이번 틱 스폰 목록. 스폰이 없으면 null.</summary>
+    public List<(MonsterType Type, float X, float Y)>? LastSpawns { get; private set; }
+
+    private float _elapsed;
+    private const float WaveInterval = 8f;
+
     private static readonly (MonsterType Type, int Count)[][] WaveTable =
     [
         /* Wave 1 */ [(MonsterType.Bat,   5), (MonsterType.Zombie,  3)],
@@ -33,13 +37,11 @@ public class WaveComponent
 
     private static (MonsterType Type, int Count)[] GetWaveEntries(int waveNumber)
     {
-        // 웨이브 5 이후 반복 (5의 배수마다 GiantZombie 추가, 10의 배수마다 Reaper 추가)
         if (waveNumber <= WaveTable.Length)
             return WaveTable[waveNumber - 1];
 
-        // 반복 주기 — 점점 숫자 증가
-        int overage    = waveNumber - WaveTable.Length;
-        int batCount   = 8 + overage * 2;
+        int overage     = waveNumber - WaveTable.Length;
+        int batCount    = 8 + overage * 2;
         int zombieCount = 5 + overage;
         var list = new List<(MonsterType, int)>
         {
@@ -47,26 +49,38 @@ public class WaveComponent
             (MonsterType.Zombie,   Math.Min(zombieCount, 15)),
             (MonsterType.Skeleton, 3 + overage / 2),
         };
-        if (waveNumber % 5 == 0) list.Add((MonsterType.GiantZombie, 1 + overage / 5));
+        if (waveNumber % 5  == 0) list.Add((MonsterType.GiantZombie, 1 + overage / 5));
         if (waveNumber % 10 == 0) list.Add((MonsterType.Reaper, 1));
         return [.. list];
     }
 
-    /// <summary>
-    /// 틱 처리. 웨이브 트리거 시 스폰할 (MonsterType, 스폰 좌표)[] 반환.
-    /// 웨이브가 아직 없으면 null 반환.
-    /// </summary>
-    public List<(MonsterType Type, float X, float Y)>? Tick(float dt, int currentMonsterCount)
+    public override void Initialize()
     {
+        _elapsed   = 0f;
+        WaveNumber = 0;
+        LastSpawns = null;
+    }
+
+    protected override void OnDispose() { }
+
+    /// <summary>
+    /// 웨이브 틱 처리. 호출 전 MonsterCount 설정 필요.
+    /// 웨이브 트리거 시 LastSpawns에 스폰 목록 저장, 아니면 null.
+    /// </summary>
+    public override void Update(float dt)
+    {
+        base.Update(dt);
+        LastSpawns = null;
+
         _elapsed += dt;
-        if (_elapsed < WaveInterval) return null;
+        if (_elapsed < WaveInterval) return;
 
         _elapsed -= WaveInterval;
         WaveNumber++;
 
-        var entries  = GetWaveEntries(WaveNumber);
-        var spawns   = new List<(MonsterType, float, float)>();
-        int remaining = MaxMonsters - currentMonsterCount;
+        var entries   = GetWaveEntries(WaveNumber);
+        var spawns    = new List<(MonsterType, float, float)>();
+        int remaining = MaxMonsters - MonsterCount;
 
         foreach (var (type, count) in entries)
         {
@@ -77,19 +91,18 @@ public class WaveComponent
             }
         }
 
-        return spawns;
+        LastSpawns = spawns;
     }
 
-    /// <summary>맵 외곽 4변 중 랜덤 위치를 반환.</summary>
     private static (float X, float Y) RandomEdgePoint()
     {
         int edge = Random.Shared.Next(4);
         return edge switch
         {
-            0 => (Random.Shared.NextSingle() * MapWidth, -SpawnMargin),                // 상단
-            1 => (Random.Shared.NextSingle() * MapWidth, MapHeight + SpawnMargin),     // 하단
-            2 => (-SpawnMargin,                          Random.Shared.NextSingle() * MapHeight), // 좌측
-            _ => (MapWidth + SpawnMargin,                Random.Shared.NextSingle() * MapHeight), // 우측
+            0 => (Random.Shared.NextSingle() * MapWidth, -SpawnMargin),
+            1 => (Random.Shared.NextSingle() * MapWidth, MapHeight + SpawnMargin),
+            2 => (-SpawnMargin,                          Random.Shared.NextSingle() * MapHeight),
+            _ => (MapWidth + SpawnMargin,                Random.Shared.NextSingle() * MapHeight),
         };
     }
 }

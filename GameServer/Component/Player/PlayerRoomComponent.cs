@@ -1,3 +1,4 @@
+using Common.Server.Component;
 using GameServer.Component.Room;
 using GameServer.Protocol;
 
@@ -9,8 +10,10 @@ namespace GameServer.Component.Player;
 //   - RoomComponent.Enter(player) → PlayerLobbyComponent.RoomEnter → 워커 스레드
 //   - RoomComponent.Leave(player, _) → PlayerRoomComponent.Exit/Disconnect → 워커 스레드
 // → 모든 쓰기가 PlayerComponent 워커 스레드 → volatile 불필요
-public class PlayerRoomComponent(PlayerComponent player)
+public class PlayerRoomComponent(PlayerComponent player) : BaseComponent
 {
+    public override void Initialize() { }
+    protected override void OnDispose() { }
     public RoomComponent? CurrentRoom { get; internal set; }
 
     public void Chat(ReqRoomChat req)

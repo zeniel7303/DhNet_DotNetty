@@ -1,3 +1,5 @@
+using Common.Server.Component;
+
 namespace GameServer.Component.Stage.Monster;
 
 public enum MonsterType
@@ -16,9 +18,10 @@ public enum MonsterType
 }
 
 /// <summary>
-/// 몬스터 상태 컴포넌트. StageComponent._stateLock 하에서만 변경된다.
+/// 몬스터 상태 컴포넌트. StageComponent 단일 틱 스레드에서만 변경된다.
+/// Update() 호출 전 TargetX/TargetY를 설정하면 AI 추적 후 WasRespawned/WasMoved로 결과를 읽을 수 있다.
 /// </summary>
-public class MonsterComponent
+public class MonsterComponent : BaseComponent
 {
     // 맵 경계
     private const float MapWidth  = 3200f;
@@ -42,12 +45,21 @@ public class MonsterComponent
     private float _deadElapsed;
     private float _attackElapsed;
 
-    private readonly float _respawnDelay;   // 0 = 리스폰 없음 (보스)
+    private readonly float _respawnDelay;
     private readonly float _attackInterval;
 
     public int  Hp         => _hp;
     public bool IsAlive    => _hp > 0;
-    public bool CanRespawn => _respawnDelay > 0; // false면 사망 후 정리 대상
+    public bool CanRespawn => _respawnDelay > 0;
+
+    /// <summary>Update() 호출 전 StageComponent가 추적 목표 좌표를 설정한다.</summary>
+    public float TargetX { get; set; }
+    public float TargetY { get; set; }
+
+    /// <summary>Update() 이후 이번 틱 리스폰 여부.</summary>
+    public bool WasRespawned { get; private set; }
+    /// <summary>Update() 이후 이번 틱 이동 여부.</summary>
+    public bool WasMoved { get; private set; }
 
     public MonsterComponent(ulong monsterId, MonsterType type, float x, float y)
     {
@@ -55,6 +67,8 @@ public class MonsterComponent
         Type      = type;
         X         = x;
         Y         = y;
+        TargetX   = x;
+        TargetY   = y;
 
         // (MaxHp, Atk, Def, ExpReward, GoldReward, Speed, AttackRange, _respawnDelay, _attackInterval, HitRadius)
         (MaxHp, Atk, Def, ExpReward, GoldReward, Speed, AttackRange, _respawnDelay, _attackInterval, HitRadius) = type switch
@@ -74,48 +88,57 @@ public class MonsterComponent
         _hp = MaxHp;
     }
 
-    /// <summary>
-    /// 틱 처리. 리스폰 여부와 이동 여부를 반환한다.
-    /// targetX/targetY — 가장 가까운 살아있는 플레이어 좌표 (없으면 현재 위치와 동일).
-    /// </summary>
-    public (bool respawned, bool moved) Tick(float dt, float targetX, float targetY)
+    public override void Initialize()
     {
+        _deadElapsed   = 0f;
+        _attackElapsed = 0f;
+    }
+
+    protected override void OnDispose() { }
+
+    /// <summary>
+    /// AI 틱 처리. 호출 전 TargetX/TargetY 설정 필요.
+    /// 결과는 WasRespawned, WasMoved로 읽는다.
+    /// </summary>
+    public override void Update(float dt)
+    {
+        base.Update(dt);
+        WasRespawned = false;
+        WasMoved     = false;
+
         _attackElapsed += dt;
 
         if (!IsAlive)
         {
-            if (_respawnDelay <= 0) return (false, false);
+            if (_respawnDelay <= 0) return;
             _deadElapsed += dt;
-            if (_deadElapsed < _respawnDelay) return (false, false);
+            if (_deadElapsed < _respawnDelay) return;
 
             _hp            = MaxHp;
             _deadElapsed   = 0;
             _attackElapsed = 0;
-            return (true, false);
+            WasRespawned   = true;
+            return;
         }
 
-        // Chase AI — targetX/Y는 이미 wrap-aware offset으로 계산된 값
-        float dx   = targetX - X;
-        float dy   = targetY - Y;
+        // Chase AI — TargetX/Y는 StageComponent가 wrap-aware offset으로 계산해 주입
+        float dx   = TargetX - X;
+        float dy   = TargetY - Y;
         float dist = MathF.Sqrt(dx * dx + dy * dy);
 
-        bool moved = false;
         if (dist > AttackRange && dist > 0.1f)
         {
             float step = Speed * dt;
-            // 맵 순환 이동
             float nx = ((X + dx / dist * step) % MapWidth  + MapWidth)  % MapWidth;
             float ny = ((Y + dy / dist * step) % MapHeight + MapHeight) % MapHeight;
 
             if (MathF.Abs(nx - X) > 0.5f || MathF.Abs(ny - Y) > 0.5f)
             {
-                X     = nx;
-                Y     = ny;
-                moved = true;
+                X       = nx;
+                Y       = ny;
+                WasMoved = true;
             }
         }
-
-        return (false, moved);
     }
 
     /// <summary>이번 틱에 공격 가능하면 true 반환. 호출 시 쿨다운 리셋.</summary>
