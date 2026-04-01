@@ -31,6 +31,7 @@ public class StageComponent : BaseComponent
     private readonly WaveComponent    _waveSpawner  = new();
     private readonly GemComponent     _gemManager   = new();
     private readonly WeaponComponent  _weaponManager = new();
+    private readonly StageCombatHelper _combat;
 
     // 플레이어 입력 큐 — 워커 스레드가 lock 없이 적재, Update에서 일괄 처리
     private readonly ConcurrentQueue<Action<List<GamePacket>>> _inputQueue = new();
@@ -46,7 +47,8 @@ public class StageComponent : BaseComponent
 
     public StageComponent(RoomComponent room)
     {
-        _room = room;
+        _room   = room;
+        _combat = new StageCombatHelper(_monsters, _gemManager, _weaponManager, EndGame);
     }
 
     // 플레이어 스폰 위치 — 맵 중앙 기준 (3200x2400)
@@ -114,9 +116,9 @@ public class StageComponent : BaseComponent
     {
         var res = new ResEnterGame { ErrorCode = ErrorCode.Success };
         foreach (var p in players)
-            res.Players.Add(BuildPlayerInfo(p));
+            res.Players.Add(StageBroadcastHelper.BuildPlayerInfo(p));
         foreach (var m in _monsters.Values)
-            res.Monsters.Add(BuildMonsterInfo(m));
+            res.Monsters.Add(StageBroadcastHelper.BuildMonsterInfo(m));
         _room.BroadcastPacket(new GamePacket { ResEnterGame = res });
     }
 
@@ -220,7 +222,7 @@ public class StageComponent : BaseComponent
                 if (nearestDistSq > attackRangeSq) continue;
                 if (!monster.ShouldAttack()) continue;
 
-                var damage = CalcDamage(monster.Atk, nearestPlayer.Character.Defense);
+                var damage = StageCombatHelper.CalcDamage(monster.Atk, nearestPlayer.Character.Defense);
                 var died   = nearestPlayer.Character.TakeDamage(damage);
 
                 _pending.Add(new GamePacket
@@ -245,7 +247,7 @@ public class StageComponent : BaseComponent
                     {
                         NotiDeath = new NotiDeath { EntityId = nearestPlayer.AccountId, IsMonster = false }
                     });
-                    CheckAllPlayersDead(_pending, players);
+                    _combat.CheckAllPlayersDead(_pending, players);
                 }
             }
 
@@ -276,7 +278,7 @@ public class StageComponent : BaseComponent
             _weaponManager.Monsters = _monsters.Values;
             _weaponManager.Update(dt);
             foreach (var (attackerId, monsterId, dmg, wid, pushX, pushY, projectileId) in _weaponManager.LastHits)
-                ApplyWeaponHit(
+                _combat.ApplyWeaponHit(
                     alivePlayers.FirstOrDefault(p => p.AccountId == attackerId),
                     monsterId, dmg, wid, pushX, pushY, projectileId, _pending);
             _pending.AddRange(_weaponManager.LastPackets);
@@ -305,7 +307,7 @@ public class StageComponent : BaseComponent
             if (!player.World.CanAttack()) return;
             if (!_monsters.TryGetValue(monsterId, out var monster) || !monster.IsAlive) return;
 
-            var damage = CalcDamage(player.Character.Attack, monster.Def);
+            var damage = StageCombatHelper.CalcDamage(player.Character.Attack, monster.Def);
             player.World.ResetAttackCooldown();
             var died = monster.TakeDamage(damage);
 
@@ -331,8 +333,8 @@ public class StageComponent : BaseComponent
                 {
                     NotiDeath = new NotiDeath { EntityId = monsterId, IsMonster = true }
                 });
-                SpawnGem(monster.X, monster.Y, monster.ExpReward, pending);
-                GiveGold(player, monster.GoldReward);
+                _combat.SpawnGem(monster.X, monster.Y, monster.ExpReward, pending);
+                StageCombatHelper.GiveGold(player, monster.GoldReward);
                 if (monster.IsBoss) EndGame(true, pending);
             }
         });
@@ -350,7 +352,7 @@ public class StageComponent : BaseComponent
                 NotiMove = new NotiMove { PlayerId = player.AccountId, X = player.World.X, Y = player.World.Y }
             });
             // 이동 후 주변 젬 자동 수집
-            CollectGems(player, pending);
+            _combat.CollectGems(player, pending);
         });
     }
 
@@ -402,125 +404,6 @@ public class StageComponent : BaseComponent
             $"웨이브 {_waveSpawner.WaveNumber} 시작 — {spawns.Count}마리 스폰 (총 {_monsters.Count}마리)");
     }
 
-    /// <summary>젬 스폰 — 몬스터 사망 시 호출.</summary>
-    private void SpawnGem(float x, float y, int expValue, List<GamePacket> pending)
-    {
-        var gem = _gemManager.Spawn(x, y, expValue);
-        pending.Add(new GamePacket
-        {
-            NotiGemSpawn = new NotiGemSpawn { GemId = gem.Id, X = gem.X, Y = gem.Y, ExpValue = gem.ExpValue }
-        });
-    }
-
-    /// <summary>젬 수집 후 EXP 지급.</summary>
-    private void CollectGems(PlayerComponent player, List<GamePacket> pending)
-    {
-        var collected = _gemManager.CollectNearby(player.World.X, player.World.Y, player.Character.ExpRadiusBonus);
-        foreach (var gem in collected)
-        {
-            int expGained = (int)(gem.ExpValue * player.Character.ExpMultiplier);
-            int levelUps  = player.Character.GainExp(expGained);
-            pending.Add(new GamePacket
-            {
-                NotiGemCollect = new NotiGemCollect
-                {
-                    GemId = gem.Id, PlayerId = player.AccountId, ExpGained = gem.ExpValue
-                }
-            });
-            _ = player.Session.SendAsync(new GamePacket
-            {
-                NotiExpGain = new NotiExpGain
-                {
-                    PlayerId = player.AccountId, ExpGained = expGained,
-                    TotalExp = player.Character.Exp, NextLevelExp = player.Character.NextLevelExp
-                }
-            });
-            if (levelUps > 0)
-            {
-                pending.Add(new GamePacket
-                {
-                    NotiLevelUp = new NotiLevelUp
-                    {
-                        PlayerId   = player.AccountId, NewLevel   = player.Character.Level,
-                        NewMaxHp   = player.Character.MaxHp,  NewAttack  = player.Character.Attack,
-                        NewDefense = player.Character.Defense
-                    }
-                });
-
-                for (int i = 0; i < levelUps; i++)
-                    _weaponManager.EnqueueChoice(player);
-            }
-        }
-    }
-
-    /// <summary>자동 무기 히트 처리. attacker는 호출 측에서 캐시된 alivePlayers로 조회해 전달.</summary>
-    private void ApplyWeaponHit(PlayerComponent? attacker, ulong monsterId, int damage, WeaponId weaponId,
-        float pushX, float pushY, ulong projectileId, List<GamePacket> pending)
-    {
-        if (!_monsters.TryGetValue(monsterId, out var monster) || !monster.IsAlive) return;
-
-        bool died = monster.TakeDamage(damage);
-
-        pending.Add(new GamePacket
-        {
-            NotiCombat = new NotiCombat
-            {
-                AttackerPlayerId = attacker?.AccountId ?? 0, TargetMonsterId = monsterId,
-                Damage = damage, WeaponId = (int)weaponId, ProjectileId = projectileId
-            }
-        });
-
-        // 넉백 — 사망 전에 위치를 밀어줘야 클라이언트가 올바른 위치에서 사망 처리
-        if (!died && (pushX != 0f || pushY != 0f))
-        {
-            monster.Knockback(pushX, pushY);
-            var movePacket = new NotiMonsterMove();
-            movePacket.Moves.Add(new MonsterMoveInfo { MonsterId = monsterId, X = monster.X, Y = monster.Y });
-            pending.Add(new GamePacket { NotiMonsterMove = movePacket });
-        }
-        pending.Add(new GamePacket
-        {
-            NotiHpChange = new NotiHpChange
-            {
-                EntityId = monsterId, Hp = monster.Hp, MaxHp = monster.MaxHp, IsMonster = true
-            }
-        });
-
-        if (!died) return;
-
-        pending.Add(new GamePacket
-        {
-            NotiDeath = new NotiDeath { EntityId = monsterId, IsMonster = true }
-        });
-
-        SpawnGem(monster.X, monster.Y, monster.ExpReward, pending);
-
-        if (attacker != null)
-            GiveGold(attacker, monster.GoldReward);
-
-        if (monster.IsBoss) EndGame(true, pending);
-    }
-
-    /// <summary>골드 지급 + NotiGoldGain 개인 전송.</summary>
-    private static void GiveGold(PlayerComponent player, int amount)
-    {
-        if (amount <= 0) return;
-        player.Character.AddGold(amount);
-        _ = player.Session.SendAsync(new GamePacket
-        {
-            NotiGoldGain = new NotiGoldGain
-            {
-                PlayerId = player.AccountId, GoldGained = amount, TotalGold = player.Character.Gold
-            }
-        });
-    }
-
-    private void CheckAllPlayersDead(List<GamePacket> pending, IReadOnlyList<PlayerComponent> players)
-    {
-        if (players.All(p => !p.Character.IsAlive))
-            EndGame(false, pending);
-    }
-
     private void EndGame(bool isClear, List<GamePacket> pending)
     {
         if (Interlocked.CompareExchange(ref _endedFlag, 1, 0) != 0) return;
@@ -533,18 +416,4 @@ public class StageComponent : BaseComponent
         GameLogger.Info($"GameSession:{RoomId}", $"게임 종료 (clear={isClear})");
     }
 
-    private static int CalcDamage(int atk, int def) => Math.Max(1, atk - def / 2);
-
-    private static PlayerInfo BuildPlayerInfo(PlayerComponent p) => new()
-    {
-        PlayerId = p.AccountId, Name = p.Name,
-        X = p.World.X, Y = p.World.Y,
-        Level = p.Character.Level, Hp = p.Character.Hp, MaxHp = p.Character.MaxHp
-    };
-
-    private static MonsterInfo BuildMonsterInfo(MonsterComponent m) => new()
-    {
-        MonsterId = m.MonsterId, MonsterType = (int)m.Type,
-        X = m.X, Y = m.Y, Hp = m.Hp, MaxHp = m.MaxHp
-    };
 }
