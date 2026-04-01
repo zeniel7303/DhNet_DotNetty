@@ -39,6 +39,7 @@ public class PlayerCharacterComponent(PlayerComponent player) : BaseComponent
     {
         if (amount <= 0) return;
         Gold += amount;
+        player.Save.MarkDirty();
     }
 
     // 스탯 업그레이드 — 레벨업 선택지 적용 시 호출
