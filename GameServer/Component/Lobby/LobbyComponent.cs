@@ -39,7 +39,7 @@ public class LobbyComponent : BaseComponent
     public override void Initialize() { }
 
     // CAS로 정원 예약 후 TryAdd. 반환 false = 정원 초과 또는 중복 입장.
-    // PlayerComponent 워커 스레드(EnqueueEvent 경유) 또는 LoginController 스레드에서 호출
+    // PlayerComponent 워커 스레드(EnqueueEvent 경유) 또는 LoginProcessor 스레드에서 호출
     public bool TryEnter(PlayerComponent player)
     {
         int current;
@@ -56,7 +56,7 @@ public class LobbyComponent : BaseComponent
             return false;
         }
 
-        // LoginController → EnqueueEvent → 워커 틱에서 호출되므로 PlayerComponent 워커 스레드
+        // LoginProcessor → EnqueueEvent → 워커 틱에서 호출되므로 PlayerComponent 워커 스레드
         player.Lobby.CurrentLobby = this;
         GameLogger.Info($"Lobby:{LobbyId}", $"입장: {player.Name} (현재 {_players.Count}명)");
         return true;
