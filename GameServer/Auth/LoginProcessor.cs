@@ -80,14 +80,14 @@ internal static class LoginProcessor
             {
                 ResLogin = new ResLogin { PlayerId = 0, PlayerName = string.Empty, ErrorCode = ErrorCode.DbError }
             });
-            // _dbInserted == false이므로 UpdateLogout은 실행되지 않음
+            // Save._dbInserted == false이므로 PlayerSaveComponent.SaveAsync는 실행되지 않음
             // ImmediateFinalize → DisconnectAsync → PlayerSystem.Remove → _reservedAccounts 정리
             player.ImmediateFinalize();
             return;
         }
 
         // DB Insert 완료 플래그 — DisconnectAsync에서 UpdateLogout 실행 허용
-        player.MarkDbInserted();
+        player.Save.MarkDbInserted();
 
         // DB await 중 연결 해제 확인
         if (session.IsDisconnected)

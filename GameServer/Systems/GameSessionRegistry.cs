@@ -5,7 +5,7 @@ namespace GameServer.Systems;
 
 /// <summary>
 /// 활성 게임 세션 레지스트리. 세션 조회 및 통계 제공.
-/// 실제 틱은 각 StageComponent 내부 PeriodicTimer가 담당한다.
+/// 실제 틱은 RoomSystem(WorkerSystem)이 RoomComponent.Update(dt) → StageComponent.Update(dt) 순으로 구동한다.
 /// </summary>
 public class GameSessionRegistry
 {

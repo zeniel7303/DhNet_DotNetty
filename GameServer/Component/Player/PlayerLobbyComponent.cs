@@ -8,7 +8,7 @@ namespace GameServer.Component.Player;
 // PlayerComponent가 소유하는 서브 컴포넌트 — WorkerSystem에 등록되지 않는다.
 // 모든 메서드는 PlayerComponent 워커 스레드에서 직렬 호출되므로 별도 동기화 불필요.
 // CurrentLobby 쓰기 경로:
-//   - LoginController → player.EnqueueEvent(() => lobby.TryEnter(player)) → 워커 틱
+//   - LoginProcessor → player.EnqueueEventAsync(() => lobby.TryEnter(player)) → 워커 틱
 //   - CreateRoom/RoomEnter/Disconnect → 워커 스레드 직접 호출
 // → 모든 쓰기가 PlayerComponent 워커 스레드 → volatile 불필요
 public class PlayerLobbyComponent(PlayerComponent player) : BaseComponent

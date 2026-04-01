@@ -2,7 +2,6 @@ using Common.Logging;
 using Common.Server.Component;
 using Common.Server.Routing;
 using GameServer.Controllers;
-using GameServer.Database;
 using GameServer.Network;
 using GameServer.Protocol;
 using GameServer.Systems;
@@ -18,17 +17,14 @@ public class PlayerComponent : BaseComponent
     private int _disconnected;
     private readonly object _disposeLock = new();
 
-    // DB InsertAsync 완료 여부 — DisconnectAsync에서 UpdateLogoutAsync 실행 조건
-    // InsertAsync 이전에 Dispose되는 경우(세션 소실 등) UpdateLogout 실행 시 DB 오류 방지
-    private int _dbInserted;
-
     private IReadOnlyDictionary<Type, IRouter> _routeTable = new Dictionary<Type, IRouter>();
 
     // private set — OnDispose에서 lock 안에 null 처리를 위해 쓰기 가능
-    public PlayerLobbyComponent Lobby     { get; private set; }
-    public PlayerRoomComponent  Room      { get; private set; }
-    public PlayerCharacterComponent   Character { get; private set; }
-    public PlayerWorldComponent World     { get; private set; }
+    public PlayerLobbyComponent     Lobby     { get; private set; }
+    public PlayerRoomComponent      Room      { get; private set; }
+    public PlayerCharacterComponent Character { get; private set; }
+    public PlayerWorldComponent     World     { get; private set; }
+    public PlayerSaveComponent      Save      { get; private set; }
 
     public PlayerComponent(SessionComponent session, string name, ulong accountId)
     {
@@ -39,12 +35,10 @@ public class PlayerComponent : BaseComponent
         Character = new PlayerCharacterComponent(this);
         Lobby     = new PlayerLobbyComponent(this);
         Room      = new PlayerRoomComponent(this);
+        Save      = new PlayerSaveComponent(this);
 
         // RegisterControllers()는 Initialize()에서 수행 — WorkerSystem.Add() 시 호출됨
     }
-
-    // LoginController에서 DB InsertAsync 완료 후 호출 — 이후 DisconnectAsync의 UpdateLogout 활성화
-    public void MarkDbInserted() => Interlocked.Exchange(ref _dbInserted, 1);
 
     public override void Initialize()
     {
@@ -85,6 +79,8 @@ public class PlayerComponent : BaseComponent
         // DisconnectForNextTick → base.Update에서 _ = DisconnectAsync() 시작 후
         // IsDisposed가 true이면 이미 Dispose된 상태이므로 패킷 처리 스킵
         if (IsDisposed) return;
+
+        Save.Update(dt);
 
         // 큐 드레인은 SessionComponent 소유 — 라우팅만 HandlePacket 콜백으로 위임
         Session.DrainPackets();
@@ -144,39 +140,10 @@ public class PlayerComponent : BaseComponent
             Session.DetachPlayer();
             Session.Dispose();
 
-            // DB InsertAsync가 완료된 경우에만 UpdateLogout 실행
-            // InsertAsync 이전 Dispose(ImmediateFinalize, 세션 소실 등) 시 DB 오염 방지
-            // Volatile.Read: ImmediateFinalize 경로(ThreadPool)에서 최신 값 보장
-            if (Volatile.Read(ref _dbInserted) == 1)
-            {
-                var logoutAt = DateTime.UtcNow;
-
-                // 캐릭터 데이터 저장
-                if (character != null)
-                {
-                    try
-                    {
-                        await DatabaseSystem.Instance.Game.Characters.UpsertAsync(character.ToRow());
-                    }
-                    catch (Exception ex)
-                    {
-                        GameLogger.Error("PlayerComponent", $"캐릭터 DB 저장 실패: {AccountId}", ex);
-                    }
-                }
-
-                try
-                {
-                    await DatabaseSystem.Instance.Game.Players.UpdateLogoutAsync(AccountId, logoutAt);
-                }
-                catch (Exception ex)
-                {
-                    GameLogger.Error("PlayerComponent", $"플레이어 로그아웃 DB 저장 실패: {AccountId}", ex);
-                }
-
-                DatabaseSystem.Instance.GameLog.LoginLogs.UpdateLogoutAsync(AccountId, logoutAt).FireAndForget("PlayerComponent");
-            }
+            await Save.SaveAsync(character, DateTime.UtcNow);
 
             // DB write 완료 후 Remove — PlayerSystem.WaitUntilEmptyAsync가 DB 동기화 완료를 정확히 감지하도록 보장
+            // (단, LoginLog.UpdateLogoutAsync는 FireAndForget으로 처리되어 완료 보장 범위 외)
             PlayerSystem.Instance.Remove(this);
         }
         catch (Exception ex)
@@ -206,6 +173,7 @@ public class PlayerComponent : BaseComponent
             Room      = null!;
             Character = null!;
             World     = null!;
+            Save      = null!;
         }
     }
 }
