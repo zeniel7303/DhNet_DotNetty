@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using Common.Logging;
 using Common.Server.Component;
-using GameServer.Component.Stage.Gem;
 using GameServer.Component.Stage.Monster;
 using GameServer.Component.Stage.Wave;
 using GameServer.Component.Stage.Weapons;
@@ -11,6 +10,15 @@ using GameServer.Protocol;
 using GameServer.Systems;
 
 namespace GameServer.Component.Stage;
+
+internal sealed class Gem
+{
+    public ulong Id       { get; private set; }
+    public float X        { get; private set; }
+    public float Y        { get; private set; }
+    public int   ExpValue { get; private set; }
+    internal void Reset(ulong id, float x, float y, int expValue) { Id = id; X = x; Y = y; ExpValue = expValue; }
+}
 
 /// <summary>
 /// 게임 진행 중 상태를 관리하는 컴포넌트. RoomComponent와 1:1로 생성된다.
@@ -25,11 +33,14 @@ public class StageComponent : BaseComponent
 {
     private static long _monsterIdSeq;
     private static ulong NextMonsterId() => (ulong)Interlocked.Increment(ref _monsterIdSeq);
+    private static long _gemIdSeq;
+    private static ulong NextGemId() => (ulong)Interlocked.Increment(ref _gemIdSeq);
 
     private readonly RoomComponent  _room;
     private readonly Dictionary<ulong, MonsterComponent> _monsters = new();
-    private readonly WaveComponent    _waveSpawner  = new();
-    private readonly GemComponent     _gemManager   = new();
+    private readonly Dictionary<ulong, Gem> _gems    = new();
+    private readonly Stack<Gem>             _gemPool = new();
+    private readonly WaveComponent    _waveSpawner   = new();
     private readonly WeaponComponent  _weaponManager = new();
     private readonly StageCombatHelper _combat;
 
@@ -48,7 +59,7 @@ public class StageComponent : BaseComponent
     public StageComponent(RoomComponent room)
     {
         _room   = room;
-        _combat = new StageCombatHelper(_monsters, _gemManager, _weaponManager, EndGame);
+        _combat = new StageCombatHelper(_monsters, SpawnGemAt, CollectNearbyGems, _weaponManager, EndGame);
     }
 
     // 플레이어 스폰 위치 — 맵 중앙 기준 (3200x2400)
@@ -70,7 +81,8 @@ public class StageComponent : BaseComponent
     /// </summary>
     public override void Initialize()
     {
-        _gemManager.Initialize();
+        foreach (var gem in _gems.Values) _gemPool.Push(gem);
+        _gems.Clear();
         _waveSpawner.Initialize();
         _weaponManager.Initialize();
 
@@ -375,6 +387,35 @@ public class StageComponent : BaseComponent
     // ──────────────────────────────────────────────────────────────
     // 내부 헬퍼 — Update() 단일 스레드에서 호출된다
     // ──────────────────────────────────────────────────────────────
+
+    private Gem SpawnGemAt(float x, float y, int expValue)
+    {
+        var gem = _gemPool.Count > 0 ? _gemPool.Pop() : new Gem();
+        gem.Reset(NextGemId(), x, y, expValue);
+        _gems[gem.Id] = gem;
+        return gem;
+    }
+
+    private List<(ulong Id, float X, float Y, int ExpValue)> CollectNearbyGems(float x, float y, float radiusBonus)
+    {
+        const float defaultPickupRadius = 50f;
+        float radius   = defaultPickupRadius + radiusBonus;
+        float radiusSq = radius * radius;
+        var result = new List<(ulong, float, float, int)>();
+        foreach (var gem in _gems.Values)
+        {
+            float dx = gem.X - x;
+            float dy = gem.Y - y;
+            if (dx * dx + dy * dy <= radiusSq)
+                result.Add((gem.Id, gem.X, gem.Y, gem.ExpValue));
+        }
+        foreach (var (id, _, _, _) in result)
+        {
+            _gemPool.Push(_gems[id]);
+            _gems.Remove(id);
+        }
+        return result;
+    }
 
     private void DoWaveSpawn(List<(MonsterType Type, float X, float Y)> spawns, List<GamePacket> pending)
     {
