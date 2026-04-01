@@ -379,6 +379,164 @@ SELECT가 불필요해졌고, `player_id` 생성기를 `account_id` 생성기로
 | 설정 하드코딩 | 포트/DB 등 변경마다 재빌드 필요 | `IConfiguration` — JSON / 환경변수 / CLI 오버라이드 계층 |
 | Connection String Injection | DB 설정 직접 문자열 보간 — 특수문자 포함 시 파싱 깨짐 | `MySqlConnectionStringBuilder` 사용 |
 
+### 2026-03-24 — HTML5 WebSocket 게임 클라이언트 + RPG 기반 구축
+
+**브라우저 기반 인게임 클라이언트를 추가하고 서버를 Vampire Survivors 스타일 RPG로 전환했다.**
+
+#### GameClient.Web 추가
+
+`protobufjs@7` CDN + WebSocket으로 서버에 바로 접속하는 HTML5 클라이언트를 구축했다.
+Canvas 2D로 맵/플레이어/몬스터를 렌더링하고, 로비 → 룸 → 인게임 화면 전환을 단일 HTML로 처리한다.
+
+#### 서버 RPG 기반 구성
+
+- **포트 분리**: TCP 7777(기존 로비/룸) 유지, WebSocket 7778 추가 (브라우저 전용)
+- **새 컴포넌트**: `PlayerCharacterComponent`(레벨/HP/ATK), `PlayerWorldComponent`(위치/이동), `MonsterComponent`(AI), `StageComponent`(웨이브/전투)
+- **게임 루프**: `StageComponent`가 100ms 틱에서 몬스터 AI, 웨이브 스포너, 무기 시스템을 순차 실행
+
+#### 패킷 큐 완화
+
+게임 입장 시 HP·위치 초기화 누락으로 클라이언트가 0좌표에서 시작하는 버그를 수정했다.
+이동/전투 패킷이 큐 제한에 걸려 드랍되는 문제는 `PacketPairPolicy` 허용치를 완화해 해결했다.
+
+---
+
+### 2026-03-25 — 뱀파이어 서바이벌 RPG 전면 개선
+
+**게임 플레이의 핵심 시스템(무기, 웨이브, AI, 렌더링)을 대대적으로 개선했다.**
+
+#### 서버 핵심 개선
+
+- **wrap-aware AI**: 맵 순환(3200×2400)에서 몬스터가 최단 경로로 플레이어를 추적하도록 dx/dy modulo 보정
+- **핫루프 최적화**: `MathF.Sqrt` 대신 거리 제곱 비교(`DistSq`), `volatile _hp`로 안전한 읽기
+- **웨이브 스포너 버그 수정**: `_elapsed += dt` 누적 오류 → `_elapsed -= WaveInterval`로 정확한 틱 처리
+- **무기 사거리 상한**: `MaxRangeSq = 400²` 추가, 투사체가 맵 밖으로 무한 진행하던 문제 차단
+- **구조 분리**: GemManager, WaveSpawner, WeaponSystem, Weapons를 StageComponent에서 분리
+
+#### 클라이언트 핵심 개선
+
+- **클라이언트 사이드 예측**: 로컬 키 입력을 즉시 렌더링, 50ms 스로틀로 서버 전송 빈도 제어
+- **Canvas 2D 프로시저럴 스프라이트**: 저작권 없는 직접 그린 스프라이트 9종(슬라임·오크·드래곤·박쥐·좀비·스켈레톤·유령·거대좀비·리퍼)
+- **lerpWrap()**: 맵 경계에서 몬스터가 순간이동하지 않도록 최단 방향 보간
+- **toScreen() wrap-aware**: 카메라 오프셋에 맵 순환 적용
+
+#### 골드 시스템 추가
+
+몬스터 처치 시 골드 드랍, 레벨업 선택지에 골드 관련 업그레이드 추가.
+인게임 스탯(HP·ATK·속도 등)을 세션별로 초기화하도록 정책 적용 — 전 게임 스탯 누적 버그 차단.
+
+#### 아키텍처 리팩토링 (Opus 리뷰 반영)
+
+`Component/Stage` 디렉토리 재구조화, 코드 컨벤션 정리, `BroadcastPacket` lock 이동으로 잠재적 데드락 제거.
+
+#### BCrypt 인증 전환 (Phase 3)
+
+`accounts.password_hash`에 BCrypt 해싱 적용 완료. Phase 2 "평문 저장" 상태가 해소됐다.
+`LoginProcessor`와 `RegisterProcessor` 두 곳만 수정됐다 — Phase 2 당시 교체 포인트를 최소화해둔 설계 덕분.
+username 미존재 시에도 dummy hash로 `BCrypt.Verify`를 실행해 Timing Attack 방어 유지.
+
+---
+
+### 2026-03-26 — 무기 다양화: 단검·도끼 + 레벨업 시스템
+
+**투사체 무기 2종을 추가하고 레벨업 선택지 큐 시스템을 구현했다.**
+
+#### 단검 (KnifeWeapon)
+
+`PlayerWorldComponent.FacingDirX/Y`(이동 방향) 기준으로 직선 투사체를 발사한다.
+`Move()` 호출 시 facing 방향이 갱신되며, 맵 순환 점프는 방향 갱신에서 제외한다.
+기존 마늘(GarlicWeapon) 대신 **기본 시작 무기**로 변경 — 첫 플레이 경험 개선.
+
+#### 도끼 (AxeWeapon)
+
+중력 포물선(`y(t) = y0 + velY*t + 0.5*1000*t²`) 투사체. 관통, 최대 5발 동시 유지.
+클라이언트에서 해석적 공식으로 동일하게 계산 → 서버 동기화 없이 부드러운 궤적 표현.
+
+#### 레벨업 선택지 큐
+
+레벨업이 연속으로 발생할 때 선택창이 유실되던 문제를 큐로 해결했다.
+HP·ATK·DEF·이동속도·경험치배율 5종 중 랜덤 3개를 제시한다.
+
+#### 클라이언트 버그 수정
+
+- 이동 중단 시 캐릭터 위치 싱크 깨짐: 마지막 이동 패킷 전송 후 서버 보정값 수신 타이밍 문제
+- `NotiCombat.weaponId` 필드 누락: proto-bundle.json 재생성으로 해결
+
+---
+
+### 2026-03-30 — 무기 3종 추가 + 히트박스 밸런싱
+
+**마법 지팡이·성경·십자가 무기를 추가하고 충돌 판정 정확도를 높였다.**
+
+#### 마법 지팡이 (WandWeapon)
+
+가장 가까운 적을 자동 조준하는 직선 투사체. 비관통. 기본 무기가 단검에서 **마법 지팡이**로 교체됐다.
+
+#### 성경 (BibleWeapon)
+
+플레이어 주위를 공전하는 오비탈 무기. 매 틱 `NotiOrbitalWeaponSync`로 각도를 동기화한다.
+다중 무기 인스턴스를 지원하도록 `orbitalWeaponList` 배열로 클라이언트 관리.
+
+#### 십자가 (CrossWeapon)
+
+sin 궤적 왕복 부메랑. `Lifetime(1.4s)` 절반 지점에서 귀환 페이즈로 전환, 전진·귀환 각 1회 관통.
+클라이언트에서 `sin(π*t/1.4)` 공식으로 동일 궤적 재현.
+
+#### 히트박스 밸런싱
+
+몬스터 종류마다 `HitRadius`를 개별 지정 (Bat=8f, Reaper=22f 등).
+단검 히트반경을 확대해 체감 명중률 개선.
+
+---
+
+### 2026-03-31 — 디렉토리 구조 정리 + 플레이어 비주얼
+
+서버 디렉토리 구조와 네이밍 컨벤션을 정리했다. `Component/Stage/` 하위 폴더 정렬, 파일명 일관성 확보.
+브라우저 클라이언트의 플레이어 캐릭터 이미지를 교체했다.
+
+---
+
+### 2026-04-01 — 서버 아키텍처 리팩토링 + 게임플레이 개선
+
+**4개 리팩토링으로 서버 구조를 정비하고, 도끼 비주얼·젬 흡수·50웨이브 스케일링을 구현했다.**
+
+#### RoomSystem 도입 + BaseComponent 상속 통일
+
+`StageComponent`의 `RunTickAsync/_cts/_tickTask` 자체 루프를 제거하고, `RoomSystem`(WorkerSystem)이 `RoomComponent.Update → StageComponent.Update`를 구동하도록 통일했다.
+Player/Stage/Monster 서브컴포넌트 전체가 `BaseComponent`를 상속하면서 생명주기가 일원화됐다.
+`LobbyComponent`가 `RoomComponent` 생명주기를 소유하는 책임 구조가 명확해졌다.
+
+#### PlayerSaveComponent 도입
+
+`PlayerComponent`에 혼재된 DB 저장 로직을 `PlayerSaveComponent`로 분리했다.
+`MarkDirty` 기반 지연 저장 패턴으로 불필요한 DB 쓰기를 줄였다.
+`AddGold`에서 `MarkDirty` 호출 누락 버그도 함께 수정됐다.
+
+#### StageComponent 전투/패킷 로직 분리
+
+`StageComponent`에 집중된 전투·브로드캐스트 로직을 `StageCombatHelper`와 `StageBroadcastHelper`로 추출했다.
+`StageComponent`는 틱 진입점·입력 큐·게임 종료 조건만 관리한다.
+
+#### Gem 객체 풀링 + GemComponent 인라인화
+
+`GemComponent`의 얇은 래퍼가 불필요한 GC 압박을 유발하고 있었다.
+`Gem` 내부 클래스로 인라인화하고 `Stack<Gem>` 풀로 재사용 — 젬 스폰/수집이 많은 후반 웨이브에서 GC 감소.
+
+#### 도끼 비주얼 개선
+
+🪓 이모지를 20px → **40px**로 2배 확대. 오른쪽 진행 시 `ctx.scale(-1, 1)`으로 방향 반전 적용.
+
+#### 경험치 젬 흡수 애니메이션
+
+`NotiGemCollect` 수신 시 젬을 즉시 삭제하는 대신, 클라이언트에서 600ms 동안 플레이어 위치로 ease-out 이동 애니메이션을 재생한다. `lerpWrap()` 기반으로 맵 순환 경계를 처리한다. 서버 추가 프로토콜 없이 클라이언트 독립 실행.
+
+#### 50웨이브 스케일링
+
+- **Reaper 최종 보스**: wave 50에만 등장 (기존 10의 배수마다 등장 → 클리어가 너무 빨랐음)
+- **몬스터 스탯 스케일링**: 웨이브마다 HP/ATK 8% 증가 (Wave 50 ≈ 4.9배)
+- **최대 몬스터**: 200 → **500**
+- **Ghost**: wave 6부터 등장 추가, Bat/Zombie 상한 증가
+
 ### 🧪 부하 테스트
 
 | 문제 | 원인 | 해결 |
