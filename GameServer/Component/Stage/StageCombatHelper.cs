@@ -1,4 +1,3 @@
-using GameServer.Component.Stage.Gem;
 using GameServer.Component.Stage.Monster;
 using GameServer.Component.Stage.Weapons;
 using GameServer.Component.Player;
@@ -12,19 +11,22 @@ namespace GameServer.Component.Stage;
 /// </summary>
 internal sealed class StageCombatHelper
 {
-    private readonly Dictionary<ulong, MonsterComponent> _monsters;
-    private readonly GemComponent                        _gemManager;
-    private readonly WeaponComponent                     _weaponManager;
-    private readonly Action<bool, List<GamePacket>>      _onEndGame;
+    private readonly Dictionary<ulong, MonsterComponent>  _monsters;
+    private readonly Func<float, float, int, Gem>                                    _spawnGem;
+    private readonly Func<float, float, float, List<(ulong Id, float X, float Y, int ExpValue)>> _collectNearby;
+    private readonly WeaponComponent                                                 _weaponManager;
+    private readonly Action<bool, List<GamePacket>>                                  _onEndGame;
 
     internal StageCombatHelper(
         Dictionary<ulong, MonsterComponent> monsters,
-        GemComponent gemManager,
+        Func<float, float, int, Gem> spawnGem,
+        Func<float, float, float, List<(ulong Id, float X, float Y, int ExpValue)>> collectNearby,
         WeaponComponent weaponManager,
         Action<bool, List<GamePacket>> onEndGame)
     {
         _monsters      = monsters;
-        _gemManager    = gemManager;
+        _spawnGem      = spawnGem;
+        _collectNearby = collectNearby;
         _weaponManager = weaponManager;
         _onEndGame     = onEndGame;
     }
@@ -55,7 +57,7 @@ internal sealed class StageCombatHelper
     /// <summary>몬스터 사망 시 젬을 스폰하고 NotiGemSpawn을 pending에 추가한다.</summary>
     internal void SpawnGem(float x, float y, int expValue, List<GamePacket> pending)
     {
-        var gem = _gemManager.Spawn(x, y, expValue);
+        var gem = _spawnGem(x, y, expValue);
         pending.Add(new GamePacket
         {
             NotiGemSpawn = new NotiGemSpawn { GemId = gem.Id, X = gem.X, Y = gem.Y, ExpValue = gem.ExpValue }
@@ -65,16 +67,16 @@ internal sealed class StageCombatHelper
     /// <summary>이동 후 주변 젬을 자동 수집하고 EXP·레벨업·무기선택을 처리한다.</summary>
     internal void CollectGems(PlayerComponent player, List<GamePacket> pending)
     {
-        var collected = _gemManager.CollectNearby(player.World.X, player.World.Y, player.Character.ExpRadiusBonus);
-        foreach (var gem in collected)
+        var collected = _collectNearby(player.World.X, player.World.Y, player.Character.ExpRadiusBonus);
+        foreach (var (id, _, _, expValue) in collected)
         {
-            int expGained = (int)(gem.ExpValue * player.Character.ExpMultiplier);
+            int expGained = (int)(expValue * player.Character.ExpMultiplier);
             int levelUps  = player.Character.GainExp(expGained);
             pending.Add(new GamePacket
             {
                 NotiGemCollect = new NotiGemCollect
                 {
-                    GemId = gem.Id, PlayerId = player.AccountId, ExpGained = gem.ExpValue
+                    GemId = id, PlayerId = player.AccountId, ExpGained = expValue
                 }
             });
             _ = player.Session.SendAsync(new GamePacket
