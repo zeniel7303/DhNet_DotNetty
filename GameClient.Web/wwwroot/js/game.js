@@ -38,6 +38,7 @@ let   currentRoomId = '0';
 const gamePlayers      = new Map(); // playerId(string) → { id, name, x, y, hp, maxHp, level, alive }
 const gameMonsters     = new Map(); // monsterId(string) → { id, type, x, y, hp, maxHp, alive }
 const gameGems         = new Map(); // gemId(string) → { id, x, y, expValue, spawnTime }
+const absorbingGems    = [];        // 흡수 이동 중인 젬 { startX, startY, targetId, startTime }
 const effects          = [];        // 이펙트 { type, ... }
 const activeProjectiles = new Map(); // projectileId(string) → { id, x, y, velX, velY, spawnTime, ownerId, weaponId }
 let   orbitalWeaponList = [];        // [{ ownerId, weaponId, angle, lastUpdate }, …] — 다중 도끼 지원
@@ -655,7 +656,7 @@ function onNotiReadyGame(noti) {
 
 function onNotiGameStart() {
   gamePlayers.clear();
-  gameMonsters.clear(); gameGems.clear();
+  gameMonsters.clear(); gameGems.clear(); absorbingGems.length = 0;
   activeProjectiles.clear(); orbitalWeaponList = [];
   // ResEnterGame이 뒤따라오면 거기서 showScreen('game')
 }
@@ -697,7 +698,7 @@ function exitRoom() {
 // ─────────────────────────────────────────────────────
 function onResEnterGame(res) {
   gamePlayers.clear();
-  gameMonsters.clear(); gameGems.clear();
+  gameMonsters.clear(); gameGems.clear(); absorbingGems.length = 0;
 
   (res.players || []).forEach(p => {
     const pid = toId(p.playerId);
@@ -840,10 +841,13 @@ function onNotiGemSpawn(noti) {
 }
 
 function onNotiGemCollect(noti) {
-  gameGems.delete(toId(noti.gemId));
-  // 수집 이펙트 — 젬 위치 → 플레이어 위치
-  const p = gamePlayers.get(toId(noti.playerId));
-  if (p) spawnEffect(noti.x ?? p.x, noti.y ?? p.y, p.x, p.y, '#f1c40f', 300);
+  const gid = toId(noti.gemId);
+  const gem = gameGems.get(gid);
+  gameGems.delete(gid);
+  // 젬 흡수 이동 애니메이션 — 서버와 느슨한 동기화
+  if (gem) {
+    absorbingGems.push({ startX: gem.x, startY: gem.y, targetId: toId(noti.playerId), startTime: performance.now() });
+  }
 }
 
 // 배치 몬스터 이동 — 서버 100ms 틱에서 수신. 목표 위치를 lerp 타깃으로 설정.
@@ -1045,7 +1049,8 @@ function drawProjectile(ctx, proj, cam) {
     ctx.save();
     ctx.translate(s.x, s.y);
     ctx.rotate(angle);
-    ctx.font         = '20px serif';
+    if (proj.velX > 0) ctx.scale(-1, 1); // 오른쪽 진행 시 좌우 반전 (🪓 이모지 방향 보정)
+    ctx.font         = '40px serif';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('🪓', 0, 0);
@@ -1195,6 +1200,7 @@ function render() {
   ctx.strokeRect(-cam.x, -cam.y, MAP_W, MAP_H);
 
   gameGems.forEach(g      => drawGem(ctx, g, cam));
+  drawAbsorbingGems(ctx, cam);
   gameMonsters.forEach(m  => drawMonster(ctx, m, cam));
   gamePlayers.forEach(p   => drawPlayer(ctx, p, cam));
   orbitalWeaponList.forEach(o => drawOrbitalWeapon(ctx, o, cam));
@@ -1394,6 +1400,35 @@ function drawGem(ctx, g, cam) {
   ctx.restore();
 }
 
+// 젬 흡수 이동 애니메이션 — 서버와 빡빡한 동기화 없이 클라이언트 독립 실행
+function drawAbsorbingGems(ctx, cam) {
+  const ABSORB_MS = 600;
+  const now = performance.now();
+  for (let i = absorbingGems.length - 1; i >= 0; i--) {
+    const ag = absorbingGems[i];
+    const t  = Math.min(1, (now - ag.startTime) / ABSORB_MS);
+    if (t >= 1) { absorbingGems.splice(i, 1); continue; }
+    const target = gamePlayers.get(ag.targetId);
+    const tx = target ? target.x : ag.startX;
+    const ty = target ? target.y : ag.startY;
+    const et = t * (2 - t); // ease-out
+    const wx = lerpWrap(ag.startX, tx, et, MAP_W);
+    const wy = lerpWrap(ag.startY, ty, et, MAP_H);
+    const s  = toScreen(wx, wy, cam);
+    const sz = Math.round(18 * (1 - t * 0.5));
+    ctx.save();
+    ctx.globalAlpha  = 1 - t * 0.8;
+    ctx.shadowColor  = '#f1c40f';
+    ctx.shadowBlur   = 8;
+    ctx.font         = `${sz}px serif`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('💎', s.x, s.y);
+    ctx.globalAlpha  = 1;
+    ctx.restore();
+  }
+}
+
 // 맵 순환을 고려한 lerp — 절반 맵 기준 최단 방향으로 보간
 function lerpWrap(from, to, t, mapSize) {
   let delta = to - from;
@@ -1566,7 +1601,7 @@ function backToLobby() {
   send({ reqRoomExit: {} });
   currentRoomId = '0';
   gamePlayers.clear();
-  gameMonsters.clear(); gameGems.clear();
+  gameMonsters.clear(); gameGems.clear(); absorbingGems.length = 0;
   showScreen('lobby');
   requestLobbyRoomList();
 }

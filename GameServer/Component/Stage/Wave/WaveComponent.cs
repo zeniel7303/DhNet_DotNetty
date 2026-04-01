@@ -13,7 +13,7 @@ public class WaveComponent : BaseComponent
     private const float MapWidth    = 3200f;
     private const float MapHeight   = 2400f;
     private const float SpawnMargin = 40f;
-    private const int   MaxMonsters = 200;
+    private const int   MaxMonsters = 500;
 
     public int WaveNumber { get; private set; }
 
@@ -45,12 +45,13 @@ public class WaveComponent : BaseComponent
         int zombieCount = 5 + overage;
         var list = new List<(MonsterType, int)>
         {
-            (MonsterType.Bat,      Math.Min(batCount, 30)),
-            (MonsterType.Zombie,   Math.Min(zombieCount, 15)),
+            (MonsterType.Bat,      Math.Min(batCount, 40)),
+            (MonsterType.Zombie,   Math.Min(zombieCount, 20)),
             (MonsterType.Skeleton, 3 + overage / 2),
         };
+        if (overage >= 5) list.Add((MonsterType.Ghost, 2 + overage / 5));
         if (waveNumber % 5  == 0) list.Add((MonsterType.GiantZombie, 1 + overage / 5));
-        if (waveNumber % 10 == 0) list.Add((MonsterType.Reaper, 1));
+        if (waveNumber == 50) list.Add((MonsterType.Reaper, 1)); // 최종 보스: 50웨이브에만 등장
         return [.. list];
     }
 

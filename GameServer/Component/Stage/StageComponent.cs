@@ -421,7 +421,7 @@ public class StageComponent : BaseComponent
     {
         foreach (var (type, x, y) in spawns)
         {
-            var m = new MonsterComponent(NextMonsterId(), type, x, y);
+            var m = new MonsterComponent(NextMonsterId(), type, x, y, _waveSpawner.WaveNumber);
             _monsters[m.MonsterId] = m;
             pending.Add(new GamePacket
             {

@@ -61,7 +61,7 @@ public class MonsterComponent : BaseComponent
     /// <summary>Update() 이후 이번 틱 이동 여부.</summary>
     public bool WasMoved { get; private set; }
 
-    public MonsterComponent(ulong monsterId, MonsterType type, float x, float y)
+    public MonsterComponent(ulong monsterId, MonsterType type, float x, float y, int waveNumber = 1)
     {
         MonsterId = monsterId;
         Type      = type;
@@ -84,6 +84,14 @@ public class MonsterComponent : BaseComponent
             MonsterType.Reaper      => (500,  50, 10,  100, 100,  80f,  72f,  0f,  1.5f, 22f),
             _                       => (50,   10,  0,   20,   2,  60f,  40f, 10f,  3.0f, 12f),
         };
+
+        // 웨이브 기반 스탯 스케일링: wave 1 = 1.0x, wave 50 ≈ 4.9x (HP/ATK만 적용)
+        if (waveNumber > 1)
+        {
+            float mult = 1f + (waveNumber - 1) * 0.08f;
+            MaxHp = (int)(MaxHp * mult);
+            Atk   = (int)(Atk   * mult);
+        }
 
         _hp = MaxHp;
     }
