@@ -184,6 +184,9 @@ public class RoomComponent : BaseComponent
         _readyState.TryRemove(player.AccountId, out _);
         var shouldClose = TryReleaseAndClose();
 
+        // 게임 중 퇴장 시 무기 시스템에서 제거 (inputQueue 경유 — 스레드 안전)
+        Stage?.UnregisterPlayer(player);
+
         // PlayerRoomComponent.Exit/Disconnect → PlayerComponent 워커 스레드에서 호출
         player.Room.CurrentRoom = null;
 

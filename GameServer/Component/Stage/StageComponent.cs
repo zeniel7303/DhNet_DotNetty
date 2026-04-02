@@ -289,9 +289,11 @@ public class StageComponent : BaseComponent
             _weaponManager.Players = alivePlayers;
             _weaponManager.Monsters = _monsters.Values;
             _weaponManager.Update(dt);
+            // attacker 조회를 O(1)으로 처리하기 위해 Dictionary 캐시 (LastHits 수 × 플레이어 수 O(n²) 방지)
+            var attackerMap = alivePlayers.ToDictionary(p => p.AccountId);
             foreach (var (attackerId, monsterId, dmg, wid, pushX, pushY, projectileId) in _weaponManager.LastHits)
                 _combat.ApplyWeaponHit(
-                    alivePlayers.FirstOrDefault(p => p.AccountId == attackerId),
+                    attackerMap.GetValueOrDefault(attackerId),
                     monsterId, dmg, wid, pushX, pushY, projectileId, _pending);
             _pending.AddRange(_weaponManager.LastPackets);
 
@@ -372,6 +374,15 @@ public class StageComponent : BaseComponent
     {
         if (_endedFlag == 1) return;
         _inputQueue.Enqueue(_ => _weaponManager.ApplyChoice(player, weaponId));
+    }
+
+    /// <summary>
+    /// 게임 중 플레이어 퇴장 시 무기 등록 해제.
+    /// RoomComponent.Leave()에서 호출 — inputQueue를 통해 Update() 단일 스레드에서 처리.
+    /// </summary>
+    public void UnregisterPlayer(PlayerComponent player)
+    {
+        _inputQueue.Enqueue(_ => _weaponManager.Unregister(player.AccountId));
     }
 
     // ProcessChat은 게임 상태를 수정하지 않으므로 큐 없이 직접 브로드캐스트
