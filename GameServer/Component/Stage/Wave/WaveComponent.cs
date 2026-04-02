@@ -47,9 +47,9 @@ public class WaveComponent : BaseComponent
         {
             (MonsterType.Bat,      Math.Min(batCount, 40)),
             (MonsterType.Zombie,   Math.Min(zombieCount, 20)),
-            (MonsterType.Skeleton, 3 + overage / 2),
+            (MonsterType.Skeleton, Math.Min(3 + overage / 2, 15)),
         };
-        if (overage >= 5) list.Add((MonsterType.Ghost, 2 + overage / 5));
+        if (overage >= 5) list.Add((MonsterType.Ghost, Math.Min(2 + overage / 5, 10)));
         if (waveNumber % 5  == 0) list.Add((MonsterType.GiantZombie, 1 + overage / 5));
         if (waveNumber == 50) list.Add((MonsterType.Reaper, 1)); // 최종 보스: 50웨이브에만 등장
         return [.. list];
