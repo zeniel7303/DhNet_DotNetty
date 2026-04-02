@@ -16,8 +16,13 @@ public class PlayerWorldComponent : BaseComponent
     public float FacingDirX { get; private set; } = 1f;
     public float FacingDirY { get; private set; } = 0f;
 
+    // 공격 쿨다운 — dt 누산이 아닌 DateTime.UtcNow 기반으로 측정한다.
+    // 이유: CanAttack()은 Stage 틱 스레드에서, ResetAttackCooldown()은 같은 틱 스레드에서 호출되지만
+    //       dt 누산이면 PlayerComponent 워커 스레드(Update)에서도 _attackElapsed를 써야 한다.
+    //       두 스레드가 float 필드를 공유하면 volatile + 비원자적 += dt 문제가 발생하므로,
+    //       읽기 전용인 DateTime.UtcNow 방식으로 스레드 간 공유 상태 자체를 없앤다.
     private DateTime _lastAttackAt = DateTime.MinValue;
-    private const float AttackCooldownSec = 0.3f;
+    private static readonly TimeSpan AttackCooldown = TimeSpan.FromSeconds(0.3);
 
     public void SetPosition(float x, float y)
     {
@@ -50,11 +55,9 @@ public class PlayerWorldComponent : BaseComponent
         Y = ((y % MapH) + MapH) % MapH;
     }
 
-    public bool CanAttack()
-        => (DateTime.UtcNow - _lastAttackAt).TotalSeconds >= AttackCooldownSec;
+    public bool CanAttack() => DateTime.UtcNow - _lastAttackAt >= AttackCooldown;
 
-    public void ResetAttackCooldown()
-        => _lastAttackAt = DateTime.UtcNow;
+    public void ResetAttackCooldown() => _lastAttackAt = DateTime.UtcNow;
 
     public void IncreaseSpeed(float amount) => MoveSpeed = Math.Min(MoveSpeed + amount, 350f);
 }
