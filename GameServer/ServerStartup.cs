@@ -2,6 +2,7 @@ using Common;
 using Common.Logging;
 using GameServer.Database;
 using GameServer.Network;
+using GameServer.Resources;
 using GameServer.Systems;
 using GameServer.Web;
 using Microsoft.Extensions.Configuration;
@@ -26,6 +27,10 @@ internal static class ServerStartup
         IdGenerators.Room.Initialize(dbResult.MaxRoomId);
         GameLogger.Info("Server", $"IdGenerators 초기화: Account={dbResult.MaxAccountId}, Room={dbResult.MaxRoomId}");
 
+        var resourceDir = FindResourceDir();
+        GameDataTable.Load(resourceDir);
+        GameLogger.Info("Server", $"GameDataTable 로드 완료: 몬스터 {GameDataTable.Monsters.Count}종, 무기 {GameDataTable.Weapons.Count}종, 웨이브 {GameDataTable.Waves.Length}개");
+
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) =>
         {
@@ -49,5 +54,21 @@ internal static class ServerStartup
 
         GameLogger.Info("Server", "[Shutdown] 완료.");
         await GameLogger.FlushAsync();
+    }
+
+    /// <summary>
+    /// 솔루션 루트의 Bin/resources/ 를 우선 사용한다.
+    /// 못 찾으면 실행 파일 옆 Resources/ 로 폴백 (Docker 등 배포 환경).
+    /// </summary>
+    private static string FindResourceDir()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null)
+        {
+            if (dir.GetFiles("*.sln").Length > 0)
+                return Path.Combine(dir.FullName, "Bin", "resources");
+            dir = dir.Parent;
+        }
+        return Path.Combine(AppContext.BaseDirectory, "Resources");
     }
 }

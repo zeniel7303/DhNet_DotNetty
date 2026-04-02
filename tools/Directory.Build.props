@@ -1,0 +1,6 @@
+<Project>
+  <!-- tools/ 하위 프로젝트는 루트 Directory.Build.props의 출력 경로 재정의를 상속하지 않는다. -->
+  <PropertyGroup>
+    <OutputPath>bin\$(Configuration)\$(TargetFramework)\</OutputPath>
+  </PropertyGroup>
+</Project>

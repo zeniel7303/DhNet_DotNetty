@@ -1,0 +1,50 @@
+{
+  "Garlic": {
+    "displayName": "\uB9C8\uB298",
+    "damage": 5,
+    "cooldownSec": 1,
+    "upgradeMultDamage": 1.20000004768372,
+    "upgradeMultCooldown": 0.899999976158142,
+    "cooldownMin": 0.300000011920929
+  },
+  "Wand": {
+    "displayName": "\uB9C8\uBC95 \uC9C0\uD321\uC774",
+    "damage": 15,
+    "cooldownSec": 1,
+    "upgradeMultDamage": 1.20000004768372,
+    "upgradeMultCooldown": 0.899999976158142,
+    "cooldownMin": 0.300000011920929
+  },
+  "Bible": {
+    "displayName": "\uC131\uACBD",
+    "damage": 20,
+    "cooldownSec": 0,
+    "upgradeMultDamage": 1.20000004768372,
+    "upgradeMultCooldown": 0.899999976158142,
+    "cooldownMin": 0.300000011920929
+  },
+  "Axe": {
+    "displayName": "\uB3C4\uB07C",
+    "damage": 25,
+    "cooldownSec": 1.5,
+    "upgradeMultDamage": 1.20000004768372,
+    "upgradeMultCooldown": 0.899999976158142,
+    "cooldownMin": 0.300000011920929
+  },
+  "Knife": {
+    "displayName": "\uB2E8\uAC80",
+    "damage": 18,
+    "cooldownSec": 0.800000011920929,
+    "upgradeMultDamage": 1.20000004768372,
+    "upgradeMultCooldown": 0.899999976158142,
+    "cooldownMin": 0.300000011920929
+  },
+  "Cross": {
+    "displayName": "\uC2ED\uC790\uAC00",
+    "damage": 30,
+    "cooldownSec": 2,
+    "upgradeMultDamage": 1.20000004768372,
+    "upgradeMultCooldown": 0.899999976158142,
+    "cooldownMin": 0.300000011920929
+  }
+}

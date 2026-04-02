@@ -1,4 +1,5 @@
 using Common.Server.Component;
+using GameServer.Resources;
 
 namespace GameServer.Component.Stage.Monster;
 
@@ -70,20 +71,19 @@ public class MonsterComponent : BaseComponent
         TargetX   = x;
         TargetY   = y;
 
-        // (MaxHp, Atk, Def, ExpReward, GoldReward, Speed, AttackRange, _respawnDelay, _attackInterval, HitRadius)
-        (MaxHp, Atk, Def, ExpReward, GoldReward, Speed, AttackRange, _respawnDelay, _attackInterval, HitRadius) = type switch
-        {
-            MonsterType.Slime       => (50,   10,  0,   20,   2,  60f,  40f, 10f,  3.0f, 12f),
-            MonsterType.Orc         => (150,  18,  3,   50,   5,  40f,  48f, 20f,  2.5f, 18f),
-            MonsterType.Dragon      => (300,  20,  5,  500,  50,  30f,  64f,  0f,  2.0f, 28f),
-            MonsterType.Bat         => (10,    5,  0,    1,   1, 120f,  32f, 8f,   1.5f,  8f),
-            MonsterType.Zombie      => (50,    8,  0,    3,   2,  40f,  40f, 15f,  2.0f, 14f),
-            MonsterType.Skeleton    => (80,   12,  2,    5,   3,  60f,  44f, 18f,  2.0f, 13f),
-            MonsterType.Ghost       => (60,   10,  0,    8,   4, 100f,  36f, 12f,  1.8f, 12f),
-            MonsterType.GiantZombie => (300,  30,  5,   20,  15,  25f,  56f, 30f,  3.0f, 30f),
-            MonsterType.Reaper      => (500,  50, 10,  100, 100,  80f,  72f,  0f,  1.5f, 22f),
-            _                       => (50,   10,  0,   20,   2,  60f,  40f, 10f,  3.0f, 12f),
-        };
+        if (!GameDataTable.Monsters.TryGetValue(type.ToString(), out var stat))
+            throw new InvalidOperationException($"MonsterType '{type}'을(를) GameDataTable에서 찾을 수 없습니다. monsters.json을 확인하세요.");
+
+        MaxHp           = stat.MaxHp;
+        Atk             = stat.Atk;
+        Def             = stat.Def;
+        ExpReward       = stat.ExpReward;
+        GoldReward      = stat.GoldReward;
+        Speed           = stat.Speed;
+        AttackRange     = stat.AttackRange;
+        HitRadius       = stat.HitRadius;
+        _respawnDelay   = stat.RespawnDelay;
+        _attackInterval = stat.AttackInterval;
 
         // 웨이브 기반 스탯 스케일링: wave 1 = 1.0x, wave 50 ≈ 4.9x (HP/ATK만 적용)
         if (waveNumber > 1)

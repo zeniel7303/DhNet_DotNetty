@@ -1,5 +1,6 @@
 using GameServer.Component.Stage.Monster;
 using GameServer.Protocol;
+using GameServer.Resources;
 
 namespace GameServer.Component.Stage.Weapons;
 
@@ -64,8 +65,11 @@ public abstract class WeaponBase
 
     protected virtual void OnUpgrade()
     {
-        Damage      = (int)(Damage * 1.2f);
-        CooldownSec = MathF.Max(0.3f, CooldownSec * 0.9f);
+        if (!GameDataTable.Weapons.TryGetValue(Id.ToString(), out var stat))
+            throw new InvalidOperationException(
+                $"WeaponId '{Id}'을(를) GameDataTable에서 찾을 수 없습니다. weapons.json을 확인하세요.");
+        Damage      = (int)(Damage * stat.UpgradeMultDamage);
+        CooldownSec = MathF.Max(stat.CooldownMin, CooldownSec * stat.UpgradeMultCooldown);
     }
 
     // 투사체 위치 계산 시 맵 경계 처리에 사용
