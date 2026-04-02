@@ -213,6 +213,9 @@ public class WeaponComponent : BaseComponent
 
     public void ApplyChoice(PlayerComponent player, int choiceId)
     {
+        // 레벨업 선택 대기 중이 아니면 처리 거부 — 악의적 ReqChooseWeapon 스팸 방지
+        if (!_waitingForChoice.Contains(player.AccountId)) return;
+
         if (choiceId >= 100)
         {
             ApplyStatUpgrade(player, (StatUpgradeId)choiceId);
