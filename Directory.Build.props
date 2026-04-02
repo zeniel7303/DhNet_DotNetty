@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    모든 메인 프로젝트의 빌드 출력을 Bin/output/{Configuration}/{ProjectName}/ 으로 리디렉트.
+    tools/ 하위 프로젝트는 tools/Directory.Build.props에서 재정의함.
+  -->
+  <PropertyGroup>
+    <SolutionRoot>$(MSBuildThisFileDirectory)</SolutionRoot>
+    <OutputPath>$(SolutionRoot)Bin\output\$(Configuration)\$(MSBuildProjectName)\</OutputPath>
+  </PropertyGroup>
+</Project>

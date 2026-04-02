@@ -1,5 +1,7 @@
+using Common.Logging;
 using Common.Server.Component;
 using GameServer.Component.Stage.Monster;
+using GameServer.Resources;
 
 namespace GameServer.Component.Stage.Wave;
 
@@ -24,23 +26,26 @@ public class WaveComponent : BaseComponent
     public List<(MonsterType Type, float X, float Y)>? LastSpawns { get; private set; }
 
     private float _elapsed;
-    private const float WaveInterval = 8f;
-
-    private static readonly (MonsterType Type, int Count)[][] WaveTable =
-    [
-        /* Wave 1 */ [(MonsterType.Bat,   5), (MonsterType.Zombie,  3)],
-        /* Wave 2 */ [(MonsterType.Bat,   8), (MonsterType.Skeleton, 3)],
-        /* Wave 3 */ [(MonsterType.Zombie,6), (MonsterType.Ghost,    3)],
-        /* Wave 4 */ [(MonsterType.Bat,  10), (MonsterType.Zombie,   5), (MonsterType.Skeleton, 3)],
-        /* Wave 5 */ [(MonsterType.Skeleton,5),(MonsterType.Ghost,   5), (MonsterType.GiantZombie, 1)],
-    ];
 
     private static (MonsterType Type, int Count)[] GetWaveEntries(int waveNumber)
     {
-        if (waveNumber <= WaveTable.Length)
-            return WaveTable[waveNumber - 1];
+        var waves = GameDataTable.Waves;
+        if (waveNumber <= waves.Length)
+        {
+            var result = new List<(MonsterType, int)>();
+            foreach (var e in waves[waveNumber - 1])
+            {
+                if (!Enum.TryParse<MonsterType>(e.MonsterType, ignoreCase: true, out var mt))
+                {
+                    GameLogger.Warn("Wave", $"알 수 없는 MonsterType '{e.MonsterType}' — 웨이브 {waveNumber} 항목 무시. waves.json을 확인하세요.");
+                    continue;
+                }
+                result.Add((mt, e.Count));
+            }
+            return result.ToArray();
+        }
 
-        int overage     = waveNumber - WaveTable.Length;
+        int overage     = waveNumber - waves.Length;
         int batCount    = 8 + overage * 2;
         int zombieCount = 5 + overage;
         var list = new List<(MonsterType, int)>
@@ -74,9 +79,9 @@ public class WaveComponent : BaseComponent
         LastSpawns = null;
 
         _elapsed += dt;
-        if (_elapsed < WaveInterval) return;
+        if (_elapsed < GameDataTable.WaveInterval) return;
 
-        _elapsed -= WaveInterval;
+        _elapsed -= GameDataTable.WaveInterval;
         WaveNumber++;
 
         var entries   = GetWaveEntries(WaveNumber);

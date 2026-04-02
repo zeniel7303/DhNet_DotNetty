@@ -30,6 +30,9 @@
         <None Update="appsettings.*.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <Content Include="Resources\*.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
 
     <ItemGroup>
@@ -37,6 +40,7 @@
         <ProjectReference Include="..\Common.Server\Common.Server.csproj" />
         <ProjectReference Include="..\GameServer.Protocol\GameServer.Protocol.csproj" />
         <ProjectReference Include="..\GameServer.Database\GameServer.Database.csproj" />
+        <ProjectReference Include="..\GameServer.Resources\GameServer.Resources.csproj" />
     </ItemGroup>
 
 </Project>

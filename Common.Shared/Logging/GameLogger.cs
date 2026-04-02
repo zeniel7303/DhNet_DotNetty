@@ -164,11 +164,11 @@ public static class GameLogger
         {
             if (dir.GetFiles("*.sln").Length > 0)
             {
-                return Path.Combine(dir.FullName, "log");
+                return Path.Combine(dir.FullName, "Bin", "logs");
             }
             dir = dir.Parent;
         }
-        // 솔루션을 못 찾으면 실행 파일 옆에 log/ 생성
-        return Path.Combine(AppContext.BaseDirectory, "log");
+        // 솔루션을 못 찾으면 실행 파일 옆에 Bin/logs/ 생성
+        return Path.Combine(AppContext.BaseDirectory, "Bin", "logs");
     }
 }

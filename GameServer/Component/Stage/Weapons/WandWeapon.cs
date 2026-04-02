@@ -1,5 +1,6 @@
 using GameServer.Component.Stage.Monster;
 using GameServer.Protocol;
+using GameServer.Resources;
 
 namespace GameServer.Component.Stage.Weapons;
 
@@ -34,8 +35,9 @@ public class WandWeapon : WeaponBase
 
     public WandWeapon() : base(WeaponId.Wand)
     {
-        Damage      = 15;
-        CooldownSec = 1.0f;
+        var stat    = GameDataTable.Weapons[Id.ToString()];
+        Damage      = stat.Damage;
+        CooldownSec = stat.CooldownSec;
     }
 
     public override List<WeaponHit> Tick(

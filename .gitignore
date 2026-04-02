@@ -1,6 +1,10 @@
 # Build outputs
 bin/
 obj/
+Bin/output/
+
+# Logs (Bin/logs/ 내 로그 파일 제외, 폴더는 유지)
+Bin/logs/*.log
 
 # IDE
 .vs/

@@ -1,5 +1,6 @@
 using GameServer.Component.Stage.Monster;
 using GameServer.Protocol;
+using GameServer.Resources;
 
 namespace GameServer.Component.Stage.Weapons;
 
@@ -39,8 +40,9 @@ public class KnifeWeapon : WeaponBase
 
     public KnifeWeapon() : base(WeaponId.Knife)
     {
-        Damage      = 18;
-        CooldownSec = 0.8f;
+        var stat    = GameDataTable.Weapons[Id.ToString()];
+        Damage      = stat.Damage;
+        CooldownSec = stat.CooldownSec;
     }
 
     public override List<WeaponHit> Tick(

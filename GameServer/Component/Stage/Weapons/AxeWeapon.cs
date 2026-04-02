@@ -1,5 +1,6 @@
 using GameServer.Component.Stage.Monster;
 using GameServer.Protocol;
+using GameServer.Resources;
 
 namespace GameServer.Component.Stage.Weapons;
 
@@ -41,8 +42,9 @@ public class AxeWeapon : WeaponBase
 
     public AxeWeapon() : base(WeaponId.Axe)
     {
-        Damage      = 25;
-        CooldownSec = 1.5f;
+        var stat    = GameDataTable.Weapons[Id.ToString()];
+        Damage      = stat.Damage;
+        CooldownSec = stat.CooldownSec;
     }
 
     public override List<WeaponHit> Tick(

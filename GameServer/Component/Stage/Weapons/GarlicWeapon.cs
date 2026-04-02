@@ -1,4 +1,5 @@
 using GameServer.Component.Stage.Monster;
+using GameServer.Resources;
 
 namespace GameServer.Component.Stage.Weapons;
 
@@ -13,8 +14,9 @@ public class GarlicWeapon : WeaponBase
 
     public GarlicWeapon() : base(WeaponId.Garlic)
     {
-        Damage      = 5;
-        CooldownSec = 1.0f;
+        var stat    = GameDataTable.Weapons[Id.ToString()];
+        Damage      = stat.Damage;
+        CooldownSec = stat.CooldownSec;
     }
 
     protected override List<WeaponHit> TryAttack(

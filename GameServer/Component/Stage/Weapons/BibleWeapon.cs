@@ -1,4 +1,5 @@
 using GameServer.Component.Stage.Monster;
+using GameServer.Resources;
 
 namespace GameServer.Component.Stage.Weapons;
 
@@ -24,8 +25,9 @@ public class BibleWeapon : WeaponBase
 
     public BibleWeapon() : base(WeaponId.Bible)
     {
-        Damage      = 20;
-        CooldownSec = 0f;
+        var stat    = GameDataTable.Weapons[Id.ToString()];
+        Damage      = stat.Damage;
+        CooldownSec = stat.CooldownSec;
     }
 
     public override List<WeaponHit> Tick(
@@ -76,7 +78,12 @@ public class BibleWeapon : WeaponBase
         if (Level % 2 == 1)
             AddBible();
         else
-            Damage = (int)(Damage * 1.2f);
+        {
+            if (!GameDataTable.Weapons.TryGetValue(Id.ToString(), out var stat))
+                throw new InvalidOperationException(
+                    $"WeaponId '{Id}'을(를) GameDataTable에서 찾을 수 없습니다. weapons.json을 확인하세요.");
+            Damage = (int)(Damage * stat.UpgradeMultDamage);
+        }
     }
 
     private void AddBible()

@@ -1,5 +1,6 @@
 using GameServer.Component.Stage.Monster;
 using GameServer.Protocol;
+using GameServer.Resources;
 
 namespace GameServer.Component.Stage.Weapons;
 
@@ -47,8 +48,9 @@ public class CrossWeapon : WeaponBase
 
     public CrossWeapon() : base(WeaponId.Cross)
     {
-        Damage      = 30;
-        CooldownSec = 2.0f;
+        var stat    = GameDataTable.Weapons[Id.ToString()];
+        Damage      = stat.Damage;
+        CooldownSec = stat.CooldownSec;
     }
 
     public override List<WeaponHit> Tick(
