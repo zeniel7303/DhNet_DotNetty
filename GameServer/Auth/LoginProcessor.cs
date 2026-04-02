@@ -165,7 +165,13 @@ internal static class LoginProcessor
         }
         catch (Exception ex)
         {
-            GameLogger.Warn("Login", $"캐릭터 로드 실패 — 기본값 사용: {player.Name} ({ex.Message})");
+            GameLogger.Error("Login", $"캐릭터 로드 실패 — 로그인 거부: {player.Name}", ex);
+            await session.SendAsync(new GamePacket
+            {
+                ResLogin = new ResLogin { ErrorCode = ErrorCode.DbError }
+            });
+            player.DisconnectForNextTick();
+            return;
         }
 
         GameLogger.Info("Login", $"로그인 성공: {player.Name} (Id={player.AccountId})");
