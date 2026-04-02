@@ -74,10 +74,7 @@ internal sealed class StageCombatHelper
             int levelUps  = player.Character.GainExp(expGained);
             pending.Add(new GamePacket
             {
-                NotiGemCollect = new NotiGemCollect
-                {
-                    GemId = id, PlayerId = player.AccountId, ExpGained = expValue
-                }
+                NotiGemCollect = new NotiGemCollect { GemId = id, PlayerId = player.AccountId }
             });
             _ = player.Session.SendAsync(new GamePacket
             {
