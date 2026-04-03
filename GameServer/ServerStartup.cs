@@ -28,7 +28,17 @@ internal static class ServerStartup
         GameLogger.Info("Server", $"IdGenerators 초기화: Account={dbResult.MaxAccountId}, Room={dbResult.MaxRoomId}");
 
         var resourceDir = FindResourceDir();
-        GameDataTable.Load(resourceDir);
+        GameLogger.Info("Server", $"GameDataTable 로드 시작: {resourceDir}");
+        try
+        {
+            GameDataTable.Load(resourceDir);
+        }
+        catch (Exception ex)
+        {
+            GameLogger.Error("Server", $"GameDataTable 로드 실패 — 리소스 디렉터리: {resourceDir}", ex);
+            await GameLogger.FlushAsync();
+            throw;
+        }
         GameLogger.Info("Server", $"GameDataTable 로드 완료: 몬스터 {GameDataTable.Monsters.Count}종, 무기 {GameDataTable.Weapons.Count}종, 웨이브 {GameDataTable.Waves.Length}개");
 
         using var cts = new CancellationTokenSource();
