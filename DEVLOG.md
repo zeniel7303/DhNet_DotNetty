@@ -246,14 +246,10 @@ username이 없어도, password가 틀려도 동일한 `INVALID_CREDENTIALS`를 
 `RegisterProcessor`뿐 아니라 `LoginProcessor`에도 4~16자 검증을 추가했다.
 코드 리뷰에서 발견: DB 조회 전에 차단하지 않으면 형식이 맞지 않는 입력이 매번 쿼리를 유발한다.
 
-#### 보안 고려사항 (Phase 3 대기 중)
+#### 보안 고려사항
 
-현재는 비밀번호를 평문으로 DB에 저장한다(`password_hash` 컬럼명은 Phase 3을 위한 예약).
-네트워크 전송 구간은 AES-GCM으로 보호되지만 DB 유출 시 비밀번호가 노출된다.
-
-Phase 3에서 BCrypt 해싱으로 교체할 때 주의할 점:
-- 전환 포인트는 `RegisterProcessor.cs` 1곳, `LoginProcessor.cs` 1곳으로 최소화됐다
-- username 미존재 시에도 dummy hash로 `BCrypt.Verify`를 실행해야 Timing Attack을 방어할 수 있다 — 응답 시간 차이로 username 존재 여부가 노출되기 때문이다
+비밀번호는 `BCrypt(workFactor=11)`로 해시해 `password_hash` 컬럼에 저장한다 (Phase 3에서 완성).
+네트워크 전송 구간은 AES-GCM, DB에는 해시만 저장 — 평문이 노출되는 지점이 없다.
 
 #### SRP 검토 및 기각
 
@@ -266,6 +262,48 @@ SRP는 수학적 증명 교환으로 서버가 평문을 전혀 보지 않는다
 - 전송 구간은 AES-GCM으로 이미 보호된다
 
 결론: **BCrypt + AES-GCM**이 게임 서버 수준에서 충분하다.
+
+---
+
+### 2026-04-03 — BCrypt 해싱 및 Timing Attack 방어 (Phase 3)
+
+**비밀번호를 BCrypt로 해싱하고 Timing Attack 방어를 구현했다.**
+
+#### BCrypt 해싱
+
+`BCrypt.Net-Next` 패키지를 추가하고 `RegisterProcessor`에서 `BCrypt.HashPassword(password, workFactor: 11)`를 적용했다.
+`~200ms`의 블로킹 연산이므로 `Task.Run`으로 ThreadPool에서 실행해 I/O 스레드를 블로킹하지 않는다.
+
+#### Timing Attack 방어
+
+`LoginProcessor`의 기존 코드:
+
+```csharp
+// 문제: account가 null이면 BCrypt.Verify를 건너뜀 → username 없음은 ~0ms, 있으면 ~200ms
+var verified = account != null &&
+               await Task.Run(() => BCrypt.Verify(password, account.password_hash));
+```
+
+username이 DB에 없으면 응답이 ~200ms 빠르다. 공격자가 수천 번 로그인 시도를 보내며 응답 시간을 측정하면 유효한 username 목록을 추출할 수 있다 — User Enumeration 방지가 뚫리는 것이다.
+
+수정: username 미존재 시에도 dummy hash로 `BCrypt.Verify`를 항상 실행한다.
+
+```csharp
+private static readonly string _dummyHash =
+    BCrypt.Net.BCrypt.HashPassword("_timing_guard_", workFactor: AuthConstants.BcryptWorkFactor);
+
+var hashToVerify = account?.password_hash ?? _dummyHash;
+var hashMatches = await Task.Run(() => BCrypt.Net.BCrypt.Verify(password, hashToVerify));
+if (account == null || !hashMatches) { /* INVALID_CREDENTIALS */ }
+```
+
+`_dummyHash`는 `static readonly`로 서버 시작 시 1회만 계산된다.
+
+#### AuthConstants 추출
+
+`workFactor: 11` 리터럴이 `RegisterProcessor`와 `LoginProcessor._dummyHash` 양쪽에 존재했다.
+한쪽만 변경하면 연산 비용이 달라져 Timing Attack 방어가 약화된다.
+`AuthConstants.BcryptWorkFactor`로 추출해 단일 소스로 관리한다.
 
 ---
 
