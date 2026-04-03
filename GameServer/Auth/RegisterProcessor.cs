@@ -53,7 +53,7 @@ internal static class RegisterProcessor
         var accountId = IdGenerators.Account.Next();
 
         // BCrypt.HashPassword는 블로킹 연산(~200ms) — Task.Run으로 ThreadPool 분리
-        var passwordHash = await Task.Run(() => BCrypt.Net.BCrypt.HashPassword(password, workFactor: 11));
+        var passwordHash = await Task.Run(() => BCrypt.Net.BCrypt.HashPassword(password, workFactor: AuthConstants.BcryptWorkFactor));
 
         // 계정 삽입. INSERT IGNORE: 중복 username이면 rows_affected == 0 반환.
         // SELECT-then-INSERT 패턴은 TOCTOU race condition을 유발하므로 사용하지 않는다.
