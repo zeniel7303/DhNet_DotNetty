@@ -93,6 +93,7 @@ await session.EnqueueEventAsync(() => { /* 상태 변경 */ });
     │                                │
     │  ① 회원가입
     │──── ReqRegister ───────────────▶│  username/password 4~16자 검증
+    │                                │  BCrypt.HashPassword (Task.Run, ThreadPool)
     │                                │  INSERT IGNORE (UNIQUE 제약, 중복 안전)
     │◀─── ResRegister ───────────────│  SUCCESS(신규) or USERNAME_TAKEN(기존)
     │                                │
@@ -138,6 +139,7 @@ await session.EnqueueEventAsync(() => { /* 상태 변경 */ });
 - **이름 신뢰성** — 클라이언트 입력값 무시, DB의 `accounts.username` 값 사용 (조작 불가)
 - **User Enumeration 방지** — username 없음과 password 불일치 모두 `INVALID_CREDENTIALS` 동일 응답
 - **중복 로그인 차단** — DB Insert 전 `TryReserveLogin`으로 account_id 원자적 예약 → 중복 시 `ALREADY_LOGGED_IN(1006)` 응답
+- **이동 속도 검증** — `PlayerWorldComponent.TryMove()`: `MoveSpeed × elapsed × 1.8` 초과 시 이동 드랍. 맵 순환 경계 점프는 검증 제외
 - **워커 고정** — `PlayerGameEnter` 이후 `InstanceId % workerCount`로 동일 플레이어 패킷이 항상 단일 스레드에서 처리
 
 #### 에러 코드
