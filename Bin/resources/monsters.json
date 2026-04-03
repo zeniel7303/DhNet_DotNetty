@@ -1,0 +1,110 @@
+{
+  "Slime": {
+    "maxHp": 50,
+    "atk": 10,
+    "def": 0,
+    "expReward": 20,
+    "goldReward": 2,
+    "speed": 60,
+    "attackRange": 40,
+    "hitRadius": 12,
+    "respawnDelay": 10,
+    "attackInterval": 3
+  },
+  "Orc": {
+    "maxHp": 150,
+    "atk": 18,
+    "def": 3,
+    "expReward": 50,
+    "goldReward": 5,
+    "speed": 40,
+    "attackRange": 48,
+    "hitRadius": 18,
+    "respawnDelay": 20,
+    "attackInterval": 2.5
+  },
+  "Dragon": {
+    "maxHp": 300,
+    "atk": 20,
+    "def": 5,
+    "expReward": 500,
+    "goldReward": 50,
+    "speed": 30,
+    "attackRange": 64,
+    "hitRadius": 28,
+    "respawnDelay": 0,
+    "attackInterval": 2
+  },
+  "Bat": {
+    "maxHp": 10,
+    "atk": 3,
+    "def": 0,
+    "expReward": 1,
+    "goldReward": 1,
+    "speed": 120,
+    "attackRange": 32,
+    "hitRadius": 8,
+    "respawnDelay": 8,
+    "attackInterval": 2
+  },
+  "Zombie": {
+    "maxHp": 50,
+    "atk": 6,
+    "def": 0,
+    "expReward": 3,
+    "goldReward": 2,
+    "speed": 40,
+    "attackRange": 40,
+    "hitRadius": 14,
+    "respawnDelay": 15,
+    "attackInterval": 2
+  },
+  "Skeleton": {
+    "maxHp": 80,
+    "atk": 12,
+    "def": 2,
+    "expReward": 5,
+    "goldReward": 3,
+    "speed": 60,
+    "attackRange": 44,
+    "hitRadius": 13,
+    "respawnDelay": 18,
+    "attackInterval": 2
+  },
+  "Ghost": {
+    "maxHp": 60,
+    "atk": 10,
+    "def": 0,
+    "expReward": 8,
+    "goldReward": 4,
+    "speed": 100,
+    "attackRange": 36,
+    "hitRadius": 12,
+    "respawnDelay": 12,
+    "attackInterval": 1.79999995231628
+  },
+  "GiantZombie": {
+    "maxHp": 300,
+    "atk": 30,
+    "def": 5,
+    "expReward": 20,
+    "goldReward": 15,
+    "speed": 25,
+    "attackRange": 56,
+    "hitRadius": 30,
+    "respawnDelay": 30,
+    "attackInterval": 3
+  },
+  "Reaper": {
+    "maxHp": 500,
+    "atk": 50,
+    "def": 10,
+    "expReward": 100,
+    "goldReward": 100,
+    "speed": 80,
+    "attackRange": 72,
+    "hitRadius": 22,
+    "respawnDelay": 0,
+    "attackInterval": 1.5
+  }
+}
