@@ -138,6 +138,7 @@ await session.EnqueueEventAsync(() => { /* 상태 변경 */ });
 - **봇 재접속** — `ReqRegister` → `USERNAME_TAKEN` → `ReqLogin` 순서로 신규/기존 계정 모두 동일 처리
 - **이름 신뢰성** — 클라이언트 입력값 무시, DB의 `accounts.username` 값 사용 (조작 불가)
 - **User Enumeration 방지** — username 없음과 password 불일치 모두 `INVALID_CREDENTIALS` 동일 응답
+- **Timing Attack 방어** — username 미존재 시에도 dummy hash로 `BCrypt.Verify` 강제 실행 → 응답 시간으로 username 존재 여부를 추론 불가
 - **중복 로그인 차단** — DB Insert 전 `TryReserveLogin`으로 account_id 원자적 예약 → 중복 시 `ALREADY_LOGGED_IN(1006)` 응답
 - **이동 속도 검증** — `PlayerWorldComponent.TryMove()`: `MoveSpeed × elapsed × 1.8` 초과 시 이동 드랍. 맵 순환 경계 점프는 검증 제외
 - **워커 고정** — `PlayerGameEnter` 이후 `InstanceId % workerCount`로 동일 플레이어 패킷이 항상 단일 스레드에서 처리
