@@ -1,6 +1,8 @@
 # Build outputs
 bin/
 obj/
+# bin/ 규칙이 Windows 케이스 무시로 Bin/까지 막으므로 루트 Bin/은 복원
+!/Bin/
 Bin/output/
 
 # Logs (Bin/logs/ 내 로그 파일 제외, 폴더는 유지)
