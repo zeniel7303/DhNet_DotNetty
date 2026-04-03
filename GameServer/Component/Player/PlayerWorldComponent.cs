@@ -33,7 +33,40 @@ public class PlayerWorldComponent : BaseComponent
     private const float MapW = 3200f;
     private const float MapH = 2400f;
 
-    public void Move(float x, float y)
+    // 이동 속도 검증 — 마지막 이동 시각 기준으로 최대 이동 거리 계산
+    private DateTime _lastMoveAt = DateTime.MinValue;
+    private const float MoveMargin  = 1.8f;  // 네트워크 지터 여유 계수
+    private const float MaxMoveDtSec = 1.0f; // dt 상한 (서버 일시 지연 대비)
+
+    /// <summary>
+    /// 이동 속도를 검증한 뒤 위치를 갱신한다.
+    /// 클라이언트가 보낸 좌표가 이동 속도 한계를 초과하면 false를 반환한다.
+    /// 맵 순환 경계 점프(|dx| ≥ MapW*0.5)는 검증을 건너뛴다.
+    /// </summary>
+    public bool TryMove(float x, float y)
+    {
+        var now = DateTime.UtcNow;
+        var dt = _lastMoveAt == DateTime.MinValue
+            ? MaxMoveDtSec
+            : (float)Math.Min((now - _lastMoveAt).TotalSeconds, MaxMoveDtSec);
+
+        float dx = x - X;
+        float dy = y - Y;
+
+        // 맵 순환 경계 점프가 아닌 경우에만 속도 검증
+        if (MathF.Abs(dx) < MapW * 0.5f && MathF.Abs(dy) < MapH * 0.5f)
+        {
+            float maxDist = MoveSpeed * dt * MoveMargin;
+            if (dx * dx + dy * dy > maxDist * maxDist)
+                return false;
+        }
+
+        _lastMoveAt = now;
+        Move(x, y);
+        return true;
+    }
+
+    private void Move(float x, float y)
     {
         // 이동 방향 추적 — 맵 순환 경계 점프는 무시
         float dx = x - X;
