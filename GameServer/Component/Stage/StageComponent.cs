@@ -360,7 +360,11 @@ public class StageComponent : BaseComponent
         _inputQueue.Enqueue(pending =>
         {
             if (!player.Character.IsAlive) return;
-            player.World.Move(x, y);
+            if (!player.World.TryMove(x, y))
+            {
+                GameLogger.Warn("Stage", $"이동 속도 위반 무시: player={player.AccountId} dest=({x:F0},{y:F0}) pos=({player.World.X:F0},{player.World.Y:F0})");
+                return;
+            }
             pending.Add(new GamePacket
             {
                 NotiMove = new NotiMove { PlayerId = player.AccountId, X = player.World.X, Y = player.World.Y }
