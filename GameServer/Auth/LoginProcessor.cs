@@ -10,6 +10,11 @@ namespace GameServer.Auth;
 
 internal static class LoginProcessor
 {
+    // Timing Attack 방어용 더미 해시 — username 미존재 시에도 BCrypt.Verify를 동일하게 실행하여
+    // 응답 시간으로 username 존재 여부를 추론하는 공격을 차단한다.
+    private static readonly string _dummyHash =
+        BCrypt.Net.BCrypt.HashPassword("_timing_guard_", workFactor: AuthConstants.BcryptWorkFactor);
+
     public static async Task ProcessAsync(SessionComponent session, ReqLogin req)
     {
         if (session.Player != null)
@@ -243,10 +248,11 @@ internal static class LoginProcessor
             return null;
         }
 
-        // BCrypt.Verify는 블로킹 연산(~200ms) — Task.Run으로 ThreadPool 분리
-        var verified = account != null &&
-                       await Task.Run(() => BCrypt.Net.BCrypt.Verify(password, account.password_hash));
-        if (!verified)
+        // Timing Attack 방어: username 미존재 시에도 더미 해시로 BCrypt.Verify 실행
+        // account == null 일 때 응답이 빨라지면 username 존재 여부가 노출된다.
+        var hashToVerify = account?.password_hash ?? _dummyHash;
+        var hashMatches = await Task.Run(() => BCrypt.Net.BCrypt.Verify(password, hashToVerify));
+        if (account == null || !hashMatches)
         {
             GameLogger.Warn("Login", $"인증 실패: {username}");
             await session.SendAsync(new GamePacket
