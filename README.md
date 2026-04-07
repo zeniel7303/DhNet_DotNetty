@@ -308,27 +308,149 @@ Vampire Survivors 스타일 멀티플레이어 탑다운 슈터. 브라우저(Ca
 
 ```
 DhNet_DotNetty/
-├── Common.Shared/       GameLogger (채널 기반 비동기), LogEntry, Helper
-│   └── Crypto/          AesGcmCryptor (AES-128-GCM 암호화/복호화)
-├── Common.Server/
-│   ├── Component/       BaseComponent, BaseWorker, WorkerSystem
-│   └── Routing/         IRouter, PacketRouter, RouterBuilder
-├── GameServer.Protocol/ .proto 7개 → C# 자동 생성 (game_packet, login, register, lobby, room, heartbeat, system)
-├── GameServer.Database/ DatabaseSystem, DbConnector, DbSet 5종, Row DTO 5종
-├── GameServer/
-│   ├── Component/       PlayerComponent, LobbyComponent, RoomComponent
-│   ├── Controllers/     PlayerLobbyController, PlayerRoomController, PlayerHeartbeatController
-│   ├── Network/         GameServerBootstrap, GamePipelineInitializer, GameServerHandler, LoginProcessor
-│   │                    AesGcmDecryptionHandler, AesGcmEncryptionHandler
-│   │   └── Policies/    IPacketPolicy, PacketPairPolicy, PacketRatePolicy, PacketHandshakePolicy
-│   ├── Systems/         SessionSystem, PlayerSystem, LobbySystem, StatLogger
-│   └── Web/             WebServerHost, Middleware 3종, REST Controller 8종
-├── GameClient/
-│   ├── Scenarios/       room, room-once, room-chat, room-loop, lobby, reconnect-stress
-│   └── Stats/           LoadTestStats (Interlocked 카운터 9종)
-├── db/                  schema_game.sql, schema_log.sql
-├── Dockerfile           멀티스테이지 빌드 (sdk:9.0 → aspnet:9.0)
-└── docker-compose.yml   gameserver + mysql
+├── Common.Shared/                    공유 유틸리티 (모든 프로젝트 참조)
+│   ├── Crypto/
+│   │   └── AesGcmCryptor.cs          AES-128-GCM 암호화/복호화
+│   └── Logging/
+│       ├── GameLogger.cs             채널 기반 비동기 로거 (일별 롤링)
+│       ├── LogEntry.cs
+│       └── LogLevel.cs
+│
+├── Common.Server/                    서버 공통 인프라
+│   ├── Component/
+│   │   ├── BaseComponent.cs          컴포넌트 기반 클래스
+│   │   ├── BaseWorker.cs             워커 스레드 추상 클래스
+│   │   └── WorkerSystem.cs           InstanceId % N 워커 배정
+│   ├── Routing/
+│   │   ├── IRouter.cs
+│   │   ├── PacketRouter.cs
+│   │   └── RouterBuilder.cs          O(1) 패킷 디스패치
+│   └── *Settings.cs                  GameServer/Database/Encryption 설정 모델
+│
+├── GameServer.Protocol/              Protocol Buffers 정의
+│   └── Protos/                       .proto 12개 → C# 자동 생성
+│       ├── game_packet.proto         oneof 래퍼 (전체 패킷 단일 진입점)
+│       ├── login.proto / register.proto
+│       ├── lobby.proto / room.proto / chat.proto
+│       ├── world.proto / combat.proto / character.proto
+│       ├── heartbeat.proto / system.proto
+│       └── error_codes.proto
+│
+├── GameServer.Database/              MySQL + Dapper DB 레이어
+│   ├── System/
+│   │   ├── DbConnector.cs            연결 풀 (MySqlConnectionStringBuilder)
+│   │   ├── GameDbContext.cs          gameserver DB — 핵심 데이터 (await)
+│   │   └── GameLogContext.cs         gamelog DB — 이벤트 로그 (FireAndForget)
+│   ├── DbSet/                        DbSet 7종 (Account/Player/Character/Chat/Login/Room/Stat)
+│   └── Rows/                         Row DTO 7종
+│
+├── GameServer.Resources/             게임 데이터 테이블
+│   └── GameDataTable.cs              monsters/waves/weapons JSON 로더 (싱글톤)
+│
+├── GameServer/                       서버 코어
+│   ├── Auth/
+│   │   ├── LoginProcessor.cs         로그인 플로우 (TaskPool, BCrypt 검증)
+│   │   └── RegisterProcessor.cs      회원가입 (BCrypt.HashPassword 비동기)
+│   ├── Component/
+│   │   ├── Player/
+│   │   │   ├── PlayerComponent.cs    플레이어 루트 컴포넌트 (100ms 틱)
+│   │   │   ├── PlayerLobbyComponent.cs
+│   │   │   ├── PlayerRoomComponent.cs
+│   │   │   ├── PlayerWorldComponent.cs  이동 속도 검증 (MoveSpeed×elapsed×1.8)
+│   │   │   ├── PlayerCharacterComponent.cs
+│   │   │   └── PlayerSaveComponent.cs   DB 저장 위임
+│   │   ├── Lobby/
+│   │   │   └── LobbyComponent.cs     CAS 기반 정원 예약
+│   │   ├── Room/
+│   │   │   └── RoomComponent.cs      단일 int _state CAS (닫힘/-1, 예약수/0~N)
+│   │   └── Stage/
+│   │       ├── StageComponent.cs     게임 스테이지 관리
+│   │       ├── StageBroadcastHelper.cs
+│   │       ├── StageCombatHelper.cs
+│   │       ├── Monster/
+│   │       │   └── MonsterComponent.cs
+│   │       ├── Wave/
+│   │       │   └── WaveComponent.cs  50웨이브 스케일링
+│   │       └── Weapons/              무기 6종 + WeaponBase + WeaponComponent
+│   │           ├── WeaponBase.cs / WeaponComponent.cs
+│   │           ├── GarlicWeapon.cs / WandWeapon.cs / BibleWeapon.cs
+│   │           ├── AxeWeapon.cs / KnifeWeapon.cs / CrossWeapon.cs
+│   │           └── StatUpgradeId.cs
+│   ├── Controllers/
+│   │   ├── PlayerLobbyController.cs  로비 패킷 처리
+│   │   ├── PlayerRoomController.cs   룸 패킷 처리
+│   │   ├── PlayerRpgController.cs    RPG/전투 패킷 처리
+│   │   └── PlayerHeartbeatController.cs
+│   ├── Network/
+│   │   ├── Bootstrap/
+│   │   │   ├── GameServerBootstrap.cs   TCP :7777 DotNetty 부트스트랩
+│   │   │   ├── GamePipelineInitializer.cs
+│   │   │   ├── WsServerBootstrap.cs     WebSocket 부트스트랩
+│   │   │   └── WsPipelineInitializer.cs
+│   │   ├── Handlers/
+│   │   │   ├── GameServerHandler.cs     채널 이벤트 → 세션 큐 위임
+│   │   │   ├── AesGcmDecryptionHandler.cs
+│   │   │   ├── AesGcmEncryptionHandler.cs
+│   │   │   ├── HeartbeatHandler.cs      IdleStateHandler 연동 (30s)
+│   │   │   └── WebSocketFrameHandler.cs
+│   │   ├── Policies/
+│   │   │   ├── IPacketPolicy.cs
+│   │   │   ├── PacketRatePolicy.cs      초당 패킷 수 제한
+│   │   │   ├── PacketPairPolicy.cs      Req/Res 쌍 검증
+│   │   │   └── PacketHandshakePolicy.cs 미인증 패킷 차단
+│   │   └── SessionComponent.cs          채널 → 세션 바인딩
+│   ├── Systems/
+│   │   ├── SessionSystem.cs          전용 스레드 + 이벤트 큐 (수명주기 직렬화)
+│   │   ├── PlayerSystem.cs           WorkerSystem에 플레이어 등록
+│   │   ├── LobbySystem.cs            클러스터링 로비 배정 (인원 최다 우선)
+│   │   ├── RoomSystem.cs
+│   │   ├── GameSessionRegistry.cs    중복 로그인 원자적 예약
+│   │   ├── ShutdownSystem.cs         Graceful Shutdown
+│   │   └── GameSystems.cs            시스템 부트 오케스트레이터
+│   ├── Utilities/
+│   │   ├── IdGenerators.cs
+│   │   ├── UniqueIdGenerator.cs      서버 재시작 시 MAX(id) 이어받기
+│   │   └── StatLogger.cs             5초 주기 통계 출력
+│   └── Web/                          ASP.NET Core 관리 REST API (:8080)
+│       ├── WebServerHost.cs
+│       ├── Middleware/
+│       │   ├── ApiKeyMiddleware.cs
+│       │   ├── IpWhitelistMiddleware.cs
+│       │   └── RequestLoggingMiddleware.cs
+│       └── Controllers/              9종 (Health/Lobbies/Rooms/Players/Stats/
+│                                     Broadcast/Shutdown/Analytics/ServerInfo)
+│
+├── TestClient/                       부하 테스트 클라이언트 (DotNetty)
+│   ├── Scenarios/                    시나리오 11종
+│   │   ├── LobbyChatScenario.cs
+│   │   ├── RoomScenario.cs / RoomOnceScenario.cs / RoomChatScenario.cs
+│   │   ├── RoomLoopScenario.cs / ReconnectStressScenario.cs
+│   │   ├── DuplicateLoginScenario.cs / PveStressScenario.cs
+│   │   └── RpgRoomScenario.cs
+│   ├── Network/                      AES-GCM 핸들러 + GameClientHandler
+│   ├── Stats/
+│   │   └── LoadTestStats.cs          Interlocked 카운터 9종 (5초 주기 출력)
+│   └── Controllers/
+│       └── ClientContext.cs
+│
+├── GameClient.Web/                   브라우저 게임 클라이언트 (ASP.NET Core Static)
+│   └── wwwroot/
+│       ├── index.html
+│       ├── js/game.js                Canvas 2D + WebSocket 게임 루프
+│       └── css/style.css
+│
+├── tools/                            개발 도구
+│   ├── DataConverter/                CLI — Excel → JSON 변환
+│   └── DataConverter.UI/             WinForms GUI — Excel → JSON 변환
+│
+├── Bin/                              런타임 리소스
+│   ├── excel/                        monsters/waves/weapons/config .xlsx
+│   ├── resources/                    빌드 결과 JSON (GameDataTable 로드 대상)
+│   └── logs/                         일별 롤링 로그
+│
+├── Dockerfile                        멀티스테이지 빌드 (sdk:9.0 → aspnet:9.0)
+├── docker-compose.yml                gameserver + mysql
+└── dev/                              작업별 plan/context/tasks 개발 문서
 ```
 
 ---
