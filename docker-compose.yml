@@ -20,9 +20,15 @@ services:
     build: .
     ports:
       - "7777:7777"
+      - "7778:7778"
       - "8080:8080"
     environment:
       DOTNET_ENVIRONMENT: Docker
+      GAMESERVER_Database__Host: mysql
+      GAMESERVER_Database__RequireConnection: "true"
+    volumes:
+      - ./Bin/logs:/app/Bin/logs
+    restart: unless-stopped
     depends_on:
       mysql:
         condition: service_healthy
