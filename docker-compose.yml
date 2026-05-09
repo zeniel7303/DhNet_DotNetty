@@ -15,23 +15,44 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
+    networks:
+      - gamenet
 
   gameserver:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "7777:7777"
-      - "7778:7778"
+      - "17777:7777"
+      - "17778:7778"
       - "8080:8080"
     environment:
       DOTNET_ENVIRONMENT: Docker
-      GAMESERVER_Database__Host: mysql
-      GAMESERVER_Database__RequireConnection: "true"
     volumes:
       - ./Bin/logs:/app/Bin/logs
     restart: unless-stopped
     depends_on:
       mysql:
         condition: service_healthy
+    networks:
+      - gamenet
+
+  gameclient:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    ports:
+      - "8081:8081"
+    environment:
+      ASPNETCORE_URLS: "http://+:8081"
+    depends_on:
+      - gameserver
+    networks:
+      - gamenet
 
 volumes:
   mysql_data:
+
+networks:
+  gamenet:
+    driver: bridge

@@ -33,6 +33,7 @@ COPY --from=build /app/publish .
 COPY Bin/resources/ ./Resources/
 
 EXPOSE 7777
+EXPOSE 7778
 EXPOSE 8080
 
 ENTRYPOINT ["dotnet", "GameServer.dll"]

@@ -1,0 +1,23 @@
+# ── Stage 1: Build ──────────────────────────────────────────────────────────
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+COPY Directory.Build.props .
+COPY GameClient.Web/GameClient.Web.csproj GameClient.Web/
+
+RUN dotnet restore GameClient.Web/GameClient.Web.csproj
+
+COPY GameClient.Web/ GameClient.Web/
+
+RUN dotnet publish GameClient.Web/GameClient.Web.csproj \
+    -c Release -o /app/publish --no-restore
+
+# ── Stage 2: Runtime ────────────────────────────────────────────────────────
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+WORKDIR /app
+
+COPY --from=build /app/publish .
+
+EXPOSE 8081
+
+ENTRYPOINT ["dotnet", "GameClient.Web.dll"]

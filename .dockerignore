@@ -1,6 +1,10 @@
 **/bin/
 **/obj/
+Bin/output/
 .git/
 .vs/
 *.user
 **/*.md
+dev/
+Legacy/
+tools/
