@@ -17,7 +17,8 @@ public static class GameDataTable
 
     public record WeaponStat(
         int   Damage, float CooldownSec,
-        float UpgradeMultDamage, float UpgradeMultCooldown, float CooldownMin);
+        float UpgradeMultDamage, float UpgradeMultCooldown, float CooldownMin,
+        float[][]? SpreadOffsets = null);
 
     public record WaveEntry(int WaveNumber, string MonsterType, int Count);
 

@@ -29,7 +29,14 @@
     "cooldownSec": 1.5,
     "upgradeMultDamage": 1.20000004768372,
     "upgradeMultCooldown": 0.899999976158142,
-    "cooldownMin": 0.300000011920929
+    "cooldownMin": 0.300000011920929,
+    "spreadOffsets": [
+      [0],
+      [-25, 25],
+      [-40, 0, 40],
+      [-45, -15, 15, 45],
+      [-50, -25, 0, 25, 50]
+    ]
   },
   "Knife": {
     "displayName": "\uB2E8\uAC80",

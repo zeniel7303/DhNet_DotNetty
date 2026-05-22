@@ -8,6 +8,10 @@ namespace GameServer.Component.Stage.Weapons;
 /// 도끼 — 가장 가까운 적 방향으로 포물선 아크를 그리며 날아가는 관통 투사체.
 /// 중력의 영향을 받아 위로 솟구쳤다가 내려오며, 경로 상의 모든 적을 관통.
 ///
+/// 레벨업:
+///   - 홀수 레벨(3,5,7…): 도끼 개수 +1, 부채꼴 집중 발사
+///   - 짝수 레벨(2,4,6…): 데미지 +20% + 쿨다운 단축
+///
 /// 투사체 프로토콜 계약:
 ///   - 수명 만료: NotiProjectileDestroy
 ///   - 관통 적중: NotiCombat.projectile_id만 (투사체 계속 날아감)
@@ -23,7 +27,12 @@ public class AxeWeapon : WeaponBase
     private const float VerticalSpeed    = 500f;  // px/s (초기 상향 속도)
     private const float Lifetime         = 1.0f;  // 초 — 완전한 포물선 1회
     private const float HitRadius        = 25f;   // px
-    private const int   MaxProjectiles   = 5;
+    private const int   MaxProjectiles   = 10;    // 다중 도끼(최대 5개) 수용
+
+    // weapons.json "spreadOffsets"에서 로드. 행 인덱스 = 도끼 개수 - 1.
+    private readonly float[][] _spreadOffsets;
+
+    private int _axeCount = 1;
 
 
     private sealed class AxeProjectile
@@ -42,9 +51,10 @@ public class AxeWeapon : WeaponBase
 
     public AxeWeapon() : base(WeaponId.Axe)
     {
-        var stat    = GameDataTable.Weapons[Id.ToString()];
-        Damage      = stat.Damage;
-        CooldownSec = stat.CooldownSec;
+        var stat       = GameDataTable.Weapons[Id.ToString()];
+        Damage         = stat.Damage;
+        CooldownSec    = stat.CooldownSec;
+        _spreadOffsets = stat.SpreadOffsets ?? [[0f]];
     }
 
     public override List<WeaponHit> Tick(
@@ -103,7 +113,8 @@ public class AxeWeapon : WeaponBase
         float ownerX, float ownerY,
         IEnumerable<MonsterComponent> monsters)
     {
-        if (_projectiles.Count >= MaxProjectiles) return [];
+        int slots = MaxProjectiles - _projectiles.Count;
+        if (slots <= 0) return [];
 
         MonsterComponent? nearest   = null;
         float             minDistSq = float.MaxValue;
@@ -114,31 +125,53 @@ public class AxeWeapon : WeaponBase
         }
         if (nearest == null) return [];
 
-        // 가장 가까운 적 방향의 수평 성분만 사용, 수직은 항상 위쪽
-        float dirX = nearest.X >= ownerX ? 1f : -1f;
-        float velX = dirX * HorizontalSpeed;
-        float velY = -VerticalSpeed; // 위로 발사 (Y 축: 아래가 양수)
-
-        ulong id = NextProjectileId();
-        _projectiles.Add(new AxeProjectile
+        // 최근접 적 방향 기준 부채꼴 발사 — weapons.json spreadOffsets 테이블로 오프셋 결정
+        float[] offsets   = _spreadOffsets[Math.Min(_axeCount, _spreadOffsets.Length) - 1];
+        int     fireCount = Math.Min(offsets.Length, slots);
+        float   baseAngle = MathF.Atan2(nearest.Y - ownerY, nearest.X - ownerX);
+        for (int i = 0; i < fireCount; i++)
         {
-            Id     = id,
-            StartX = ownerX, StartY = ownerY,
-            VelX   = velX,   VelY0  = velY,
-        });
+            float angle = baseAngle + offsets[i] * (MathF.PI / 180f);
+            float velX  = MathF.Cos(angle) * HorizontalSpeed;
+            float velY  = -VerticalSpeed; // 항상 위로 솟는 포물선 (Y축 아래가 양수)
 
-        _pendingPackets.Add(new GamePacket
-        {
-            NotiProjectileSpawn = new NotiProjectileSpawn
+            ulong id = NextProjectileId();
+            _projectiles.Add(new AxeProjectile
             {
-                ProjectileId = id,
-                WeaponId     = (int)WeaponId.Axe,
-                X    = ownerX, Y    = ownerY,
-                VelX = velX,   VelY = velY,
-            }
-        });
+                Id     = id,
+                StartX = ownerX, StartY = ownerY,
+                VelX   = velX,   VelY0  = velY,
+            });
+
+            _pendingPackets.Add(new GamePacket
+            {
+                NotiProjectileSpawn = new NotiProjectileSpawn
+                {
+                    ProjectileId = id,
+                    WeaponId     = (int)WeaponId.Axe,
+                    X    = ownerX, Y    = ownerY,
+                    VelX = velX,   VelY = velY,
+                }
+            });
+        }
 
         return [];
+    }
+
+    protected override void OnUpgrade()
+    {
+        if (Level % 2 == 1)
+        {
+            _axeCount++;
+        }
+        else
+        {
+            if (!GameDataTable.Weapons.TryGetValue(Id.ToString(), out var stat))
+                throw new InvalidOperationException(
+                    $"WeaponId '{Id}'을(를) GameDataTable에서 찾을 수 없습니다. weapons.json을 확인하세요.");
+            Damage      = (int)(Damage * stat.UpgradeMultDamage);
+            CooldownSec = MathF.Max(stat.CooldownMin, CooldownSec * stat.UpgradeMultCooldown);
+        }
     }
 
     public override IReadOnlyList<GamePacket> GetPendingPackets(ulong ownerId)
