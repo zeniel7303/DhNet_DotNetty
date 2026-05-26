@@ -9,18 +9,14 @@ public class PlayerWorldComponent : BaseComponent
     public float X { get; private set; } = 100f;
     public float Y { get; private set; } = 100f;
 
-    // 기본 이동속도 200 (클라이언트 speed=5 × 60fps ≈ 300px/s 기준)
-    public float MoveSpeed { get; private set; } = 200f;
+    // 이동 속도 (px/s) — 클라이언트와 동일한 단위
+    public float MoveSpeed { get; private set; } = 300f;
 
     /// <summary>캐릭터가 마지막으로 이동한 방향 (정규화). 기본값: 오른쪽 (1, 0).</summary>
     public float FacingDirX { get; private set; } = 1f;
     public float FacingDirY { get; private set; } = 0f;
 
-    // 공격 쿨다운 — dt 누산이 아닌 DateTime.UtcNow 기반으로 측정한다.
-    // 이유: CanAttack()은 Stage 틱 스레드에서, ResetAttackCooldown()은 같은 틱 스레드에서 호출되지만
-    //       dt 누산이면 PlayerComponent 워커 스레드(Update)에서도 _attackElapsed를 써야 한다.
-    //       두 스레드가 float 필드를 공유하면 volatile + 비원자적 += dt 문제가 발생하므로,
-    //       읽기 전용인 DateTime.UtcNow 방식으로 스레드 간 공유 상태 자체를 없앤다.
+    // 공격 쿨다운
     private DateTime _lastAttackAt = DateTime.MinValue;
     private static readonly TimeSpan AttackCooldown = TimeSpan.FromSeconds(0.3);
 
@@ -33,64 +29,43 @@ public class PlayerWorldComponent : BaseComponent
     private const float MapW = 3200f;
     private const float MapH = 2400f;
 
-    // 이동 속도 검증 — 마지막 이동 시각 기준으로 최대 이동 거리 계산
-    private DateTime _lastMoveAt = DateTime.MinValue;
-    private const float MoveMargin  = 1.8f;  // 네트워크 지터 여유 계수
-    private const float MaxMoveDtSec = 1.0f; // dt 상한 (서버 일시 지연 대비)
+    // dt 상한 — 클라이언트가 임의로 큰 dt를 보내 순간이동하는 것을 방지
+    private const float MaxDtSec = 0.1f;
 
     /// <summary>
-    /// 이동 속도를 검증한 뒤 위치를 갱신한다.
-    /// 클라이언트가 보낸 좌표가 이동 속도 한계를 초과하면 false를 반환한다.
-    /// 맵 순환 경계 점프(|dx| ≥ MapW*0.5)는 검증을 건너뛴다.
+    /// 클라이언트 입력 플래그를 받아 서버에서 직접 이동을 적용한다.
+    /// flags: bit0=W(위), bit1=S(아래), bit2=A(왼쪽), bit3=D(오른쪽)
+    /// 클라이언트의 applyMovementInput()과 동일한 공식을 사용해야 한다.
     /// </summary>
-    public bool TryMove(float x, float y)
+    public void ApplyInput(uint flags, float dtSec)
     {
-        var now = DateTime.UtcNow;
-        var dt = _lastMoveAt == DateTime.MinValue
-            ? MaxMoveDtSec
-            : (float)Math.Min((now - _lastMoveAt).TotalSeconds, MaxMoveDtSec);
+        dtSec = Math.Min(dtSec, MaxDtSec);
 
-        float dx = x - X;
-        float dy = y - Y;
+        float dirX = 0, dirY = 0;
+        if ((flags & 1) != 0) dirY -= 1f; // W
+        if ((flags & 2) != 0) dirY += 1f; // S
+        if ((flags & 4) != 0) dirX -= 1f; // A
+        if ((flags & 8) != 0) dirX += 1f; // D
 
-        // 맵 순환 경계 점프가 아닌 경우에만 속도 검증
-        if (MathF.Abs(dx) < MapW * 0.5f && MathF.Abs(dy) < MapH * 0.5f)
+        if (dirX != 0 || dirY != 0)
         {
-            float maxDist = MoveSpeed * dt * MoveMargin;
-            if (dx * dx + dy * dy > maxDist * maxDist)
-                return false;
+            float len = MathF.Sqrt(dirX * dirX + dirY * dirY);
+            dirX /= len;
+            dirY /= len;
+            FacingDirX = dirX;
+            FacingDirY = dirY;
         }
 
-        _lastMoveAt = now;
-        Move(x, y);
-        return true;
-    }
+        float nx = X + dirX * MoveSpeed * dtSec;
+        float ny = Y + dirY * MoveSpeed * dtSec;
 
-    private void Move(float x, float y)
-    {
-        // 이동 방향 추적 — 맵 순환 경계 점프는 무시
-        float dx = x - X;
-        float dy = y - Y;
-        // 맵 절반 이상 이동하면 순환 점프로 간주하여 방향 갱신 안 함
-        if (MathF.Abs(dx) < MapW * 0.5f && MathF.Abs(dy) < MapH * 0.5f)
-        {
-            float lenSq = dx * dx + dy * dy;
-            if (lenSq > 0.01f)
-            {
-                float len = MathF.Sqrt(lenSq);
-                FacingDirX = dx / len;
-                FacingDirY = dy / len;
-            }
-        }
-
-        // 맵 순환 — 경계를 넘으면 반대편으로
-        X = ((x % MapW) + MapW) % MapW;
-        Y = ((y % MapH) + MapH) % MapH;
+        X = ((nx % MapW) + MapW) % MapW;
+        Y = ((ny % MapH) + MapH) % MapH;
     }
 
     public bool CanAttack() => DateTime.UtcNow - _lastAttackAt >= AttackCooldown;
 
     public void ResetAttackCooldown() => _lastAttackAt = DateTime.UtcNow;
 
-    public void IncreaseSpeed(float amount) => MoveSpeed = Math.Min(MoveSpeed + amount, 350f);
+    public void IncreaseSpeed(float amount) => MoveSpeed = Math.Min(MoveSpeed + amount, 500f);
 }

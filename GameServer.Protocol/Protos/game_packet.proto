@@ -99,5 +99,8 @@ message GamePacket {
 
     // Stat Boost — 스탯 업그레이드 선택 후 알림
     NotiStatBoost noti_stat_boost = 56;
+
+    // Weapon Upgrade — 무기 획득/레벨업 알림 (HUD + 마늘 반경 동기화)
+    NotiWeaponUpgrade noti_weapon_upgrade = 57;
   }
 }

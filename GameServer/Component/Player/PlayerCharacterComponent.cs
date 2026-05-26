@@ -27,8 +27,6 @@ public class PlayerCharacterComponent(PlayerComponent player) : BaseComponent
     public bool IsAlive => _hp > 0;
     public long NextLevelExp => Level * 15L;
 
-    private const int MaxLevel = 50;
-
     // gold만 로드 — 인게임 스탯은 항상 초기값으로 시작
     public void LoadFrom(CharacterRow row) => Gold = row.gold;
 
@@ -84,14 +82,11 @@ public class PlayerCharacterComponent(PlayerComponent player) : BaseComponent
     private int TryLevelUp()
     {
         int levelUps = 0;
-        while (Level < MaxLevel && Exp >= NextLevelExp)
+        while (Exp >= NextLevelExp)
         {
-            Exp    -= NextLevelExp;
+            Exp -= NextLevelExp;
             Level++;
-            MaxHp  += 20;
-            _hp     = MaxHp; // 레벨업 시 풀힐
-            Attack  += 3;
-            Defense += 1;
+            _hp = MaxHp; // 레벨업 시 풀힐
             levelUps++;
         }
         return levelUps;

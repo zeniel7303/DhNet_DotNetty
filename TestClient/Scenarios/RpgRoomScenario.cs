@@ -109,6 +109,21 @@ public class RpgRoomScenario(string namePrefix) : BaseRoomScenario(namePrefix)
                 return true;
             }
 
+            // 레벨업 무기 선택 — 첫 번째 선택지 자동 선택
+            case GamePacket.PayloadOneofCase.NotiWeaponChoice:
+            {
+                var choices = packet.NotiWeaponChoice.Choices;
+                if (choices.Count > 0 && channel.Active)
+                {
+                    _ = channel.WriteAndFlushAsync(new GamePacket
+                    {
+                        ReqChooseWeapon = new ReqChooseWeapon { WeaponId = choices[0].WeaponId }
+                    });
+                    LoadTestStats.IncrementSent();
+                }
+                return true;
+            }
+
             // 인게임 브로드캐스트 — 통계/로그 외 별도 처리 불필요
             case GamePacket.PayloadOneofCase.NotiMove:
             case GamePacket.PayloadOneofCase.NotiHpChange:
@@ -120,6 +135,21 @@ public class RpgRoomScenario(string namePrefix) : BaseRoomScenario(namePrefix)
             case GamePacket.PayloadOneofCase.NotiLevelUp:
             case GamePacket.PayloadOneofCase.NotiGameChat:
             case GamePacket.PayloadOneofCase.NotiRoomExit:
+            case GamePacket.PayloadOneofCase.NotiStatBoost:
+            case GamePacket.PayloadOneofCase.NotiWeaponUpgrade:
+            case GamePacket.PayloadOneofCase.NotiGemSpawn:
+            case GamePacket.PayloadOneofCase.NotiGemCollect:
+            case GamePacket.PayloadOneofCase.NotiGoldGain:
+            case GamePacket.PayloadOneofCase.NotiWaveStart:
+            case GamePacket.PayloadOneofCase.NotiSurvivalTime:
+            case GamePacket.PayloadOneofCase.NotiProjectileSpawn:
+            case GamePacket.PayloadOneofCase.NotiProjectileDestroy:
+            case GamePacket.PayloadOneofCase.NotiOrbitalWeaponSync:
+            case GamePacket.PayloadOneofCase.NotiMonsterMove:
+            case GamePacket.PayloadOneofCase.NotiSpawnMonster:
+            case GamePacket.PayloadOneofCase.NotiDespawnMonster:
+            case GamePacket.PayloadOneofCase.NotiEnterGame:
+            case GamePacket.PayloadOneofCase.NotiLeaveGame:
                 return true;
 
             // 게임 종료 → 연결 해제
@@ -189,8 +219,9 @@ public class RpgRoomScenario(string namePrefix) : BaseRoomScenario(namePrefix)
                 {
                     ReqMove = new ReqMove
                     {
-                        X = 200f + offsetX * (i + 1) * 40f,
-                        Y = 200f + i * 30f
+                        Seq   = (uint)(i + 1),
+                        Flags = ctx.ClientIndex % 2 == 0 ? 8u : 4u, // D or A
+                        DtMs  = 50,
                     }
                 });
                 LoadTestStats.IncrementSent();

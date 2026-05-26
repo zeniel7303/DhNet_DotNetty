@@ -15,7 +15,7 @@ public class PlayerRpgController(PlayerComponent player) : PlayerBaseController(
             .Build();
 
     private void OnMove(ReqMove req)
-        => Player.Room.CurrentRoom?.Stage?.ProcessMove(Player, req.X, req.Y);
+        => Player.Room.CurrentRoom?.Stage?.ProcessMove(Player, req.Seq, req.Flags, req.DtMs);
 
     private void OnAttack(ReqAttack req)
         => Player.Room.CurrentRoom?.Stage?.ProcessAttack(Player, req.TargetMonsterId);

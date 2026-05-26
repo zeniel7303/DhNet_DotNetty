@@ -354,22 +354,23 @@ public class StageComponent : BaseComponent
         });
     }
 
-    public void ProcessMove(PlayerComponent player, float x, float y)
+    public void ProcessMove(PlayerComponent player, uint seq, uint flags, uint dtMs)
     {
         if (_endedFlag == 1) return;
         _inputQueue.Enqueue(pending =>
         {
             if (!player.Character.IsAlive) return;
-            if (!player.World.TryMove(x, y))
-            {
-                GameLogger.Warn("Stage", $"이동 속도 위반 무시: player={player.AccountId} dest=({x:F0},{y:F0}) pos=({player.World.X:F0},{player.World.Y:F0})");
-                return;
-            }
+            player.World.ApplyInput(flags, dtMs / 1000f);
             pending.Add(new GamePacket
             {
-                NotiMove = new NotiMove { PlayerId = player.AccountId, X = player.World.X, Y = player.World.Y }
+                NotiMove = new NotiMove
+                {
+                    PlayerId = player.AccountId,
+                    X        = player.World.X,
+                    Y        = player.World.Y,
+                    AckSeq   = seq,
+                }
             });
-            // 이동 후 주변 젬 자동 수집
             _combat.CollectGems(player, pending);
         });
     }
@@ -413,7 +414,7 @@ public class StageComponent : BaseComponent
 
     private List<(ulong Id, float X, float Y, int ExpValue)> CollectNearbyGems(float x, float y, float radiusBonus)
     {
-        const float defaultPickupRadius = 50f;
+        const float defaultPickupRadius = 100f;
         float radius   = defaultPickupRadius + radiusBonus;
         float radiusSq = radius * radius;
         var result = new List<(ulong, float, float, int)>();

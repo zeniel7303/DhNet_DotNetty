@@ -113,13 +113,14 @@ public class KnifeWeapon : WeaponBase
     {
         if (_projectiles.Count >= MaxProjectiles) return [];
 
+        float dirX = FacingDirX, dirY = FacingDirY;
         ulong id = NextProjectileId();
 
         _projectiles.Add(new KnifeProjectile
         {
             Id   = id,
             X    = ownerX, Y    = ownerY,
-            VelX = FacingDirX * Speed, VelY = FacingDirY * Speed,
+            VelX = dirX * Speed, VelY = dirY * Speed,
         });
 
         _pendingPackets.Add(new GamePacket
@@ -129,7 +130,7 @@ public class KnifeWeapon : WeaponBase
                 ProjectileId = id,
                 WeaponId     = (int)WeaponId.Knife,
                 X    = ownerX, Y    = ownerY,
-                VelX = FacingDirX * Speed, VelY = FacingDirY * Speed,
+                VelX = dirX * Speed, VelY = dirY * Speed,
             }
         });
 

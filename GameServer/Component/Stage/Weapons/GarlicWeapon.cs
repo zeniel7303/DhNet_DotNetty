@@ -10,7 +10,9 @@ namespace GameServer.Component.Stage.Weapons;
 public class GarlicWeapon : WeaponBase
 {
     private float _radius        = 80f;
-    private float _knockbackDist = 50f; // 넉백 거리 (픽셀)
+    private float _knockbackDist = 50f;
+
+    public float Radius => _radius;
 
     public GarlicWeapon() : base(WeaponId.Garlic)
     {

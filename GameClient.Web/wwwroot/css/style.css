@@ -44,7 +44,12 @@ body {
   margin-bottom: 4px;
 }
 
-input[type=text], input[type=password] {
+.label-hint {
+  font-size: 0.75rem;
+  color: #606070;
+}
+
+input[type=text], input[type=password], input[type=email] {
   width: 100%;
   background: #0f3460;
   border: 1px solid #1a5276;

@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────
 // 설정
 // ─────────────────────────────────────────────────────
-const WS_URL        = 'ws://localhost:7778/ws';
+const WS_URL        = `ws://${window.location.hostname}:7778/ws`;
 const CANVAS_W      = 800;
 const CANVAS_H      = 600;
 const MAP_W         = 3200;
@@ -29,7 +29,8 @@ let ws    = null;
 let _heartbeatTimer = null;
 
 const me        = { id: '0', name: '', x: 100, y: 100 };
-const character = { level: 1, hp: 100, maxHp: 100, exp: 0, nextExp: 100, atk: 15, def: 5 };
+const character = { level: 1, hp: 100, maxHp: 100, exp: 0, nextExp: 100, atk: 15, def: 5, expRadius: 0, expMulti: 1 };
+const myWeapons = new Map(); // weaponId(int) → { level, radius } — 내 플레이어의 보유 무기
 
 const rooms       = new Map(); // roomId(string) → { id, playerCount, maxPlayers, isStarted }
 const roomPlayers = new Map(); // playerId(string) → { id, name, isReady }
@@ -42,22 +43,28 @@ const absorbingGems    = [];        // 흡수 이동 중인 젬 { startX, startY
 const effects          = [];        // 이펙트 { type, ... }
 const activeProjectiles = new Map(); // projectileId(string) → { id, x, y, velX, velY, spawnTime, ownerId, weaponId }
 let   orbitalWeaponList = [];        // [{ ownerId, weaponId, angle, lastUpdate }, …] — 다중 도끼 지원
+let   mapDecorations   = [];        // 맵 장식 오브젝트 { x, y, type, size } — 게임 시작 시 1회 생성
 
 const keys        = {};
-let   moveSpeed   = 5;  // 픽셀/프레임 — 서버 NotiStatBoost로 갱신됨
+let   moveSpeed   = 300; // px/s — 서버 NotiStatBoost로 갱신됨 (서버 MoveSpeed와 동일 단위)
 let   lastMove    = 0;
 let   animId      = null;
 let   isReady     = false;
-let   waveNumber  = 0;     // 현재 웨이브 번호
-let   lastSentX   = 0;    // 서버에 마지막으로 보낸 X 좌표
-let   lastSentY   = 0;    // 서버에 마지막으로 보낸 Y 좌표
+let   waveNumber  = 0;
+let   lastFrameTs = 0;   // 델타타임 계산용 이전 프레임 타임스탬프
+
+// Client-Side Prediction + Server Reconciliation
+let   inputSeq      = 0;   // 단조 증가 시퀀스 번호
+let   inputBuffer   = [];  // 서버 미확인 입력 목록 [{ seq, flags, dt }]
+let   liveFlags     = 0;   // 현재 프레임의 입력 (재연산 시 RTT 구간 보정용)
+let   liveAccumDt   = 0;   // 마지막 전송 이후 경과 시간(ms) — 미전송 예측분
 let   mouseCanvasX = CANVAS_W / 2; // 마우스 캔버스 좌표 (방향 화살표용)
 let   mouseCanvasY = CANVAS_H / 2;
 
 // ─────────────────────────────────────────────────────
 // 화면 전환
 // ─────────────────────────────────────────────────────
-const screens = ['login', 'lobby', 'room', 'game', 'result'];
+const screens = ['login', 'lobby', 'room', 'game', 'result', 'forgot-password', 'reset-password'];
 
 function showScreen(name) {
   screens.forEach(s => {
@@ -477,8 +484,9 @@ function handlePacket(pkt) {
     case 'notiSpawnMonster': onNotiSpawnMonster(pkt.notiSpawnMonster); break;
     case 'notiGemSpawn':     onNotiGemSpawn(pkt.notiGemSpawn);         break;
     case 'notiGemCollect':   onNotiGemCollect(pkt.notiGemCollect);     break;
-    case 'notiWeaponChoice':  onNotiWeaponChoice(pkt.notiWeaponChoice);   break;
-    case 'notiStatBoost':     onNotiStatBoost(pkt.notiStatBoost);         break;
+    case 'notiWeaponChoice':  onNotiWeaponChoice(pkt.notiWeaponChoice);     break;
+    case 'notiStatBoost':     onNotiStatBoost(pkt.notiStatBoost);           break;
+    case 'notiWeaponUpgrade': onNotiWeaponUpgrade(pkt.notiWeaponUpgrade);  break;
     case 'notiSurvivalTime':  onNotiSurvivalTime(pkt.notiSurvivalTime);   break;
     case 'notiGameEnd':           onNotiGameEnd(pkt.notiGameEnd);                       break;
     case 'notiGameChat':         onNotiGameChat(pkt.notiGameChat);                     break;
@@ -734,14 +742,30 @@ function onNotiMove(noti) {
     if (p) { p.x = noti.x; p.y = noti.y; }
     return;
   }
-  // 자신 — 클라이언트 예측 유지. 오차 100px 초과 시에만 강제 보정
-  // wrap-aware: 맵 경계를 넘으면 반대쪽이 더 가까운 경로로 비교
-  let dx = noti.x - me.x, dy = noti.y - me.y;
-  if (dx >  MAP_W / 2) dx -= MAP_W; else if (dx < -MAP_W / 2) dx += MAP_W;
-  if (dy >  MAP_H / 2) dy -= MAP_H; else if (dy < -MAP_H / 2) dy += MAP_H;
-  if (dx * dx + dy * dy > 10000) { me.x = noti.x; me.y = noti.y; }
-  // myPlayer는 항상 me와 동기화 — 카메라·스프라이트 분리 방지
-  if (p) { p.x = me.x; p.y = me.y; }
+
+  // 자신 — Server Reconciliation
+  // 1. 서버가 확인한 seq 이하의 입력을 버퍼에서 제거
+  const ackSeq = noti.ackSeq || 0;
+  inputBuffer = inputBuffer.filter(i => i.seq > ackSeq);
+
+  // 2. 서버 권위 위치에서 시작해 미확인 입력을 순서대로 재연산
+  let rx = noti.x, ry = noti.y;
+  for (const input of inputBuffer) {
+    const dtSec = Math.min(input.dt, 100) / 1000;
+    const result = applyMovementInput(rx, ry, input.flags, dtSec);
+    rx = result.nx; ry = result.ny;
+  }
+
+  // 3. RTT 구간 보정: 마지막 전송 이후 로컬에서 예측했지만 아직 서버에 안 보낸 시간을 재적용
+  //    이게 없으면 응답이 도착한 순간 RTT * speed 만큼 뒤로 튕김
+  if (liveAccumDt > 0) {
+    const result = applyMovementInput(rx, ry, liveFlags, Math.min(liveAccumDt, 100) / 1000);
+    rx = result.nx; ry = result.ny;
+  }
+
+  // 4. 재연산 결과를 현재 위치로 적용
+  me.x = rx; me.y = ry;
+  if (p) { p.x = rx; p.y = ry; }
 }
 
 function onNotiHpChange(noti) {
@@ -880,26 +904,34 @@ function onNotiCombat(noti) {
   const tx = target.serverX ?? target.x;
   const ty = target.serverY ?? target.y;
   switch (wid) {
-    case 0: // Garlic — 플레이어 주변 오라 펄스
-      effects.push({ type: 'aura',  x: attacker.x, y: attacker.y, radius: 80, color: '#a8e063', duration: 600, startTime: now });
+    case 0: { // Garlic — 플레이어 주변 오라 펄스 (히트 플래시)
+      const garlicR = (attacker.id === me.id && myWeapons.has(0)) ? (myWeapons.get(0).radius || 80) : 80;
+      effects.push({ type: 'aura',  x: attacker.x, y: attacker.y, radius: garlicR, color: '#a8e063', duration: 600, startTime: now });
       effects.push({ type: 'flash', x: tx, y: ty, color: '#a8e063', duration: 200, startTime: now });
+      spawnParticles(tx, ty, '#a8e063', 6, 35);
       break;
+    }
     case 1: // Wand — 마법 투사체 적중 플래시 (보라빛)
       effects.push({ type: 'flash', x: tx, y: ty, color: '#9b59b6', duration: 180, startTime: now });
+      spawnParticles(tx, ty, '#c39bd3', 8, 40);
       if (noti.projectileId) activeProjectiles.delete(toId(noti.projectileId));
       break;
     case 4: // Knife — 단검 적중 플래시 (흰빛) + 즉시 소멸
       effects.push({ type: 'flash', x: tx, y: ty, color: '#ecf0f1', duration: 180, startTime: now });
+      spawnParticles(tx, ty, '#ecf0f1', 6, 30);
       if (noti.projectileId) activeProjectiles.delete(toId(noti.projectileId));
       break;
     case 2: // Bible — 공전 성경 적중 플래시 (금빛)
       effects.push({ type: 'flash', x: tx, y: ty, color: '#f1c40f', duration: 200, startTime: now });
+      spawnParticles(tx, ty, '#f1c40f', 6, 35);
       break;
     case 3: // Axe — 포물선 도끼 관통 적중 플래시 (주황)
       effects.push({ type: 'flash', x: tx, y: ty, color: '#e67e22', duration: 180, startTime: now });
+      spawnParticles(tx, ty, '#e67e22', 9, 50);
       break;
     case 5: // Cross — 부메랑 십자가 관통 적중 플래시 (흰 금빛)
       effects.push({ type: 'flash', x: tx, y: ty, color: '#fffde7', duration: 220, startTime: now });
+      spawnParticles(tx, ty, '#fffde7', 8, 45);
       break;
     default:
       spawnEffect(attacker.x, attacker.y, tx, ty, '#f1c40f', 250);
@@ -926,6 +958,14 @@ function spawnEffect(sx, sy, tx, ty, color, duration) {
   effects.push({ sx, sy, tx, ty, color, duration, startTime: performance.now() });
 }
 
+function spawnParticles(x, y, color, count = 7, spread = 45) {
+  const particles = Array.from({ length: count }, (_, i) => ({
+    angle: (Math.PI * 2 * i / count) + (Math.random() - 0.5) * 0.8,
+    dist:  spread * (0.4 + Math.random() * 0.6),
+  }));
+  effects.push({ type: 'particles', x, y, color, particles, duration: 380, startTime: performance.now() });
+}
+
 function onNotiExpGain(noti) {
   if (toId(noti.playerId) === me.id) {
     character.exp     = Number(toId(noti.totalExp))    || 0;
@@ -942,15 +982,29 @@ function onNotiLevelUp(noti) {
     character.def   = noti.newDefense;
     addChat('시스템', `레벨 업! Lv.${character.level}`);
     updateHud();
+    effects.push({ type: 'levelup', x: me.x, y: me.y, duration: 900, startTime: performance.now() });
   }
 }
 
 function onNotiStatBoost(noti) {
   if (toId(noti.playerId) !== me.id) return;
-  // 이동속도: 서버 기준 200 → 클라이언트 5px/frame 기준으로 환산 (200 / 200 * 5)
-  moveSpeed = (noti.moveSpeed / 200) * 5;
-  character.atk   = noti.attack;
-  character.maxHp = noti.maxHp;
+  moveSpeed = noti.moveSpeed;
+  character.atk       = noti.attack;
+  character.maxHp     = noti.maxHp;
+  character.expRadius = noti.expRadius ?? 0;
+  character.expMulti  = noti.expMulti  ?? 1;
+  if (noti.currentHp > 0) {
+    character.hp = noti.currentHp;
+    const p = gamePlayers.get(me.id);
+    if (p) { p.hp = noti.currentHp; p.maxHp = noti.maxHp; }
+  }
+  updateHud();
+}
+
+function onNotiWeaponUpgrade(noti) {
+  if (toId(noti.playerId) !== me.id) return;
+  const wid = noti.weaponId ?? 0;
+  myWeapons.set(wid, { level: noti.level ?? 1, radius: noti.param1 ?? 0 });
   updateHud();
 }
 
@@ -992,6 +1046,7 @@ function onNotiProjectileSpawn(noti) {
     spawnTime: performance.now(),
     ownerId:  toId(noti.ownerId),
     weaponId: noti.weaponId,
+    trail: noti.weaponId === 3 ? [] : undefined, // 도끼만 궤적 트레일
   });
 }
 
@@ -1045,6 +1100,23 @@ function drawProjectile(ctx, proj, cam) {
     wx = ((proj.x + proj.velX * dt) % MAP_W + MAP_W) % MAP_W;
     wy = ((proj.y + proj.velY * dt + 0.5 * AXE_GRAVITY * dt * dt) % MAP_H + MAP_H) % MAP_H;
     angle = Math.atan2(curVelY, proj.velX); // 현재 비행 방향
+    // 궤적 트레일 갱신 + 렌더링
+    if (proj.trail !== undefined) {
+      const now2 = performance.now();
+      proj.trail.push({ x: wx, y: wy, t: now2 });
+      while (proj.trail.length > 0 && now2 - proj.trail[0].t > 220) proj.trail.shift();
+      for (let ti = 0; ti < proj.trail.length; ti++) {
+        const tp  = proj.trail[ti];
+        const age = (now2 - tp.t) / 220;
+        const ts2 = toScreen(tp.x, tp.y, cam);
+        ctx.globalAlpha = (1 - age) * 0.45;
+        ctx.fillStyle   = '#e67e22';
+        ctx.beginPath();
+        ctx.arc(ts2.x, ts2.y, 7 * (1 - age * 0.6), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
     const s = toScreen(wx, wy, cam);
     ctx.save();
     ctx.translate(s.x, s.y);
@@ -1053,6 +1125,8 @@ function drawProjectile(ctx, proj, cam) {
     ctx.font         = '40px serif';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
+    ctx.shadowColor  = '#e67e22';
+    ctx.shadowBlur   = 18;
     ctx.fillText('🪓', 0, 0);
     ctx.restore();
   } else {
@@ -1077,6 +1151,8 @@ function drawProjectile(ctx, proj, cam) {
       ctx.font         = '18px serif';
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
+      ctx.shadowColor  = '#cbd5e1';
+      ctx.shadowBlur   = 12;
       ctx.fillText('🗡️', 0, 0);
     }
     ctx.restore();
@@ -1142,6 +1218,8 @@ function updateHud() {
   set('hud-exp',   `${character.exp}/${character.nextExp}`);
   set('hud-atk',   character.atk);
   set('hud-def',   character.def);
+  set('hud-speed', Math.round(moveSpeed));
+  set('hud-gem-r', Math.round(character.expRadius));
 }
 
 // ─────────────────────────────────────────────────────
@@ -1199,6 +1277,9 @@ function render() {
   ctx.lineWidth   = 2;
   ctx.strokeRect(-cam.x, -cam.y, MAP_W, MAP_H);
 
+  drawDecorations(ctx, cam);
+  drawMapEdgeFade(ctx, cam);
+
   gameGems.forEach(g      => drawGem(ctx, g, cam));
   drawAbsorbingGems(ctx, cam);
   gameMonsters.forEach(m  => drawMonster(ctx, m, cam));
@@ -1206,6 +1287,27 @@ function render() {
   orbitalWeaponList.forEach(o => drawOrbitalWeapon(ctx, o, cam));
   activeProjectiles.forEach(p => drawProjectile(ctx, p, cam));
   drawEffects(ctx, cam);
+  drawWeaponList(ctx);
+}
+
+const _WEAPON_LABELS = { 0:'🧄마늘', 1:'🔮지팡이', 2:'📖성경', 3:'🪓도끼', 4:'🔪단검', 5:'✝십자가' };
+function drawWeaponList(ctx) {
+  if (myWeapons.size === 0) return;
+  ctx.save();
+  ctx.font        = '12px monospace';
+  ctx.textAlign   = 'left';
+  ctx.textBaseline = 'bottom';
+  let y = CANVAS_H - 6;
+  for (const [wid, info] of [...myWeapons.entries()].reverse()) {
+    const label = `${_WEAPON_LABELS[wid] ?? `무기${wid}`} Lv.${info.level}`;
+    const tw    = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(4, y - 14, tw + 8, 16);
+    ctx.fillStyle = '#a8e4a0';
+    ctx.fillText(label, 8, y);
+    y -= 18;
+  }
+  ctx.restore();
 }
 
 function drawEffects(ctx, cam) {
@@ -1281,6 +1383,52 @@ function drawEffects(ctx, cam) {
       continue;
     }
 
+    if (e.type === 'particles') {
+      const s0 = toScreen(e.x, e.y, cam);
+      ctx.fillStyle = e.color;
+      for (const p of e.particles) {
+        const px = s0.x + Math.cos(p.angle) * p.dist * t;
+        const py = s0.y + Math.sin(p.angle) * p.dist * t;
+        ctx.globalAlpha = (1 - t) * 0.9;
+        ctx.beginPath();
+        ctx.arc(px, py, 3.5 * (1 - t * 0.5), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      continue;
+    }
+
+    if (e.type === 'levelup') {
+      const s = toScreen(e.x, e.y, cam);
+      for (let ri = 0; ri < 3; ri++) {
+        const rt = Math.max(0, t - ri * 0.18);
+        if (rt <= 0) continue;
+        ctx.globalAlpha = (1 - rt) * 0.75;
+        ctx.strokeStyle = ri === 0 ? '#fde047' : ri === 1 ? '#fbbf24' : '#f59e0b';
+        ctx.lineWidth   = 3 - ri * 0.8;
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur  = 14;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 15 + rt * 90, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (t < 0.75) {
+        const fadeIn  = Math.min(1, t / 0.15);
+        const fadeOut = Math.max(0, 1 - (t - 0.3) / 0.45);
+        ctx.globalAlpha = fadeIn * fadeOut;
+        ctx.fillStyle   = '#fde047';
+        ctx.font        = 'bold 22px sans-serif';
+        ctx.textAlign   = 'center';
+        ctx.shadowColor = '#f59e0b';
+        ctx.shadowBlur  = 12;
+        ctx.fillText('LEVEL UP!', s.x, s.y - 48 - t * 18);
+      }
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur  = 0;
+      ctx.lineWidth   = 1;
+      continue;
+    }
+
     // 기본 선형 투사체 (spawnEffect 호환)
     const wx = e.sx + (e.tx - e.sx) * t;
     const wy = e.sy + (e.ty - e.sy) * t;
@@ -1292,6 +1440,57 @@ function drawEffects(ctx, cam) {
     ctx.arc(s.x, s.y, 5, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
+  }
+}
+
+// ─────────────────────────────────────────────────────
+// 맵 장식 오브젝트
+// ─────────────────────────────────────────────────────
+function initMapDecorations() {
+  mapDecorations = [];
+  // 결정론적 sin 기반 RNG (시드 고정 → 항상 동일 배치)
+  const rng = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5; return x - Math.floor(x); };
+  for (let i = 0; i < 220; i++) {
+    mapDecorations.push({
+      x:    rng(i * 3    ) * MAP_W,
+      y:    rng(i * 3 + 1) * MAP_H,
+      type: rng(i * 3 + 2) < 0.55 ? 'grass' : 'rock',
+      size: 0.65 + rng(i * 7) * 0.55,
+    });
+  }
+}
+
+function drawDecorations(ctx, cam) {
+  for (const d of mapDecorations) {
+    const s = toScreen(d.x, d.y, cam);
+    if (s.x < -30 || s.x > CANVAS_W + 30 || s.y < -30 || s.y > CANVAS_H + 30) continue;
+    const sz = Math.round(14 * d.size);
+    ctx.save();
+    ctx.globalAlpha  = 0.38;
+    ctx.font         = `${sz}px serif`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(d.type === 'grass' ? '🌿' : '🪨', s.x, s.y);
+    ctx.restore();
+  }
+}
+
+function drawMapEdgeFade(ctx, cam) {
+  const bx  = -cam.x, by = -cam.y;
+  const fw  = 90; // 페이드 폭 (px)
+  const dk  = 'rgba(13,17,23,0.88)', cl = 'rgba(13,17,23,0)';
+  // [그라디언트 시작, 끝, 사각형 x, y, w, h]
+  const sides = [
+    [bx,           by, bx + fw,       by, bx,           by, fw,     MAP_H], // left
+    [bx + MAP_W,   by, bx + MAP_W-fw, by, bx + MAP_W-fw, by, fw,    MAP_H], // right
+    [bx, by,           bx, by + fw,       bx, by,           MAP_W, fw    ], // top
+    [bx, by + MAP_H,   bx, by+MAP_H-fw,   bx, by+MAP_H-fw,  MAP_W, fw    ], // bottom
+  ];
+  for (const [gx0, gy0, gx1, gy1, rx, ry, rw, rh] of sides) {
+    const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+    g.addColorStop(0, dk); g.addColorStop(1, cl);
+    ctx.fillStyle = g;
+    ctx.fillRect(rx, ry, rw, rh);
   }
 }
 
@@ -1366,6 +1565,23 @@ function drawPlayer(ctx, p, cam) {
     ctx.lineTo(baseX - perpX, baseY - perpY);
     ctx.closePath();
     ctx.fill();
+    ctx.restore();
+  }
+
+  // 마늘 오라 — 항상 표시 (몬스터 유무 무관), 1초 주기로 맥동
+  if (isMe && myWeapons.has(0)) {
+    const gw     = myWeapons.get(0);
+    const r      = gw.radius > 0 ? gw.radius : 80;
+    const pulse  = (performance.now() % 1000) / 1000;
+    const alpha  = 0.10 + 0.07 * Math.sin(pulse * Math.PI * 2);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle   = '#a8e063';
+    ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = alpha * 2.5;
+    ctx.strokeStyle = '#a8e063';
+    ctx.lineWidth   = 2;
+    ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
 
@@ -1488,7 +1704,13 @@ function drawMonster(ctx, m, cam) {
 // ─────────────────────────────────────────────────────
 function startGameLoop() {
   if (animId) return;
-  lastSentX = me.x; lastSentY = me.y;
+  lastFrameTs  = 0;
+  inputSeq     = 0;
+  inputBuffer  = [];
+  liveFlags    = 0;
+  liveAccumDt  = 0;
+  myWeapons.clear();
+  initMapDecorations();
   document.addEventListener('keydown', onKeyDown);
   document.addEventListener('keyup',   onKeyUp);
   const canvas = document.getElementById('game-canvas');
@@ -1496,7 +1718,9 @@ function startGameLoop() {
   if (canvas) canvas.addEventListener('mousemove', onMouseMove);
 
   function loop(ts) {
-    handleMovement(ts);
+    const dt = lastFrameTs === 0 ? 16.667 : Math.min(ts - lastFrameTs, 50);
+    lastFrameTs = ts;
+    handleMovement(ts, dt);
     render();
     animId = requestAnimationFrame(loop);
   }
@@ -1522,40 +1746,58 @@ function onMouseMove(e) {
   mouseCanvasY = e.clientY - rect.top;
 }
 
-function handleMovement(ts) {
+// 서버의 PlayerWorldComponent.ApplyInput()과 반드시 동일한 공식이어야 한다.
+// flags: bit0=W(위), bit1=S(아래), bit2=A(왼쪽), bit3=D(오른쪽)
+function applyMovementInput(x, y, flags, dtSec) {
+  let dirX = 0, dirY = 0;
+  if (flags & 1) dirY -= 1; // W
+  if (flags & 2) dirY += 1; // S
+  if (flags & 4) dirX -= 1; // A
+  if (flags & 8) dirX += 1; // D
+
+  if (dirX !== 0 || dirY !== 0) {
+    const len = Math.sqrt(dirX * dirX + dirY * dirY);
+    dirX /= len; dirY /= len;
+  }
+
+  let nx = x + dirX * moveSpeed * dtSec;
+  let ny = y + dirY * moveSpeed * dtSec;
+  nx = ((nx % MAP_W) + MAP_W) % MAP_W;
+  ny = ((ny % MAP_H) + MAP_H) % MAP_H;
+  return { nx, ny };
+}
+
+function handleMovement(ts, dt) {
   const myPlayer = gamePlayers.get(me.id);
   if (!myPlayer || !myPlayer.alive) return;
 
-  const speed = moveSpeed;
-  let nx = me.x, ny = me.y;
-  let moving = false;
-  if (keys['KeyW'] || keys['ArrowUp'])    { ny -= speed; moving = true; }
-  if (keys['KeyS'] || keys['ArrowDown'])  { ny += speed; moving = true; }
-  if (keys['KeyA'] || keys['ArrowLeft'])  { nx -= speed; moving = true; }
-  if (keys['KeyD'] || keys['ArrowRight']) { nx += speed; moving = true; }
+  // 현재 프레임의 입력 플래그 생성
+  let flags = 0;
+  if (keys['KeyW'] || keys['ArrowUp'])    flags |= 1;
+  if (keys['KeyS'] || keys['ArrowDown'])  flags |= 2;
+  if (keys['KeyA'] || keys['ArrowLeft'])  flags |= 4;
+  if (keys['KeyD'] || keys['ArrowRight']) flags |= 8;
 
-  if (!moving) {
-    // 키에서 손을 뗀 순간 — 서버 위치가 클라이언트와 다를 경우 즉시 sync
-    if (me.x !== lastSentX || me.y !== lastSentY) {
-      lastSentX = me.x; lastSentY = me.y;
-      send({ reqMove: { x: me.x, y: me.y } });
-    }
-    return;
-  }
-
-  // 맵 순환 wrap-around
-  nx = ((nx % MAP_W) + MAP_W) % MAP_W;
-  ny = ((ny % MAP_H) + MAP_H) % MAP_H;
-
-  // 클라이언트 예측 — 즉시 로컬 위치 업데이트 (서버 응답 대기 없음)
+  // 클라이언트 예측: 매 프레임 즉시 로컬 위치 업데이트
+  const dtSec = Math.min(dt, 100) / 1000;
+  const { nx, ny } = applyMovementInput(me.x, me.y, flags, dtSec);
   me.x = nx; me.y = ny;
   myPlayer.x = nx; myPlayer.y = ny;
 
-  // 서버에는 throttle해서 전송
+  // 미전송 예측분 추적: NotiMove 재연산 시 RTT 구간 보정에 사용
+  liveFlags    = flags;
+  liveAccumDt += dt;
+
+  // 서버 전송: 50ms(20hz) 간격으로 입력 패킷 전송
   if (ts - lastMove >= MOVE_SEND_INTERVAL) {
-    lastMove = ts;
-    lastSentX = nx; lastSentY = ny;
-    send({ reqMove: { x: nx, y: ny } });
+    // lastMove=0이면 게임 루프 시작 직후 첫 전송 — elapsed를 SEND_INTERVAL로 고정해 서버 dtMs 과대 방지
+    const elapsed = lastMove === 0 ? MOVE_SEND_INTERVAL : Math.round(ts - lastMove);
+    lastMove     = ts;
+    liveAccumDt  = 0; // 전송 완료 — 누적 초기화
+    const seq = ++inputSeq;
+    inputBuffer.push({ seq, flags, dt: elapsed });
+    if (inputBuffer.length > 120) inputBuffer.shift(); // 최대 6초치 버퍼
+    send({ reqMove: { seq, flags, dtMs: elapsed } });
   }
 }
 
@@ -1625,11 +1867,61 @@ function doLogin() {
 }
 
 function doRegister() {
-  const user = document.getElementById('reg-user').value.trim();
-  const pass = document.getElementById('reg-pass').value.trim();
+  const user  = document.getElementById('reg-user').value.trim();
+  const pass  = document.getElementById('reg-pass').value.trim();
+  const email = (document.getElementById('reg-email')?.value || '').trim();
   if (!user || !pass) { setStatus('login-status', '아이디와 비밀번호를 입력해주세요.'); return; }
   setStatus('login-status', '연결 중...');
-  connect(() => send({ reqRegister: { username: user, password: pass } }));
+  connect(() => send({ reqRegister: { username: user, password: pass, email } }));
+}
+
+function showForgotPassword() {
+  showScreen('forgot-password');
+  setStatus('forgot-status', '');
+}
+
+async function doForgotPassword() {
+  const user   = (document.getElementById('forgot-user')?.value  || '').trim();
+  const email  = (document.getElementById('forgot-email')?.value || '').trim();
+  if (!user || !email) { setStatus('forgot-status', '아이디와 이메일을 입력해주세요.'); return; }
+  setStatus('forgot-status', '처리 중...');
+  try {
+    const res  = await fetch(`http://${window.location.hostname}:8080/auth/forgot-password`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ username: user, email })
+    });
+    const data = await res.json();
+    setStatus('forgot-status', data.message || '처리되었습니다.', true);
+  } catch (e) {
+    setStatus('forgot-status', '서버 연결에 실패했습니다.');
+  }
+}
+
+async function doResetPassword() {
+  const token       = new URLSearchParams(window.location.search).get('reset_token') || '';
+  const newPassword = (document.getElementById('reset-pass')?.value || '').trim();
+  if (!newPassword) { setStatus('reset-status', '새 비밀번호를 입력해주세요.'); return; }
+  setStatus('reset-status', '처리 중...');
+  try {
+    const res  = await fetch(`http://${window.location.hostname}:8080/auth/reset-password`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ token, newPassword })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setStatus('reset-status', data.message || '비밀번호가 변경되었습니다.', true);
+      setTimeout(() => {
+        history.replaceState(null, '', window.location.pathname);
+        showScreen('login');
+      }, 2000);
+    } else {
+      setStatus('reset-status', data.error || '처리에 실패했습니다.');
+    }
+  } catch (e) {
+    setStatus('reset-status', '서버 연결에 실패했습니다.');
+  }
 }
 
 // ─────────────────────────────────────────────────────
@@ -1638,12 +1930,18 @@ function doRegister() {
 window.addEventListener('DOMContentLoaded', async () => {
   buildSprites();
   await initProto();
-  showScreen('login');
+  const resetToken = new URLSearchParams(window.location.search).get('reset_token');
+  if (resetToken) {
+    showScreen('reset-password');
+  } else {
+    showScreen('login');
+  }
 });
 
 // HTML onclick에서 호출되는 전역 함수
 Object.assign(window, {
   switchTab, doLogin, doRegister,
+  showForgotPassword, doForgotPassword, doResetPassword,
   createRoom, joinRoom,
   toggleReady, exitRoom,
   sendGameChat, backToLobby,

@@ -12,9 +12,11 @@ namespace GameServer.Component.Stage.Weapons;
 /// </summary>
 public class WeaponComponent : BaseComponent
 {
-    private readonly Dictionary<ulong, List<WeaponBase>> _playerWeapons = new();
-    private readonly Dictionary<ulong, int> _pendingLevelUps = new();
-    private readonly HashSet<ulong>         _waitingForChoice = new();
+    private readonly Dictionary<ulong, List<WeaponBase>>      _playerWeapons     = new();
+    private readonly Dictionary<ulong, int>                   _pendingLevelUps   = new();
+    private readonly HashSet<ulong>                           _waitingForChoice  = new();
+    // 스탯 업그레이드 선택 횟수 추적 (accountId → choiceId → 선택 횟수)
+    private readonly Dictionary<ulong, Dictionary<int, int>>  _statUpgradeLevels = new();
 
     private static readonly (WeaponId Id, string Name)[] WeaponPool =
     [
@@ -65,6 +67,7 @@ public class WeaponComponent : BaseComponent
         _playerWeapons.Clear();
         _pendingLevelUps.Clear();
         _waitingForChoice.Clear();
+        _statUpgradeLevels.Clear();
     }
 
     protected override void OnDispose() { }
@@ -122,11 +125,13 @@ public class WeaponComponent : BaseComponent
     // 플레이어 등록/해제
     // ──────────────────────────────────────────────────────────────
 
-    /// <summary>플레이어를 무기 시스템에 등록 (기본 무기: 단검).</summary>
+    /// <summary>플레이어를 무기 시스템에 등록 (기본 무기: 단검). 클라이언트에 초기 무기 목록 전송.</summary>
     public void Register(PlayerComponent player)
     {
-        var weapons = new List<WeaponBase> { new KnifeWeapon() };
+        var knife   = new KnifeWeapon();
+        var weapons = new List<WeaponBase> { knife };
         _playerWeapons[player.AccountId] = weapons;
+        SendWeaponUpgrade(player, knife);
     }
 
     public void Unregister(ulong accountId)
@@ -134,6 +139,7 @@ public class WeaponComponent : BaseComponent
         _playerWeapons.Remove(accountId);
         _pendingLevelUps.Remove(accountId);
         _waitingForChoice.Remove(accountId);
+        _statUpgradeLevels.Remove(accountId);
     }
 
     /// <summary>게임 세션 종료 시 전체 정리.</summary>
@@ -142,6 +148,7 @@ public class WeaponComponent : BaseComponent
         _playerWeapons.Clear();
         _pendingLevelUps.Clear();
         _waitingForChoice.Clear();
+        _statUpgradeLevels.Clear();
     }
 
     /// <summary>플레이어의 첫 번째(기본) 무기 ID 반환. 무기가 없으면 Knife.</summary>
@@ -173,8 +180,12 @@ public class WeaponComponent : BaseComponent
                 pool.Add(new WeaponChoice((int)id, name, 1, IsUpgrade: false));
         }
 
+        _statUpgradeLevels.TryGetValue(player.AccountId, out var statLevels);
         foreach (var (id, name) in StatUpgradePool)
-            pool.Add(new WeaponChoice(id, name, 1, IsUpgrade: false));
+        {
+            var curLevel = statLevels?.GetValueOrDefault(id, 0) ?? 0;
+            pool.Add(new WeaponChoice(id, name, curLevel + 1, IsUpgrade: curLevel > 0));
+        }
 
         return pool.OrderBy(_ => Random.Shared.Next()).Take(3).ToList();
     }
@@ -219,6 +230,10 @@ public class WeaponComponent : BaseComponent
         if (choiceId >= 100)
         {
             ApplyStatUpgrade(player, (StatUpgradeId)choiceId);
+            var accountId = player.AccountId;
+            if (!_statUpgradeLevels.TryGetValue(accountId, out var statLevels))
+                _statUpgradeLevels[accountId] = statLevels = new Dictionary<int, int>();
+            statLevels[choiceId] = statLevels.GetValueOrDefault(choiceId, 0) + 1;
         }
         else
         {
@@ -229,6 +244,7 @@ public class WeaponComponent : BaseComponent
             if (existing != null)
             {
                 existing.Upgrade();
+                SendWeaponUpgrade(player, existing);
             }
             else
             {
@@ -244,6 +260,7 @@ public class WeaponComponent : BaseComponent
                 };
                 if (newWeapon == null) return;
                 owned.Add(newWeapon);
+                SendWeaponUpgrade(player, newWeapon);
             }
         }
 
@@ -263,7 +280,7 @@ public class WeaponComponent : BaseComponent
         {
             case StatUpgradeId.AttackUp:    player.Character.ApplyAttackUp();    break;
             case StatUpgradeId.MaxHpUp:     player.Character.ApplyMaxHpUp();     break;
-            case StatUpgradeId.MoveSpeedUp: player.World.IncreaseSpeed(15f);     break;
+            case StatUpgradeId.MoveSpeedUp: player.World.IncreaseSpeed(25f);     break;
             case StatUpgradeId.ExpMultiUp:  player.Character.ApplyExpMultiUp();  break;
             case StatUpgradeId.ExpRadiusUp: player.Character.ApplyExpRadiusUp(); break;
         }
@@ -277,9 +294,23 @@ public class WeaponComponent : BaseComponent
                 MaxHp     = player.Character.MaxHp,
                 MoveSpeed = player.World.MoveSpeed,
                 ExpMulti  = player.Character.ExpMultiplier,
-                ExpRadius = player.Character.ExpRadiusBonus
+                ExpRadius = player.Character.ExpRadiusBonus,
+                CurrentHp = player.Character.Hp,
             }
         });
+    }
+
+    private static void SendWeaponUpgrade(PlayerComponent player, WeaponBase weapon)
+    {
+        var noti = new NotiWeaponUpgrade
+        {
+            PlayerId = player.AccountId,
+            WeaponId = (int)weapon.Id,
+            Level    = weapon.Level,
+        };
+        if (weapon is GarlicWeapon garlic)
+            noti.Param1 = garlic.Radius;
+        _ = player.Session.SendAsync(new GamePacket { NotiWeaponUpgrade = noti });
     }
 }
 

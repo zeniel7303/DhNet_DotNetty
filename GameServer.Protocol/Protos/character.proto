@@ -25,3 +25,11 @@ message NotiStatBoost {
     float  exp_radius = 6;
     int32  current_hp = 7;
 }
+
+// Weapon Upgrade — 무기 획득/레벨업 시 클라이언트에 전달 (HUD 갱신 + 마늘 반경)
+message NotiWeaponUpgrade {
+    uint64 player_id = 1;
+    int32  weapon_id = 2;
+    int32  level     = 3;
+    float  param1    = 4; // 무기별 파라미터: 마늘=반경(px)
+}
