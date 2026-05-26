@@ -19,9 +19,9 @@ public class AccountDbSet
     {
         const string sql = @"
             INSERT IGNORE INTO `accounts`
-                (`account_id`, `username`, `password_hash`, `created_at`)
+                (`account_id`, `username`, `password_hash`, `email`, `created_at`)
             VALUES
-                (@account_id, @username, @password_hash, @created_at)";
+                (@account_id, @username, @password_hash, @email, @created_at)";
         return _conn.ExecuteAsync(sql, row);
     }
 
@@ -29,11 +29,32 @@ public class AccountDbSet
     public Task<AccountRow?> SelectByUsernameAsync(string username)
     {
         const string sql = @"
-            SELECT `account_id`, `username`, `password_hash`, `created_at`
+            SELECT `account_id`, `username`, `password_hash`, `email`, `created_at`
             FROM `accounts`
             WHERE `username` = @username
             LIMIT 1";
         return _conn.QuerySingleOrDefaultAsync<AccountRow>(sql, new { username });
+    }
+
+    /// <summary>email로 계정 조회. 없으면 null 반환.</summary>
+    public Task<AccountRow?> SelectByEmailAsync(string email)
+    {
+        const string sql = @"
+            SELECT `account_id`, `username`, `password_hash`, `email`, `created_at`
+            FROM `accounts`
+            WHERE `email` = @email
+            LIMIT 1";
+        return _conn.QuerySingleOrDefaultAsync<AccountRow>(sql, new { email });
+    }
+
+    /// <summary>password_hash 갱신.</summary>
+    public Task<int> UpdatePasswordHashAsync(ulong accountId, string newHash)
+    {
+        const string sql = @"
+            UPDATE `accounts`
+            SET `password_hash` = @newHash
+            WHERE `account_id` = @accountId";
+        return _conn.ExecuteAsync(sql, new { accountId, newHash });
     }
 
     /// <summary>서버 시작 시 IdGenerators.Account 초기화에 사용.</summary>

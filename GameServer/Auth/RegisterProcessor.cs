@@ -22,6 +22,7 @@ internal static class RegisterProcessor
     {
         var username = req.Username.Trim();
         var password = req.Password;
+        var email    = string.IsNullOrWhiteSpace(req.Email) ? null : req.Email.Trim();
 
         // username 길이 검증 (4~16자)
         if (username.Length < MinLength || username.Length > MaxLength)
@@ -65,6 +66,7 @@ internal static class RegisterProcessor
                 account_id    = accountId,
                 username      = username,
                 password_hash = passwordHash,
+                email         = email,
                 created_at    = DateTime.UtcNow
             });
         }

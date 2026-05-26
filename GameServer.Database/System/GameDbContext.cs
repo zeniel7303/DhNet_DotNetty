@@ -9,14 +9,16 @@ namespace GameServer.Database.System;
 /// </summary>
 public class GameDbContext
 {
-    public PlayerDbSet    Players    { get; }
-    public AccountDbSet   Accounts   { get; }
-    public CharacterDbSet Characters { get; }
+    public PlayerDbSet             Players             { get; }
+    public AccountDbSet            Accounts            { get; }
+    public CharacterDbSet          Characters          { get; }
+    public PasswordResetTokenDbSet PasswordResetTokens { get; }
 
     public GameDbContext(DbConnector connector)
     {
-        Players    = new PlayerDbSet(connector);
-        Accounts   = new AccountDbSet(connector);
-        Characters = new CharacterDbSet(connector);
+        Players             = new PlayerDbSet(connector);
+        Accounts            = new AccountDbSet(connector);
+        Characters          = new CharacterDbSet(connector);
+        PasswordResetTokens = new PasswordResetTokenDbSet(connector);
     }
 }

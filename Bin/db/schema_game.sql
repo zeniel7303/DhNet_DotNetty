@@ -15,10 +15,27 @@ CREATE TABLE `accounts` (
     `account_id`    BIGINT UNSIGNED NOT NULL              COMMENT 'IdGenerators.Account.Next() 값',
     `username`      VARCHAR(64)     NOT NULL,
     `password_hash` VARCHAR(255)    NOT NULL              COMMENT 'BCrypt(workFactor=11) 해시',
+    `email`         VARCHAR(255)    DEFAULT NULL          COMMENT '비밀번호 재설정용 이메일 (선택)',
     `created_at`    DATETIME        NOT NULL              COMMENT '계정 생성 시각 (UTC)',
     PRIMARY KEY (`account_id`),
-    UNIQUE KEY `ux_accounts_username` (`username`)
+    UNIQUE KEY `ux_accounts_username` (`username`),
+    UNIQUE KEY `ux_accounts_email`    (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='계정 인증 정보';
+
+-- ──────────────────────────────────────────────
+-- password_reset_tokens: 비밀번호 재설정 토큰
+-- ──────────────────────────────────────────────
+DROP TABLE IF EXISTS `password_reset_tokens`;
+CREATE TABLE `password_reset_tokens` (
+    `token_id`   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `account_id` BIGINT UNSIGNED NOT NULL,
+    `token`      CHAR(64)        NOT NULL                 COMMENT 'SHA-256 hex, 1회용',
+    `expires_at` DATETIME        NOT NULL                 COMMENT '유효 만료 시각 (UTC+1h)',
+    `used_at`    DATETIME        DEFAULT NULL             COMMENT '사용된 시각 (NULL=미사용)',
+    PRIMARY KEY (`token_id`),
+    UNIQUE KEY `ux_reset_token` (`token`),
+    KEY `ix_reset_account`     (`account_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='비밀번호 재설정 토큰';
 
 -- ──────────────────────────────────────────────
 -- players: 로그인 세션 정보 (게임 데이터)

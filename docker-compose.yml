@@ -23,8 +23,8 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "17777:7777"
-      - "17778:7778"
+      - "7777:7777"
+      - "7778:7778"
       - "8080:8080"
     environment:
       DOTNET_ENVIRONMENT: Docker

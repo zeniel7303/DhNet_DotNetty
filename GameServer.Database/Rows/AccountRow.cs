@@ -7,5 +7,6 @@ public class AccountRow
     public string   username      { get; set; } = "";
     /// <summary>BCrypt(workFactor=11) 해시.</summary>
     public string   password_hash { get; set; } = "";
+    public string?  email         { get; set; }
     public DateTime created_at    { get; set; }
 }
