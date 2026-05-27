@@ -22,12 +22,13 @@ namespace GameServer.Component.Stage.Weapons;
 /// </summary>
 public class AxeWeapon : WeaponBase
 {
-    public  const float Gravity          = 1000f; // px/s² (클라이언트와 동일 값 유지)
-    private const float HorizontalSpeed  = 400f;  // px/s
-    private const float VerticalSpeed    = 500f;  // px/s (초기 상향 속도)
-    private const float Lifetime         = 1.0f;  // 초 — 완전한 포물선 1회
-    private const float HitRadius        = 25f;   // px
-    private const int   MaxProjectiles   = 10;    // 다중 도끼(최대 5개) 수용
+    // px/s² (클라이언트와 동일 값 유지 — weapons.json "gravity")
+    public float Gravity { get; private set; }
+    private readonly float _horizontalSpeed;
+    private readonly float _verticalSpeed;
+    private readonly float _lifetime;
+    private readonly float _hitRadius;
+    private readonly int   _maxProjectiles;
 
     // weapons.json "spreadOffsets"에서 로드. 행 인덱스 = 도끼 개수 - 1.
     private readonly float[][] _spreadOffsets;
@@ -51,10 +52,16 @@ public class AxeWeapon : WeaponBase
 
     public AxeWeapon() : base(WeaponId.Axe)
     {
-        var stat       = GameDataTable.Weapons[Id.ToString()];
-        Damage         = stat.Damage;
-        CooldownSec    = stat.CooldownSec;
-        _spreadOffsets = stat.SpreadOffsets ?? [[0f]];
+        var stat         = GameDataTable.Weapons[Id.ToString()];
+        Damage           = stat.Damage;
+        CooldownSec      = stat.CooldownSec;
+        _spreadOffsets   = stat.SpreadOffsets    ?? [[0f]];
+        Gravity          = stat.Gravity          ?? 1000f;
+        _horizontalSpeed = stat.HorizontalSpeed  ?? 400f;
+        _verticalSpeed   = stat.VerticalSpeed    ?? 500f;
+        _lifetime        = stat.ProjectileLifetime ?? 1.0f;
+        _hitRadius       = stat.HitRadius        ?? 25f;
+        _maxProjectiles  = stat.MaxProjectiles   ?? 10;
     }
 
     public override List<WeaponHit> Tick(
@@ -80,21 +87,21 @@ public class AxeWeapon : WeaponBase
             // 맵 경계 순환 적용 — 클라이언트 렌더링과 동일한 공식
             var (curX, curY) = WrapPos(
                 p.StartX + p.VelX  * t,
-                p.StartY + p.VelY0 * t + 0.5f * Gravity * t * t);
+                p.StartY + p.VelY0 * t + 0.5f * Gravity * t * t); // Gravity는 json에서 로드
 
             // 관통: 경로 상 미명중 적 모두 체크
             foreach (var m in monsters)
             {
                 if (p.HitMonsters.Contains(m.MonsterId)) continue;
 
-                float combined = HitRadius + m.HitRadius;
+                float combined = _hitRadius + m.HitRadius;
                 if (WrappedDistSq(m.X, m.Y, curX, curY) > combined * combined) continue;
 
                 hits.Add(new WeaponHit(m.MonsterId, Damage, ProjectileId: p.Id));
                 p.HitMonsters.Add(m.MonsterId);
             }
 
-            if (t >= Lifetime)
+            if (t >= _lifetime)
             {
                 _pendingPackets.Add(new GamePacket
                 {
@@ -113,7 +120,7 @@ public class AxeWeapon : WeaponBase
         float ownerX, float ownerY,
         IEnumerable<MonsterComponent> monsters)
     {
-        int slots = MaxProjectiles - _projectiles.Count;
+        int slots = _maxProjectiles - _projectiles.Count;
         if (slots <= 0) return [];
 
         MonsterComponent? nearest   = null;
@@ -132,8 +139,8 @@ public class AxeWeapon : WeaponBase
         for (int i = 0; i < fireCount; i++)
         {
             float angle = baseAngle + offsets[i] * (MathF.PI / 180f);
-            float velX  = MathF.Cos(angle) * HorizontalSpeed;
-            float velY  = -VerticalSpeed; // 항상 위로 솟는 포물선 (Y축 아래가 양수)
+            float velX  = MathF.Cos(angle) * _horizontalSpeed;
+            float velY  = -_verticalSpeed; // 항상 위로 솟는 포물선 (Y축 아래가 양수)
 
             ulong id = NextProjectileId();
             _projectiles.Add(new AxeProjectile

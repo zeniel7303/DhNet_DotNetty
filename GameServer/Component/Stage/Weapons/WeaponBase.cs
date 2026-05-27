@@ -72,9 +72,9 @@ public abstract class WeaponBase
         CooldownSec = MathF.Max(stat.CooldownMin, CooldownSec * stat.UpgradeMultCooldown);
     }
 
-    // 투사체 위치 계산 시 맵 경계 처리에 사용
-    protected const float MapW = 3200f;
-    protected const float MapH = 2400f;
+    // 맵 경계 처리 — GameDataTable.Map에서 읽음
+    protected static float MapW => GameDataTable.Map.MapWidth;
+    protected static float MapH => GameDataTable.Map.MapHeight;
 
     /// <summary>투사체·몬스터 위치를 맵 범위 [0, MapW) × [0, MapH)로 정규화.</summary>
     protected static (float x, float y) WrapPos(float x, float y)
@@ -94,10 +94,11 @@ public abstract class WeaponBase
     {
         float dx = ax - bx;
         float dy = ay - by;
-        if      (dx >  MapW * 0.5f) dx -= MapW;
-        else if (dx < -MapW * 0.5f) dx += MapW;
-        if      (dy >  MapH * 0.5f) dy -= MapH;
-        else if (dy < -MapH * 0.5f) dy += MapH;
+        float halfW = MapW * 0.5f, halfH = MapH * 0.5f;
+        if      (dx >  halfW) dx -= MapW;
+        else if (dx < -halfW) dx += MapW;
+        if      (dy >  halfH) dy -= MapH;
+        else if (dy < -halfH) dy += MapH;
         return dx * dx + dy * dy;
     }
 

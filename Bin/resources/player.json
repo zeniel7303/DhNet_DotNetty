@@ -1,0 +1,17 @@
+{
+  "initialHp": 500,
+  "initialAttack": 20,
+  "initialDefense": 10,
+  "initialMoveSpeed": 300.0,
+  "maxMoveSpeed": 500.0,
+  "levelExpCoeff": 15,
+  "attackUpAmount": 2,
+  "attackUpCap": 80,
+  "maxHpUpAmount": 25,
+  "maxHpUpCap": 1000,
+  "moveSpeedUpAmount": 25.0,
+  "expMultiUpFactor": 1.10,
+  "expMultiUpCap": 2.5,
+  "expRadiusUpAmount": 15.0,
+  "expRadiusUpCap": 120.0
+}

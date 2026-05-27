@@ -12,10 +12,10 @@ namespace GameServer.Component.Stage.Weapons;
 /// </summary>
 public class BibleWeapon : WeaponBase
 {
-    public  const float OrbitRadius      = 100f;
-    private const float HitRadius        = 35f;
-    private const float PerEnemyCooldown = 0.5f;
-    private const float AngularSpeed     = MathF.PI; // rad/s — 레벨 무관 고정
+    private readonly float _orbitRadius;
+    private readonly float _hitRadius;
+    private readonly float _perEnemyCooldown;
+    private readonly float _angularSpeed;
 
     /// <summary>현재 각 성경의 공전 각도 (radians). WeaponComponent가 읽어 NotiOrbitalWeaponSync 생성.</summary>
     public IReadOnlyList<float> Angles => _angles;
@@ -25,9 +25,13 @@ public class BibleWeapon : WeaponBase
 
     public BibleWeapon() : base(WeaponId.Bible)
     {
-        var stat    = GameDataTable.Weapons[Id.ToString()];
-        Damage      = stat.Damage;
-        CooldownSec = stat.CooldownSec;
+        var stat          = GameDataTable.Weapons[Id.ToString()];
+        Damage            = stat.Damage;
+        CooldownSec       = stat.CooldownSec;
+        _orbitRadius      = stat.OrbitRadius      ?? 100f;
+        _hitRadius        = stat.HitRadius        ?? 35f;
+        _perEnemyCooldown = stat.PerEnemyCooldown ?? 0.5f;
+        _angularSpeed     = stat.AngularSpeedRad  ?? MathF.PI;
     }
 
     public override List<WeaponHit> Tick(
@@ -35,7 +39,7 @@ public class BibleWeapon : WeaponBase
         IEnumerable<MonsterComponent> monsters)
     {
         for (int i = 0; i < _angles.Count; i++)
-            _angles[i] = (_angles[i] + AngularSpeed * dt) % (2f * MathF.PI);
+            _angles[i] = (_angles[i] + _angularSpeed * dt) % (2f * MathF.PI);
 
         var hits = new List<WeaponHit>();
 
@@ -44,7 +48,7 @@ public class BibleWeapon : WeaponBase
         foreach (var (id, elapsed) in _enemyCooldowns)
         {
             float next = elapsed + dt;
-            if (next >= PerEnemyCooldown) expired.Add(id);
+            if (next >= _perEnemyCooldown) expired.Add(id);
             else                          toUpdate.Add((id, next));
         }
         foreach (var id in expired)        _enemyCooldowns.Remove(id);
@@ -52,8 +56,8 @@ public class BibleWeapon : WeaponBase
 
         foreach (var angle in _angles)
         {
-            float bibleX = ownerX + MathF.Cos(angle) * OrbitRadius;
-            float bibleY = ownerY + MathF.Sin(angle) * OrbitRadius;
+            float bibleX = ownerX + MathF.Cos(angle) * _orbitRadius;
+            float bibleY = ownerY + MathF.Sin(angle) * _orbitRadius;
 
             foreach (var m in monsters)
             {
@@ -61,7 +65,7 @@ public class BibleWeapon : WeaponBase
                 if (_enemyCooldowns.ContainsKey(m.MonsterId)) continue;
 
                 float dx = m.X - bibleX, dy = m.Y - bibleY;
-                float combined = HitRadius + m.HitRadius;
+                float combined = _hitRadius + m.HitRadius;
                 if (dx * dx + dy * dy <= combined * combined)
                 {
                     hits.Add(new WeaponHit(m.MonsterId, Damage));

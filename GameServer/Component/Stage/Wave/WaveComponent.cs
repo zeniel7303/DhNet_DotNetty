@@ -12,9 +12,9 @@ namespace GameServer.Component.Stage.Wave;
 /// </summary>
 public class WaveComponent : BaseComponent
 {
-    private const float MapWidth    = 3200f;
-    private const float MapHeight   = 2400f;
-    private const float SpawnMargin = 40f;
+    private static float MapWidth  => GameDataTable.Map.MapWidth;
+    private static float MapHeight => GameDataTable.Map.MapHeight;
+    private const  float SpawnMargin = 40f;
     private const int   MaxMonsters = 500;
 
     public int WaveNumber { get; private set; }

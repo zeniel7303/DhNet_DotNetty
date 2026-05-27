@@ -14,10 +14,10 @@ namespace GameServer.Component.Stage.Weapons;
 /// </summary>
 public class WandWeapon : WeaponBase
 {
-    private const float Speed          = 700f;
-    private const float Lifetime       = 1.5f;
-    private const float HitRadius      = 20f;
-    private const int   MaxProjectiles = 10;
+    private readonly float _speed;
+    private readonly float _lifetime;
+    private readonly float _hitRadius;
+    private readonly int   _maxProjectiles;
 
     private sealed class WandProjectile
     {
@@ -35,9 +35,13 @@ public class WandWeapon : WeaponBase
 
     public WandWeapon() : base(WeaponId.Wand)
     {
-        var stat    = GameDataTable.Weapons[Id.ToString()];
-        Damage      = stat.Damage;
-        CooldownSec = stat.CooldownSec;
+        var stat        = GameDataTable.Weapons[Id.ToString()];
+        Damage          = stat.Damage;
+        CooldownSec     = stat.CooldownSec;
+        _speed          = stat.ProjectileSpeed    ?? 700f;
+        _lifetime       = stat.ProjectileLifetime ?? 1.5f;
+        _hitRadius      = stat.HitRadius          ?? 20f;
+        _maxProjectiles = stat.MaxProjectiles      ?? 10;
     }
 
     public override List<WeaponHit> Tick(
@@ -70,7 +74,7 @@ public class WandWeapon : WeaponBase
             {
                 if (p.HitMonsters.Contains(m.MonsterId)) continue;
 
-                float combined = HitRadius + m.HitRadius;
+                float combined = _hitRadius + m.HitRadius;
                 if (WrappedDistSq(m.X, m.Y, nx, ny) > combined * combined) continue;
 
                 hits.Add(new WeaponHit(m.MonsterId, Damage, ProjectileId: p.Id));
@@ -88,7 +92,7 @@ public class WandWeapon : WeaponBase
 
             if (destroyed) continue;
 
-            if (elapsed >= Lifetime)
+            if (elapsed >= _lifetime)
             {
                 _pendingPackets.Add(new GamePacket
                 {
@@ -107,7 +111,7 @@ public class WandWeapon : WeaponBase
         float ownerX, float ownerY,
         IEnumerable<MonsterComponent> monsters)
     {
-        if (_projectiles.Count >= MaxProjectiles) return [];
+        if (_projectiles.Count >= _maxProjectiles) return [];
 
         MonsterComponent? nearest   = null;
         float             minDistSq = float.MaxValue;
@@ -130,7 +134,7 @@ public class WandWeapon : WeaponBase
         {
             Id   = id,
             X    = ownerX, Y    = ownerY,
-            VelX = ux * Speed, VelY = uy * Speed,
+            VelX = ux * _speed, VelY = uy * _speed,
         });
 
         _pendingPackets.Add(new GamePacket
@@ -140,7 +144,7 @@ public class WandWeapon : WeaponBase
                 ProjectileId = id,
                 WeaponId     = (int)WeaponId.Wand,
                 X = ownerX, Y = ownerY,
-                VelX = ux * Speed, VelY = uy * Speed,
+                VelX = ux * _speed, VelY = uy * _speed,
             }
         });
 

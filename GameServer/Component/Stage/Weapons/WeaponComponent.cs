@@ -2,6 +2,7 @@ using Common.Server.Component;
 using GameServer.Component.Player;
 using GameServer.Component.Stage.Monster;
 using GameServer.Protocol;
+using GameServer.Resources;
 
 namespace GameServer.Component.Stage.Weapons;
 
@@ -280,7 +281,7 @@ public class WeaponComponent : BaseComponent
         {
             case StatUpgradeId.AttackUp:    player.Character.ApplyAttackUp();    break;
             case StatUpgradeId.MaxHpUp:     player.Character.ApplyMaxHpUp();     break;
-            case StatUpgradeId.MoveSpeedUp: player.World.IncreaseSpeed(25f);     break;
+            case StatUpgradeId.MoveSpeedUp: player.World.IncreaseSpeed(GameDataTable.Player.MoveSpeedUpAmount); break;
             case StatUpgradeId.ExpMultiUp:  player.Character.ApplyExpMultiUp();  break;
             case StatUpgradeId.ExpRadiusUp: player.Character.ApplyExpRadiusUp(); break;
         }

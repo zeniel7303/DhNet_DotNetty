@@ -15,10 +15,10 @@ namespace GameServer.Component.Stage.Weapons;
 /// </summary>
 public class KnifeWeapon : WeaponBase
 {
-    private const float Speed          = 800f;
-    private const float Lifetime       = 1.2f;
-    private const float HitRadius      = 28f;
-    private const int   MaxProjectiles = 15;
+    private readonly float _speed;
+    private readonly float _lifetime;
+    private readonly float _hitRadius;
+    private readonly int   _maxProjectiles;
 
     /// <summary>WeaponComponent가 매 틱 플레이어의 이동 방향으로 갱신한다.</summary>
     public float FacingDirX { get; set; } = 1f;
@@ -40,9 +40,13 @@ public class KnifeWeapon : WeaponBase
 
     public KnifeWeapon() : base(WeaponId.Knife)
     {
-        var stat    = GameDataTable.Weapons[Id.ToString()];
-        Damage      = stat.Damage;
-        CooldownSec = stat.CooldownSec;
+        var stat        = GameDataTable.Weapons[Id.ToString()];
+        Damage          = stat.Damage;
+        CooldownSec     = stat.CooldownSec;
+        _speed          = stat.ProjectileSpeed    ?? 800f;
+        _lifetime       = stat.ProjectileLifetime ?? 1.2f;
+        _hitRadius      = stat.HitRadius          ?? 28f;
+        _maxProjectiles = stat.MaxProjectiles      ?? 15;
     }
 
     public override List<WeaponHit> Tick(
@@ -75,7 +79,7 @@ public class KnifeWeapon : WeaponBase
             {
                 if (p.HitMonsters.Contains(m.MonsterId)) continue;
 
-                float combined = HitRadius + m.HitRadius;
+                float combined = _hitRadius + m.HitRadius;
                 if (WrappedDistSq(m.X, m.Y, nx, ny) > combined * combined) continue;
 
                 hits.Add(new WeaponHit(m.MonsterId, Damage, ProjectileId: p.Id));
@@ -92,7 +96,7 @@ public class KnifeWeapon : WeaponBase
 
             if (destroyed) continue;
 
-            if (elapsed >= Lifetime)
+            if (elapsed >= _lifetime)
             {
                 _pendingPackets.Add(new GamePacket
                 {
@@ -111,7 +115,7 @@ public class KnifeWeapon : WeaponBase
         float ownerX, float ownerY,
         IEnumerable<MonsterComponent> monsters)
     {
-        if (_projectiles.Count >= MaxProjectiles) return [];
+        if (_projectiles.Count >= _maxProjectiles) return [];
 
         float dirX = FacingDirX, dirY = FacingDirY;
         ulong id = NextProjectileId();
@@ -120,7 +124,7 @@ public class KnifeWeapon : WeaponBase
         {
             Id   = id,
             X    = ownerX, Y    = ownerY,
-            VelX = dirX * Speed, VelY = dirY * Speed,
+            VelX = dirX * _speed, VelY = dirY * _speed,
         });
 
         _pendingPackets.Add(new GamePacket
@@ -130,7 +134,7 @@ public class KnifeWeapon : WeaponBase
                 ProjectileId = id,
                 WeaponId     = (int)WeaponId.Knife,
                 X    = ownerX, Y    = ownerY,
-                VelX = dirX * Speed, VelY = dirY * Speed,
+                VelX = dirX * _speed, VelY = dirY * _speed,
             }
         });
 

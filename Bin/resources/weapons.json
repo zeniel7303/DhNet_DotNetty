@@ -1,35 +1,52 @@
 {
   "Garlic": {
-    "displayName": "\uB9C8\uB298",
+    "displayName": "마늘",
     "damage": 5,
-    "cooldownSec": 1,
-    "upgradeMultDamage": 1.20000004768372,
-    "upgradeMultCooldown": 0.899999976158142,
-    "cooldownMin": 0.300000011920929
+    "cooldownSec": 1.0,
+    "upgradeMultDamage": 1.2,
+    "upgradeMultCooldown": 0.9,
+    "cooldownMin": 0.3,
+    "auraRadius": 80.0,
+    "knockbackDist": 50.0,
+    "upgradeAuraRadius": 10.0
   },
   "Wand": {
-    "displayName": "\uB9C8\uBC95 \uC9C0\uD321\uC774",
+    "displayName": "마법 지팡이",
     "damage": 15,
-    "cooldownSec": 1,
-    "upgradeMultDamage": 1.20000004768372,
-    "upgradeMultCooldown": 0.899999976158142,
-    "cooldownMin": 0.300000011920929
+    "cooldownSec": 1.0,
+    "upgradeMultDamage": 1.2,
+    "upgradeMultCooldown": 0.9,
+    "cooldownMin": 0.3,
+    "projectileSpeed": 700.0,
+    "projectileLifetime": 1.5,
+    "hitRadius": 20.0,
+    "maxProjectiles": 10
   },
   "Bible": {
-    "displayName": "\uC131\uACBD",
+    "displayName": "성경",
     "damage": 20,
-    "cooldownSec": 0,
-    "upgradeMultDamage": 1.20000004768372,
-    "upgradeMultCooldown": 0.899999976158142,
-    "cooldownMin": 0.300000011920929
+    "cooldownSec": 0.0,
+    "upgradeMultDamage": 1.2,
+    "upgradeMultCooldown": 0.9,
+    "cooldownMin": 0.3,
+    "orbitRadius": 100.0,
+    "hitRadius": 35.0,
+    "perEnemyCooldown": 0.5,
+    "angularSpeedRad": 3.14159265
   },
   "Axe": {
-    "displayName": "\uB3C4\uB07C",
+    "displayName": "도끼",
     "damage": 25,
     "cooldownSec": 1.5,
-    "upgradeMultDamage": 1.20000004768372,
-    "upgradeMultCooldown": 0.899999976158142,
-    "cooldownMin": 0.300000011920929,
+    "upgradeMultDamage": 1.2,
+    "upgradeMultCooldown": 0.9,
+    "cooldownMin": 0.3,
+    "gravity": 1000.0,
+    "horizontalSpeed": 400.0,
+    "verticalSpeed": 500.0,
+    "projectileLifetime": 1.0,
+    "hitRadius": 25.0,
+    "maxProjectiles": 10,
     "spreadOffsets": [
       [0],
       [-25, 25],
@@ -39,19 +56,27 @@
     ]
   },
   "Knife": {
-    "displayName": "\uB2E8\uAC80",
+    "displayName": "단검",
     "damage": 18,
-    "cooldownSec": 0.800000011920929,
-    "upgradeMultDamage": 1.20000004768372,
-    "upgradeMultCooldown": 0.899999976158142,
-    "cooldownMin": 0.300000011920929
+    "cooldownSec": 0.8,
+    "upgradeMultDamage": 1.2,
+    "upgradeMultCooldown": 0.9,
+    "cooldownMin": 0.3,
+    "projectileSpeed": 800.0,
+    "projectileLifetime": 1.2,
+    "hitRadius": 28.0,
+    "maxProjectiles": 15
   },
   "Cross": {
-    "displayName": "\uC2ED\uC790\uAC00",
+    "displayName": "십자가",
     "damage": 30,
-    "cooldownSec": 2,
-    "upgradeMultDamage": 1.20000004768372,
-    "upgradeMultCooldown": 0.899999976158142,
-    "cooldownMin": 0.300000011920929
+    "cooldownSec": 2.0,
+    "upgradeMultDamage": 1.2,
+    "upgradeMultCooldown": 0.9,
+    "cooldownMin": 0.3,
+    "projectileLifetime": 1.4,
+    "maxDist": 300.0,
+    "hitRadius": 22.0,
+    "maxProjectiles": 3
   }
 }

@@ -1,3 +1,7 @@
 {
-  "waveinterval": 8
+  "waveInterval": 8,
+  "mapWidth": 3200.0,
+  "mapHeight": 2400.0,
+  "waveScalePerWave": 0.08,
+  "maxDtSec": 0.1
 }

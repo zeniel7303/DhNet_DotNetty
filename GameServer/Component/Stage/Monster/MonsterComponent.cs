@@ -24,9 +24,9 @@ public enum MonsterType
 /// </summary>
 public class MonsterComponent : BaseComponent
 {
-    // 맵 경계
-    private const float MapWidth  = 3200f;
-    private const float MapHeight = 2400f;
+    // 맵 경계 — GameDataTable.Map에서 읽음
+    private static float MapWidth  => GameDataTable.Map.MapWidth;
+    private static float MapHeight => GameDataTable.Map.MapHeight;
 
     public ulong       MonsterId   { get; }
     public MonsterType Type        { get; }
@@ -88,7 +88,7 @@ public class MonsterComponent : BaseComponent
         // 웨이브 기반 스탯 스케일링: wave 1 = 1.0x, wave 50 ≈ 4.9x (HP/ATK만 적용)
         if (waveNumber > 1)
         {
-            float mult = 1f + (waveNumber - 1) * 0.08f;
+            float mult = 1f + (waveNumber - 1) * GameDataTable.Map.WaveScalePerWave;
             MaxHp = (int)(MaxHp * mult);
             Atk   = (int)(Atk   * mult);
         }

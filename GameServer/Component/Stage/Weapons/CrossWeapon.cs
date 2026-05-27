@@ -26,10 +26,11 @@ namespace GameServer.Component.Stage.Weapons;
 /// </summary>
 public class CrossWeapon : WeaponBase
 {
-    public  const float Lifetime       = 1.4f;  // 왕복 시간 초 — 클라이언트 CROSS_LIFETIME과 일치
-    private const float MaxDist        = 300f;  // 최대 사거리 px
-    private const float HitRadius      = 22f;
-    private const int   MaxProjectiles = 3;
+    // 왕복 시간 초 — 클라이언트 CROSS_LIFETIME과 일치 (weapons.json "projectileLifetime")
+    public float Lifetime { get; private set; }
+    private readonly float _maxDist;
+    private readonly float _hitRadius;
+    private readonly int   _maxProjectiles;
 
     private sealed class CrossProjectile
     {
@@ -48,9 +49,13 @@ public class CrossWeapon : WeaponBase
 
     public CrossWeapon() : base(WeaponId.Cross)
     {
-        var stat    = GameDataTable.Weapons[Id.ToString()];
-        Damage      = stat.Damage;
-        CooldownSec = stat.CooldownSec;
+        var stat        = GameDataTable.Weapons[Id.ToString()];
+        Damage          = stat.Damage;
+        CooldownSec     = stat.CooldownSec;
+        Lifetime        = stat.ProjectileLifetime ?? 1.4f;
+        _maxDist        = stat.MaxDist            ?? 300f;
+        _hitRadius      = stat.HitRadius          ?? 22f;
+        _maxProjectiles = stat.MaxProjectiles     ?? 3;
     }
 
     public override List<WeaponHit> Tick(
@@ -101,7 +106,7 @@ public class CrossWeapon : WeaponBase
             {
                 if (hitSet.Contains(m.MonsterId)) continue;
 
-                float combined = HitRadius + m.HitRadius;
+                float combined = _hitRadius + m.HitRadius;
                 if (WrappedDistSq(m.X, m.Y, curX, curY) > combined * combined) continue;
 
                 hits.Add(new WeaponHit(m.MonsterId, Damage, ProjectileId: p.Id));
@@ -127,7 +132,7 @@ public class CrossWeapon : WeaponBase
         float ownerX, float ownerY,
         IEnumerable<MonsterComponent> monsters)
     {
-        if (_projectiles.Count >= MaxProjectiles) return [];
+        if (_projectiles.Count >= _maxProjectiles) return [];
 
         MonsterComponent? nearest   = null;
         float             minDistSq = float.MaxValue;
@@ -150,7 +155,7 @@ public class CrossWeapon : WeaponBase
         {
             Id     = id,
             StartX = ownerX, StartY = ownerY,
-            DirX   = ux * MaxDist, DirY = uy * MaxDist,
+            DirX   = ux * _maxDist, DirY = uy * _maxDist,
         });
 
         _pendingPackets.Add(new GamePacket
@@ -160,7 +165,7 @@ public class CrossWeapon : WeaponBase
                 ProjectileId = id,
                 WeaponId     = (int)WeaponId.Cross,
                 X    = ownerX,         Y    = ownerY,
-                VelX = ux * MaxDist,   VelY = uy * MaxDist, // DirX/DirY 인코딩
+                VelX = ux * _maxDist,   VelY = uy * _maxDist, // DirX/DirY 인코딩
             }
         });
 

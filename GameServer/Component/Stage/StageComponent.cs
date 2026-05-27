@@ -7,6 +7,7 @@ using GameServer.Component.Stage.Weapons;
 using GameServer.Component.Player;
 using GameServer.Component.Room;
 using GameServer.Protocol;
+using GameServer.Resources;
 using GameServer.Systems;
 
 namespace GameServer.Component.Stage;
@@ -195,8 +196,9 @@ public class StageComponent : BaseComponent
                 {
                     var dx = p.World.X - monster.X;
                     var dy = p.World.Y - monster.Y;
-                    if (dx >  1600f) dx -= 3200f; else if (dx < -1600f) dx += 3200f;
-                    if (dy >  1200f) dy -= 2400f; else if (dy < -1200f) dy += 2400f;
+                    float mapW = GameDataTable.Map.MapWidth, mapH = GameDataTable.Map.MapHeight;
+                    if (dx >  mapW * 0.5f) dx -= mapW; else if (dx < -mapW * 0.5f) dx += mapW;
+                    if (dy >  mapH * 0.5f) dy -= mapH; else if (dy < -mapH * 0.5f) dy += mapH;
                     var distSq = dx * dx + dy * dy;
                     if (distSq < nearestDistSq)
                     {
