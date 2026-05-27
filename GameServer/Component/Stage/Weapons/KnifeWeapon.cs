@@ -78,9 +78,7 @@ public class KnifeWeapon : WeaponBase
             foreach (var m in monsters)
             {
                 if (p.HitMonsters.Contains(m.MonsterId)) continue;
-
-                float combined = _hitRadius + m.HitRadius;
-                if (WrappedDistSq(m.X, m.Y, nx, ny) > combined * combined) continue;
+                if (!SweptHit(p.X, p.Y, p.VelX, p.VelY, dt, m, _hitRadius)) continue;
 
                 hits.Add(new WeaponHit(m.MonsterId, Damage, ProjectileId: p.Id));
                 p.HitMonsters.Add(m.MonsterId);

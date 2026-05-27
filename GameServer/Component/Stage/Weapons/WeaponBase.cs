@@ -103,6 +103,40 @@ public abstract class WeaponBase
     }
 
     /// <summary>
+    /// 투사체가 (startX,startY)에서 (velX*dt, velY*dt)만큼 이동하는 동안
+    /// 몬스터 m과 충돌하는지 선분 스윕으로 판정한다.
+    /// 맵 경계 순환을 고려하여 몬스터의 상대 위치를 최단 경로로 보정한다.
+    /// endpoint-only 체크의 터널링 문제를 방지한다.
+    /// </summary>
+    protected static bool SweptHit(
+        float startX, float startY,
+        float velX, float velY, float dt,
+        MonsterComponent m, float weaponHitRadius)
+    {
+        float dx = velX * dt;
+        float dy = velY * dt;
+
+        // 몬스터의 상대 위치 — wrap-aware 최단 경로
+        float relMx = m.X - startX;
+        float relMy = m.Y - startY;
+        float halfW = MapW * 0.5f, halfH = MapH * 0.5f;
+        if      (relMx >  halfW) relMx -= MapW;
+        else if (relMx < -halfW) relMx += MapW;
+        if      (relMy >  halfH) relMy -= MapH;
+        else if (relMy < -halfH) relMy += MapH;
+
+        // 선분 (0,0)→(dx,dy) 위의 최근접점
+        float lenSq = dx * dx + dy * dy;
+        float t = lenSq < 1e-6f ? 0f :
+            MathF.Max(0f, MathF.Min(1f, (relMx * dx + relMy * dy) / lenSq));
+
+        float ex = t * dx - relMx;
+        float ey = t * dy - relMy;
+        float combined = weaponHitRadius + m.HitRadius;
+        return ex * ex + ey * ey <= combined * combined;
+    }
+
+    /// <summary>
     /// 모든 투사체 무기가 공유하는 전역 ID 시퀀스.
     /// 무기별 독립 시퀀스를 사용하면 서로 다른 무기가 동일 ID를 발급할 수 있으므로
     /// 반드시 이 메서드를 통해 ID를 발급한다.
