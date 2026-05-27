@@ -142,6 +142,7 @@ await session.EnqueueEventAsync(() => { /* 상태 변경 */ });
 - **중복 로그인 차단** — DB Insert 전 `TryReserveLogin`으로 account_id 원자적 예약 → 중복 시 `ALREADY_LOGGED_IN(1006)` 응답
 - **이동 속도 검증** — `PlayerWorldComponent.TryMove()`: `MoveSpeed × elapsed × 1.8` 초과 시 이동 드랍. 맵 순환 경계 점프는 검증 제외
 - **워커 고정** — `PlayerGameEnter` 이후 `InstanceId % workerCount`로 동일 플레이어 패킷이 항상 단일 스레드에서 처리
+- **비밀번호 재설정** — `POST /forgot-password` 요청 시 SHA-256(Guid) 토큰 생성 → DB 저장(1시간 만료) → Gmail SMTP 메일 발송. `POST /reset-password`에서 BCrypt 재해시 후 토큰 원자적 소각. SMTP 미설정 시 토큰을 로그에만 출력하고 계속 동작
 
 #### 에러 코드
 
@@ -252,6 +253,34 @@ if (Interlocked.CompareExchange(ref _state, next, current) == current)
 - `MySqlConnectionStringBuilder`로 Connection String 조립 → Injection 벡터 차단.
 - 서버 재시작 시 `MAX(player_id)` / `MAX(room_id)` 조회로 ID 카운터 이어받기.
 
+### 9. JSON 기반 게임 데이터 외부화
+
+모든 게임 수치는 `Bin/resources/` JSON 파일에서 관리하며, 서버 시작 시 `GameDataTable.Load()`가 한 번 파싱한다.
+
+| 파일 | 내용 |
+|------|------|
+| `config.json` | 맵 크기, 최대 dt, 웨이브 배율 |
+| `player.json` | 초기 HP/ATK/속도, 레벨업 계수, 업그레이드 증감·상한 |
+| `monsters.json` | 몬스터 9종 스탯 및 리스폰 주기 |
+| `weapons.json` | 무기 6종 데미지·쿨다운·투사체 물리 파라미터 |
+| `waves.json` | 50웨이브 스폰 테이블 |
+
+코드에 숫자 리터럴이 없으므로 밸런스 조정 시 JSON 수정만으로 반영된다.
+
+### 10. 투사체 스윕 CCD — 빠른 투사체의 터널링 방지
+
+단검(800 units/s)·완드(700 units/s)는 틱당 이동 거리(dt=0.1s 기준 70~80 units)가 박쥐 합산 반경(36 units)보다 커서 endpoint-only 판정 시 관통 누락이 발생한다.
+
+`WeaponBase.SweptHit()`는 투사체 이동 경로를 선분으로 처리하고 몬스터까지 최단 거리를 계산한다:
+
+```
+relM = 몬스터 위치 - 투사체 시작점  (wrap 보정)
+t    = clamp((relM · d) / |d|², 0, 1)
+miss = |t·d - relM|² > combined²
+```
+
+맵 순환 경계에서도 wrap-aware 상대 위치를 사용해 정확도를 유지한다.
+
 ---
 
 ## 게임 콘텐츠
@@ -288,8 +317,8 @@ Vampire Survivors 스타일 멀티플레이어 탑다운 슈터. 브라우저(Ca
 
 | 이름 | 기본 HP | 기본 ATK | 속도 | 특징 |
 |------|---------|---------|------|------|
-| Bat | 10 | 5 | 120 | 고속, 낮은 체력 |
-| Zombie | 50 | 8 | 40 | 느리지만 다수 등장 |
+| Bat | 10 | 3 | 120 | 고속, 낮은 체력 |
+| Zombie | 50 | 6 | 40 | 느리지만 다수 등장 |
 | Skeleton | 80 | 12 | 60 | 방어력 2 |
 | Ghost | 60 | 10 | 100 | 고속 유령 |
 | GiantZombie | 300 | 30 | 25 | 미니 보스, 5웨이브마다 등장 |
@@ -345,12 +374,13 @@ DhNet_DotNetty/
 │   └── Rows/                         Row DTO 7종
 │
 ├── GameServer.Resources/             게임 데이터 테이블
-│   └── GameDataTable.cs              monsters/waves/weapons JSON 로더 (싱글톤)
+│   └── GameDataTable.cs              config/player/monsters/waves/weapons JSON 로더 (싱글톤)
 │
 ├── GameServer/                       서버 코어
 │   ├── Auth/
 │   │   ├── LoginProcessor.cs         로그인 플로우 (TaskPool, BCrypt 검증)
-│   │   └── RegisterProcessor.cs      회원가입 (BCrypt.HashPassword 비동기)
+│   │   ├── RegisterProcessor.cs      회원가입 (BCrypt.HashPassword 비동기)
+│   │   └── SmtpService.cs            Gmail SMTP 비밀번호 재설정 메일 발송
 │   ├── Component/
 │   │   ├── Player/
 │   │   │   ├── PlayerComponent.cs    플레이어 루트 컴포넌트 (100ms 틱)
