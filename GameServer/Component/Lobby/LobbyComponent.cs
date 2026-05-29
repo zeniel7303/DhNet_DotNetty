@@ -46,7 +46,10 @@ public class LobbyComponent : BaseComponent
         do
         {
             current = _playerCount;
-            if (current >= MaxCapacity) return false;
+            if (current >= MaxCapacity)
+            {
+                return false;
+            }
         } while (Interlocked.CompareExchange(ref _playerCount, current + 1, current) != current);
 
         if (!_players.TryAdd(player.AccountId, player))
@@ -123,6 +126,7 @@ public class LobbyComponent : BaseComponent
     public RoomInfo[] GetRoomList()
     {
         lock (_roomLock)
+        {
             return _rooms.Values.Select(r => new RoomInfo
             {
                 RoomId      = r.RoomId,
@@ -130,12 +134,15 @@ public class LobbyComponent : BaseComponent
                 MaxPlayers  = r.Capacity,
                 IsStarted   = r.IsGameStarted
             }).ToArray();
+        }
     }
 
     public RoomComponent? TryGetRoom(ulong roomId)
     {
         lock (_roomLock)
+        {
             return _rooms.GetValueOrDefault(roomId);
+        }
     }
 
     public void RemoveRoom(ulong roomId)
@@ -143,7 +150,10 @@ public class LobbyComponent : BaseComponent
         RoomComponent? room;
         lock (_roomLock)
         {
-            if (!_rooms.Remove(roomId, out room)) return;
+            if (!_rooms.Remove(roomId, out room))
+            {
+                return;
+            }
         }
 
         RoomSystem.Instance.Remove(room);  // 워커에서 제거
@@ -156,7 +166,9 @@ public class LobbyComponent : BaseComponent
     public IReadOnlyList<RoomComponent> GetRooms()
     {
         lock (_roomLock)
+        {
             return _rooms.Values.ToList();
+        }
     }
 
     protected override void OnDispose()

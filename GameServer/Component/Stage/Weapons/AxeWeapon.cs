@@ -92,10 +92,16 @@ public class AxeWeapon : WeaponBase
             // 관통: 경로 상 미명중 적 모두 체크
             foreach (var m in monsters)
             {
-                if (p.HitMonsters.Contains(m.MonsterId)) continue;
+                if (p.HitMonsters.Contains(m.MonsterId))
+                {
+                    continue;
+                }
 
                 float combined = _hitRadius + m.HitRadius;
-                if (WrappedDistSq(m.X, m.Y, curX, curY) > combined * combined) continue;
+                if (WrappedDistSq(m.X, m.Y, curX, curY) > combined * combined)
+                {
+                    continue;
+                }
 
                 hits.Add(new WeaponHit(m.MonsterId, Damage, ProjectileId: p.Id));
                 p.HitMonsters.Add(m.MonsterId);
@@ -121,16 +127,26 @@ public class AxeWeapon : WeaponBase
         IEnumerable<MonsterComponent> monsters)
     {
         int slots = _maxProjectiles - _projectiles.Count;
-        if (slots <= 0) return [];
+        if (slots <= 0)
+        {
+            return [];
+        }
 
         MonsterComponent? nearest   = null;
         float             minDistSq = float.MaxValue;
         foreach (var m in monsters)
         {
             float dSq = DistSq(ownerX, ownerY, m.X, m.Y);
-            if (dSq < minDistSq) { minDistSq = dSq; nearest = m; }
+            if (dSq < minDistSq)
+            {
+                minDistSq = dSq;
+                nearest = m;
+            }
         }
-        if (nearest == null) return [];
+        if (nearest == null)
+        {
+            return [];
+        }
 
         // 최근접 적 방향 기준 부채꼴 발사 — weapons.json spreadOffsets 테이블로 오프셋 결정
         float[] offsets   = _spreadOffsets[Math.Min(_axeCount, _spreadOffsets.Length) - 1];
@@ -174,8 +190,10 @@ public class AxeWeapon : WeaponBase
         else
         {
             if (!GameDataTable.Weapons.TryGetValue(Id.ToString(), out var stat))
+            {
                 throw new InvalidOperationException(
                     $"WeaponId '{Id}'을(를) GameDataTable에서 찾을 수 없습니다. weapons.json을 확인하세요.");
+            }
             Damage      = (int)(Damage * stat.UpgradeMultDamage);
             CooldownSec = MathF.Max(stat.CooldownMin, CooldownSec * stat.UpgradeMultCooldown);
         }
@@ -184,9 +202,12 @@ public class AxeWeapon : WeaponBase
     public override IReadOnlyList<GamePacket> GetPendingPackets(ulong ownerId)
     {
         foreach (var pkt in _pendingPackets)
+        {
             if (pkt.NotiProjectileSpawn != null)
+            {
                 pkt.NotiProjectileSpawn.OwnerId = ownerId;
+            }
+        }
         return _pendingPackets;
     }
-
 }

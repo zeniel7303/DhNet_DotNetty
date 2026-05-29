@@ -72,8 +72,14 @@ public class WandWeapon : WeaponBase
 
             foreach (var m in monsters)
             {
-                if (p.HitMonsters.Contains(m.MonsterId)) continue;
-                if (!SweptHit(p.X, p.Y, p.VelX, p.VelY, dt, m, _hitRadius)) continue;
+                if (p.HitMonsters.Contains(m.MonsterId))
+                {
+                    continue;
+                }
+                if (!SweptHit(p.X, p.Y, p.VelX, p.VelY, dt, m, _hitRadius))
+                {
+                    continue;
+                }
 
                 hits.Add(new WeaponHit(m.MonsterId, Damage, ProjectileId: p.Id));
                 p.HitMonsters.Add(m.MonsterId);
@@ -88,7 +94,10 @@ public class WandWeapon : WeaponBase
                 break;
             }
 
-            if (destroyed) continue;
+            if (destroyed)
+            {
+                continue;
+            }
 
             if (elapsed >= _lifetime)
             {
@@ -109,21 +118,34 @@ public class WandWeapon : WeaponBase
         float ownerX, float ownerY,
         IEnumerable<MonsterComponent> monsters)
     {
-        if (_projectiles.Count >= _maxProjectiles) return [];
+        if (_projectiles.Count >= _maxProjectiles)
+        {
+            return [];
+        }
 
         MonsterComponent? nearest   = null;
         float             minDistSq = float.MaxValue;
         foreach (var m in monsters)
         {
             float dSq = WrappedDistSq(ownerX, ownerY, m.X, m.Y);
-            if (dSq < minDistSq) { minDistSq = dSq; nearest = m; }
+            if (dSq < minDistSq)
+            {
+                minDistSq = dSq;
+                nearest = m;
+            }
         }
-        if (nearest == null) return [];
+        if (nearest == null)
+        {
+            return [];
+        }
 
         float dx  = nearest.X - ownerX;
         float dy  = nearest.Y - ownerY;
         float len = MathF.Sqrt(dx * dx + dy * dy);
-        if (len < 1f) return [];
+        if (len < 1f)
+        {
+            return [];
+        }
 
         float ux = dx / len, uy = dy / len;
         ulong id = NextProjectileId();
@@ -152,9 +174,12 @@ public class WandWeapon : WeaponBase
     public override IReadOnlyList<GamePacket> GetPendingPackets(ulong ownerId)
     {
         foreach (var pkt in _pendingPackets)
+        {
             if (pkt.NotiProjectileSpawn != null)
+            {
                 pkt.NotiProjectileSpawn.OwnerId = ownerId;
+            }
+        }
         return _pendingPackets;
     }
-
 }

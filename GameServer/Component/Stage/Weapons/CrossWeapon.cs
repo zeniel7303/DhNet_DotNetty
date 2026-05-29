@@ -104,10 +104,16 @@ public class CrossWeapon : WeaponBase
 
             foreach (var m in monsters)
             {
-                if (hitSet.Contains(m.MonsterId)) continue;
+                if (hitSet.Contains(m.MonsterId))
+                {
+                    continue;
+                }
 
                 float combined = _hitRadius + m.HitRadius;
-                if (WrappedDistSq(m.X, m.Y, curX, curY) > combined * combined) continue;
+                if (WrappedDistSq(m.X, m.Y, curX, curY) > combined * combined)
+                {
+                    continue;
+                }
 
                 hits.Add(new WeaponHit(m.MonsterId, Damage, ProjectileId: p.Id));
                 hitSet.Add(m.MonsterId);
@@ -132,21 +138,34 @@ public class CrossWeapon : WeaponBase
         float ownerX, float ownerY,
         IEnumerable<MonsterComponent> monsters)
     {
-        if (_projectiles.Count >= _maxProjectiles) return [];
+        if (_projectiles.Count >= _maxProjectiles)
+        {
+            return [];
+        }
 
         MonsterComponent? nearest   = null;
         float             minDistSq = float.MaxValue;
         foreach (var m in monsters)
         {
             float dSq = WrappedDistSq(ownerX, ownerY, m.X, m.Y);
-            if (dSq < minDistSq) { minDistSq = dSq; nearest = m; }
+            if (dSq < minDistSq)
+            {
+                minDistSq = dSq;
+                nearest = m;
+            }
         }
-        if (nearest == null) return [];
+        if (nearest == null)
+        {
+            return [];
+        }
 
         float dx  = nearest.X - ownerX;
         float dy  = nearest.Y - ownerY;
         float len = MathF.Sqrt(dx * dx + dy * dy);
-        if (len < 1f) return [];
+        if (len < 1f)
+        {
+            return [];
+        }
 
         float ux = dx / len, uy = dy / len;
         ulong id = NextProjectileId();
@@ -175,9 +194,12 @@ public class CrossWeapon : WeaponBase
     public override IReadOnlyList<GamePacket> GetPendingPackets(ulong ownerId)
     {
         foreach (var pkt in _pendingPackets)
+        {
             if (pkt.NotiProjectileSpawn != null)
+            {
                 pkt.NotiProjectileSpawn.OwnerId = ownerId;
+            }
+        }
         return _pendingPackets;
     }
-
 }

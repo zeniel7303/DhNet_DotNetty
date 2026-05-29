@@ -18,7 +18,9 @@ public class LobbySystem
             .ToArray();
 
         foreach (var lobby in _lobbies)
+        {
             lobby.Initialize();
+        }
 
         GameLogger.Info("LobbySystem", $"로비 {lobbyCount}개 생성 완료 (capacity={lobbyCapacity}, roomMax={maxPlayersPerRoom})");
     }
@@ -41,7 +43,10 @@ public class LobbySystem
         foreach (var lobby in _lobbies)
         {
             var room = lobby.TryGetRoom(roomId);
-            if (room != null) return room;
+            if (room != null)
+            {
+                return room;
+            }
         }
         return null;
     }

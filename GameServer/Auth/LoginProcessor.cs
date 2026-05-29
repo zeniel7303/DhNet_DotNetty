@@ -40,7 +40,10 @@ internal static class LoginProcessor
     {
         // 계정 인증 — 실패 시 에러 응답 전송 후 null 반환
         var account = await AuthenticateAsync(session, req.Username, req.Password);
-        if (account == null) return;
+        if (account == null)
+        {
+            return;
+        }
 
         if (PlayerSystem.Instance.Count >= PlayerSystem.Instance.MaxPlayers)
         {
@@ -143,11 +146,17 @@ internal static class LoginProcessor
         // → false 반환 시 ResLogin 전송 없이 종료 (플레이어는 DisconnectForNextTick으로 정리됨)
         var lobbyEntered = await player.EnqueueEventAsync(() =>
         {
-            if (defaultLobby.TryEnter(player)) return true;
+            if (defaultLobby.TryEnter(player))
+            {
+                return true;
+            }
 
             // GetDefaultLobby 체크 이후 로비가 꽉 찬 경우 — 다른 로비 재시도
             var fallback = LobbySystem.Instance.GetDefaultLobby();
-            if (fallback != null && fallback.TryEnter(player)) return true;
+            if (fallback != null && fallback.TryEnter(player))
+            {
+                return true;
+            }
 
             // 모든 로비 만원 — 강제 종료 (ResLogin 전송 안 함)
             GameLogger.Warn("Login", $"로비 TryEnter 실패 (경쟁 조건) — 강제 종료: {player.Name}");
@@ -155,7 +164,10 @@ internal static class LoginProcessor
             return false;
         });
 
-        if (!lobbyEntered) return;
+        if (!lobbyEntered)
+        {
+            return;
+        }
 
         // 캐릭터 로드 (없으면 기본값으로 신규 생성)
         try

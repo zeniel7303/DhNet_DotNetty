@@ -66,10 +66,14 @@ public static class GameLogger
         {
             var path = BuildLogPath(appName, date, index);
             if (!File.Exists(path))
+            {
                 return (path, index, 0L);
+            }
             var size = new FileInfo(path).Length;
             if (size <= MaxFileSizeBytes)
+            {
                 return (path, index, size);
+            }
             index++;
         }
     }
@@ -150,9 +154,13 @@ public static class GameLogger
         {
             line += $"\n  Exception: {e.Ex.GetType().Name}: {e.Ex.Message}";
             if (e.Ex.InnerException != null)
+            {
                 line += $"\n  InnerException: {e.Ex.InnerException.GetType().Name}: {e.Ex.InnerException.Message}";
+            }
             if (e.Ex.StackTrace != null)
+            {
                 line += $"\n  StackTrace: {e.Ex.StackTrace}";
+            }
         }
         return line;
     }

@@ -121,7 +121,9 @@ public class SessionComponent : IDisposable
         }
 
         foreach (var policy in _packetPolicies)
+        {
             policy.Clear();
+        }
 
         // TaskScheduler.Default 필수: 명시하지 않으면 TaskScheduler.Current를 상속하여
         // I/O 이벤트 루프 스레드에 continuation이 예약될 수 있다.

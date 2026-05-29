@@ -19,8 +19,14 @@ public class PlayerRoomComponent(PlayerComponent player) : BaseComponent
     public void Chat(ReqRoomChat req)
     {
         var room = CurrentRoom;
-        if (room == null) return;
-        if (string.IsNullOrWhiteSpace(req.Message) || req.Message.Length > 500) return;
+        if (room == null)
+        {
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(req.Message) || req.Message.Length > 500)
+        {
+            return;
+        }
 
         room.Chat(player, req.Message);
     }

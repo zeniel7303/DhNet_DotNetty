@@ -25,7 +25,9 @@ public class PlayerLobbyComponent(PlayerComponent player) : BaseComponent
         if (lobby != null)
         {
             foreach (var info in lobby.GetRoomList())
+            {
                 res.Rooms.Add(info);
+            }
         }
         _ = player.Session.SendAsync(new GamePacket { ResRoomList = res });
     }
@@ -49,7 +51,10 @@ public class PlayerLobbyComponent(PlayerComponent player) : BaseComponent
         }
 
         var newRoom = lobby.CreateRoom();
-        if (newRoom == null) return; // 방어적 처리 — 로그는 LobbyComponent에서 출력됨
+        if (newRoom == null) // 방어적 처리 — 로그는 LobbyComponent에서 출력됨
+        {
+            return;
+        }
 
         lobby.Leave(player);
         newRoom.Enter(player);

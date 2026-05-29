@@ -72,7 +72,9 @@ public class MonsterComponent : BaseComponent
         TargetY   = y;
 
         if (!GameDataTable.Monsters.TryGetValue(type.ToString(), out var stat))
+        {
             throw new InvalidOperationException($"MonsterType '{type}'을(를) GameDataTable에서 찾을 수 없습니다. monsters.json을 확인하세요.");
+        }
 
         MaxHp           = stat.MaxHp;
         Atk             = stat.Atk;
@@ -118,9 +120,15 @@ public class MonsterComponent : BaseComponent
 
         if (!IsAlive)
         {
-            if (_respawnDelay <= 0) return;
+            if (_respawnDelay <= 0)
+            {
+                return;
+            }
             _deadElapsed += dt;
-            if (_deadElapsed < _respawnDelay) return;
+            if (_deadElapsed < _respawnDelay)
+            {
+                return;
+            }
 
             _hp            = MaxHp;
             _deadElapsed   = 0;
@@ -152,7 +160,10 @@ public class MonsterComponent : BaseComponent
     /// <summary>이번 틱에 공격 가능하면 true 반환. 호출 시 쿨다운 리셋.</summary>
     public bool ShouldAttack()
     {
-        if (!IsAlive || _attackElapsed < _attackInterval) return false;
+        if (!IsAlive || _attackElapsed < _attackInterval)
+        {
+            return false;
+        }
         _attackElapsed = 0;
         return true;
     }
@@ -160,7 +171,10 @@ public class MonsterComponent : BaseComponent
     /// <summary>넉백 — 플레이어 반대 방향으로 밀어냄. 맵 순환 적용. 사망 상태면 무시.</summary>
     public void Knockback(float pushX, float pushY)
     {
-        if (!IsAlive) return;
+        if (!IsAlive)
+        {
+            return;
+        }
         X = ((X + pushX) % MapWidth  + MapWidth)  % MapWidth;
         Y = ((Y + pushY) % MapHeight + MapHeight) % MapHeight;
     }
@@ -168,10 +182,16 @@ public class MonsterComponent : BaseComponent
     /// <summary>데미지 적용. 사망 시 true 반환.</summary>
     public bool TakeDamage(int damage)
     {
-        if (!IsAlive) return false;
+        if (!IsAlive)
+        {
+            return false;
+        }
         damage = Math.Max(1, damage);
         _hp    = Math.Max(0, _hp - damage);
-        if (_hp == 0) _deadElapsed = 0;
+        if (_hp == 0)
+        {
+            _deadElapsed = 0;
+        }
         return _hp == 0;
     }
 }

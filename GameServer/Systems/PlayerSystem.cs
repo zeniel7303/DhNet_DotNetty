@@ -27,8 +27,14 @@ public class PlayerSystem
     // 이중 검증: TryAdd 성공 후 _players 재확인으로 ContainsKey-TryAdd 사이 TOCTOU 방지
     public bool TryReserveLogin(ulong accountId)
     {
-        if (_players.ContainsKey(accountId)) return false;
-        if (!_reservedAccounts.TryAdd(accountId, 0)) return false;
+        if (_players.ContainsKey(accountId))
+        {
+            return false;
+        }
+        if (!_reservedAccounts.TryAdd(accountId, 0))
+        {
+            return false;
+        }
         if (_players.ContainsKey(accountId))
         {
             _reservedAccounts.TryRemove(accountId, out _);

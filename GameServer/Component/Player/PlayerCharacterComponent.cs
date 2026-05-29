@@ -34,7 +34,10 @@ public class PlayerCharacterComponent(PlayerComponent player) : BaseComponent
 
     public void AddGold(int amount)
     {
-        if (amount <= 0) return;
+        if (amount <= 0)
+        {
+            return;
+        }
         Gold += amount;
         player.Save.MarkDirty();
     }
@@ -42,14 +45,20 @@ public class PlayerCharacterComponent(PlayerComponent player) : BaseComponent
     public void ApplyAttackUp()
     {
         int cap = GameDataTable.Player.AttackUpCap;
-        if (Attack >= cap) return;
+        if (Attack >= cap)
+        {
+            return;
+        }
         Attack = Math.Min(Attack + GameDataTable.Player.AttackUpAmount, cap);
     }
 
     public void ApplyMaxHpUp()
     {
         int cap  = GameDataTable.Player.MaxHpUpCap;
-        if (MaxHp >= cap) return;
+        if (MaxHp >= cap)
+        {
+            return;
+        }
         int gain = Math.Min(GameDataTable.Player.MaxHpUpAmount, cap - MaxHp);
         MaxHp += gain;
         _hp    = Math.Min(_hp + gain, MaxHp);

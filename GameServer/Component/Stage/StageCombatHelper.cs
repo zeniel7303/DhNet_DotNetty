@@ -39,7 +39,10 @@ internal sealed class StageCombatHelper
 
     internal static void GiveGold(PlayerComponent player, int amount)
     {
-        if (amount <= 0) return;
+        if (amount <= 0)
+        {
+            return;
+        }
         player.Character.AddGold(amount);
         _ = player.Session.SendAsync(new GamePacket
         {
@@ -96,7 +99,9 @@ internal sealed class StageCombatHelper
                     }
                 });
                 for (int i = 0; i < levelUps; i++)
+                {
                     _weaponManager.EnqueueChoice(player);
+                }
             }
         }
     }
@@ -105,7 +110,9 @@ internal sealed class StageCombatHelper
     internal void CheckAllPlayersDead(List<GamePacket> pending, IReadOnlyList<PlayerComponent> players)
     {
         if (players.All(p => !p.Character.IsAlive))
+        {
             _onEndGame(false, pending);
+        }
     }
 
     /// <summary>
@@ -116,7 +123,10 @@ internal sealed class StageCombatHelper
     internal void ApplyWeaponHit(PlayerComponent? attacker, ulong monsterId, int damage, WeaponId weaponId,
         float pushX, float pushY, ulong projectileId, List<GamePacket> pending)
     {
-        if (!_monsters.TryGetValue(monsterId, out var monster) || !monster.IsAlive) return;
+        if (!_monsters.TryGetValue(monsterId, out var monster) || !monster.IsAlive)
+        {
+            return;
+        }
 
         bool died = monster.TakeDamage(damage);
 
@@ -145,7 +155,10 @@ internal sealed class StageCombatHelper
             }
         });
 
-        if (!died) return;
+        if (!died)
+        {
+            return;
+        }
 
         pending.Add(new GamePacket
         {
@@ -155,8 +168,13 @@ internal sealed class StageCombatHelper
         SpawnGem(monster.X, monster.Y, monster.ExpReward, pending);
 
         if (attacker != null)
+        {
             GiveGold(attacker, monster.GoldReward);
+        }
 
-        if (monster.IsBoss) _onEndGame(true, pending);
+        if (monster.IsBoss)
+        {
+            _onEndGame(true, pending);
+        }
     }
 }

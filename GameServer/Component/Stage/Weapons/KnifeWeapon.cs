@@ -77,8 +77,14 @@ public class KnifeWeapon : WeaponBase
 
             foreach (var m in monsters)
             {
-                if (p.HitMonsters.Contains(m.MonsterId)) continue;
-                if (!SweptHit(p.X, p.Y, p.VelX, p.VelY, dt, m, _hitRadius)) continue;
+                if (p.HitMonsters.Contains(m.MonsterId))
+                {
+                    continue;
+                }
+                if (!SweptHit(p.X, p.Y, p.VelX, p.VelY, dt, m, _hitRadius))
+                {
+                    continue;
+                }
 
                 hits.Add(new WeaponHit(m.MonsterId, Damage, ProjectileId: p.Id));
                 p.HitMonsters.Add(m.MonsterId);
@@ -92,7 +98,10 @@ public class KnifeWeapon : WeaponBase
                 break;
             }
 
-            if (destroyed) continue;
+            if (destroyed)
+            {
+                continue;
+            }
 
             if (elapsed >= _lifetime)
             {
@@ -113,7 +122,10 @@ public class KnifeWeapon : WeaponBase
         float ownerX, float ownerY,
         IEnumerable<MonsterComponent> monsters)
     {
-        if (_projectiles.Count >= _maxProjectiles) return [];
+        if (_projectiles.Count >= _maxProjectiles)
+        {
+            return [];
+        }
 
         float dirX = FacingDirX, dirY = FacingDirY;
         ulong id = NextProjectileId();
@@ -142,9 +154,12 @@ public class KnifeWeapon : WeaponBase
     public override IReadOnlyList<GamePacket> GetPendingPackets(ulong ownerId)
     {
         foreach (var pkt in _pendingPackets)
+        {
             if (pkt.NotiProjectileSpawn != null)
+            {
                 pkt.NotiProjectileSpawn.OwnerId = ownerId;
+            }
+        }
         return _pendingPackets;
     }
-
 }

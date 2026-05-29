@@ -82,7 +82,10 @@ public class StageComponent : BaseComponent
     /// </summary>
     public override void Initialize()
     {
-        foreach (var gem in _gems.Values) _gemPool.Push(gem);
+        foreach (var gem in _gems.Values)
+        {
+            _gemPool.Push(gem);
+        }
         _gems.Clear();
         _waveSpawner.Initialize();
         _weaponManager.Initialize();
@@ -99,7 +102,9 @@ public class StageComponent : BaseComponent
         }
 
         foreach (var p in players)
+        {
             _weaponManager.Register(p);
+        }
 
         SpawnMonsters();
         SendInitialState(players);
@@ -129,9 +134,13 @@ public class StageComponent : BaseComponent
     {
         var res = new ResEnterGame { ErrorCode = ErrorCode.Success };
         foreach (var p in players)
+        {
             res.Players.Add(StageBroadcastHelper.BuildPlayerInfo(p));
+        }
         foreach (var m in _monsters.Values)
+        {
             res.Monsters.Add(StageBroadcastHelper.BuildMonsterInfo(m));
+        }
         _room.BroadcastPacket(new GamePacket { ResEnterGame = res });
     }
 
@@ -143,25 +152,64 @@ public class StageComponent : BaseComponent
     public override void Update(float dt)
     {
         base.Update(dt);
-        if (IsDisposed || _endedFlag == 1) return;
-
-        _pending.Clear();
-
-        // 플레이어 입력 일괄 처리 — EndGame이 입력 중 트리거된 경우 나머지 입력은 폐기
-        while (_inputQueue.TryDequeue(out var input))
+        if (IsDisposed || _endedFlag == 1)
         {
-            if (_endedFlag == 1) break;
-            input(_pending);
-        }
-
-        // 입력 처리 중 게임이 종료된 경우 AI 틱 스킵
-        if (_endedFlag == 1)
-        {
-            foreach (var pkt in _pending) _room.BroadcastPacket(pkt);
             return;
         }
 
-        // 생존 타이머
+        _pending.Clear();
+        DrainInputQueue();
+
+        if (_endedFlag == 1)
+        {
+            foreach (var pkt in _pending)
+            {
+                _room.BroadcastPacket(pkt);
+            }
+            return;
+        }
+
+        TickSurvivalTimer(dt);
+
+        if (_survivalElapsed >= ClearTimeSec)
+        {
+            EndGame(true, _pending);
+        }
+        else
+        {
+            var players      = _room.GetPlayers();
+            var alivePlayers = players.Where(p => p.Character.IsAlive).ToList();
+
+            TickMonsterAI(dt, alivePlayers);
+            CleanupDeadMonsters();
+            TickWeapons(dt, alivePlayers);
+            TickWaveSpawner(dt);
+        }
+
+        foreach (var pkt in _pending)
+        {
+            _room.BroadcastPacket(pkt);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Update() 서브루틴 — 단일 RoomSystem 워커 스레드에서만 호출된다
+    // ──────────────────────────────────────────────────────────────
+
+    private void DrainInputQueue()
+    {
+        while (_inputQueue.TryDequeue(out var input))
+        {
+            if (_endedFlag == 1)
+            {
+                break;
+            }
+            input(_pending);
+        }
+    }
+
+    private void TickSurvivalTimer(float dt)
+    {
         _survivalElapsed      += dt;
         _survivalBroadcastAcc += dt;
         if (_survivalBroadcastAcc >= 10f)
@@ -172,141 +220,153 @@ public class StageComponent : BaseComponent
                 NotiSurvivalTime = new NotiSurvivalTime { ElapsedSeconds = (int)_survivalElapsed }
             });
         }
+    }
 
-        if (_survivalElapsed >= ClearTimeSec)
-        {
-            EndGame(true, _pending);
-        }
-        else
-        {
-            var players      = _room.GetPlayers();                                   // 1회 캐싱
-            var alivePlayers = players.Where(p => p.Character.IsAlive).ToList();
-            List<MonsterMoveInfo>? movedList = null;
+    private void TickMonsterAI(float dt, List<PlayerComponent> alivePlayers)
+    {
+        List<MonsterMoveInfo>? movedList = null;
 
-            // 몬스터 AI 틱
-            foreach (var monster in _monsters.Values)
+        foreach (var monster in _monsters.Values)
+        {
+            // 가장 가까운 살아있는 플레이어 탐색 — wrap-aware 최단 경로
+            var targetX        = monster.X;
+            var targetY        = monster.Y;
+            var nearestDistSq  = float.MaxValue;
+            PlayerComponent? nearestPlayer = null;
+
+            foreach (var p in alivePlayers)
             {
-                // 가장 가까운 살아있는 플레이어 탐색 — wrap-aware 최단 경로
-                var targetX        = monster.X;
-                var targetY        = monster.Y;
-                var nearestDistSq  = float.MaxValue;
-                PlayerComponent? nearestPlayer = null;
-
-                foreach (var p in alivePlayers)
+                var dx = p.World.X - monster.X;
+                var dy = p.World.Y - monster.Y;
+                float mapW = GameDataTable.Map.MapWidth, mapH = GameDataTable.Map.MapHeight;
+                if (dx >  mapW * 0.5f) { dx -= mapW; } else if (dx < -mapW * 0.5f) { dx += mapW; }
+                if (dy >  mapH * 0.5f) { dy -= mapH; } else if (dy < -mapH * 0.5f) { dy += mapH; }
+                var distSq = dx * dx + dy * dy;
+                if (distSq < nearestDistSq)
                 {
-                    var dx = p.World.X - monster.X;
-                    var dy = p.World.Y - monster.Y;
-                    float mapW = GameDataTable.Map.MapWidth, mapH = GameDataTable.Map.MapHeight;
-                    if (dx >  mapW * 0.5f) dx -= mapW; else if (dx < -mapW * 0.5f) dx += mapW;
-                    if (dy >  mapH * 0.5f) dy -= mapH; else if (dy < -mapH * 0.5f) dy += mapH;
-                    var distSq = dx * dx + dy * dy;
-                    if (distSq < nearestDistSq)
-                    {
-                        nearestDistSq = distSq;
-                        nearestPlayer = p;
-                        // wrap-aware 오프셋을 몬스터 기준 절대 좌표로 변환
-                        targetX = monster.X + dx;
-                        targetY = monster.Y + dy;
-                    }
+                    nearestDistSq = distSq;
+                    nearestPlayer = p;
+                    // wrap-aware 오프셋을 몬스터 기준 절대 좌표로 변환
+                    targetX = monster.X + dx;
+                    targetY = monster.Y + dy;
                 }
+            }
 
-                monster.TargetX = targetX;
-                monster.TargetY = targetY;
-                monster.Update(dt);
+            monster.TargetX = targetX;
+            monster.TargetY = targetY;
+            monster.Update(dt);
 
-                if (monster.WasRespawned)
-                {
-                    _pending.Add(new GamePacket
-                    {
-                        NotiRespawn = new NotiRespawn { MonsterId = monster.MonsterId, X = monster.X, Y = monster.Y, Hp = monster.Hp }
-                    });
-                    continue;
-                }
-
-                if (monster.WasMoved)
-                {
-                    movedList ??= [];
-                    movedList.Add(new MonsterMoveInfo { MonsterId = monster.MonsterId, X = monster.X, Y = monster.Y });
-                }
-
-                // 공격 — 살아있고, AttackRange 이내이고, 쿨다운 해제됐을 때만
-                // ShouldAttack()은 쿨다운을 소모하므로 반드시 거리 판정 뒤에 호출해야 한다
-                if (!monster.IsAlive || nearestPlayer == null) continue;
-                var attackRangeSq = monster.AttackRange * monster.AttackRange;
-                if (nearestDistSq > attackRangeSq) continue;
-                if (!monster.ShouldAttack()) continue;
-
-                var damage = StageCombatHelper.CalcDamage(monster.Atk, nearestPlayer.Character.Defense);
-                var died   = nearestPlayer.Character.TakeDamage(damage);
-
+            if (monster.WasRespawned)
+            {
                 _pending.Add(new GamePacket
                 {
-                    NotiMonsterAttack = new NotiMonsterAttack
-                    {
-                        MonsterId = monster.MonsterId, TargetPlayerId = nearestPlayer.AccountId, Damage = damage
-                    }
+                    NotiRespawn = new NotiRespawn { MonsterId = monster.MonsterId, X = monster.X, Y = monster.Y, Hp = monster.Hp }
                 });
+                continue;
+            }
+
+            if (monster.WasMoved)
+            {
+                movedList ??= [];
+                movedList.Add(new MonsterMoveInfo { MonsterId = monster.MonsterId, X = monster.X, Y = monster.Y });
+            }
+
+            // 공격 — 살아있고, AttackRange 이내이고, 쿨다운 해제됐을 때만
+            // ShouldAttack()은 쿨다운을 소모하므로 반드시 거리 판정 뒤에 호출해야 한다
+            if (!monster.IsAlive || nearestPlayer == null)
+            {
+                continue;
+            }
+            var attackRangeSq = monster.AttackRange * monster.AttackRange;
+            if (nearestDistSq > attackRangeSq)
+            {
+                continue;
+            }
+            if (!monster.ShouldAttack())
+            {
+                continue;
+            }
+
+            var damage = StageCombatHelper.CalcDamage(monster.Atk, nearestPlayer.Character.Defense);
+            var died   = nearestPlayer.Character.TakeDamage(damage);
+
+            _pending.Add(new GamePacket
+            {
+                NotiMonsterAttack = new NotiMonsterAttack
+                {
+                    MonsterId = monster.MonsterId, TargetPlayerId = nearestPlayer.AccountId, Damage = damage
+                }
+            });
+            _pending.Add(new GamePacket
+            {
+                NotiHpChange = new NotiHpChange
+                {
+                    EntityId = nearestPlayer.AccountId, Hp = nearestPlayer.Character.Hp,
+                    MaxHp = nearestPlayer.Character.MaxHp, IsMonster = false
+                }
+            });
+
+            if (died)
+            {
                 _pending.Add(new GamePacket
                 {
-                    NotiHpChange = new NotiHpChange
-                    {
-                        EntityId = nearestPlayer.AccountId, Hp = nearestPlayer.Character.Hp,
-                        MaxHp = nearestPlayer.Character.MaxHp, IsMonster = false
-                    }
+                    NotiDeath = new NotiDeath { EntityId = nearestPlayer.AccountId, IsMonster = false }
                 });
-
-                if (died)
-                {
-                    _pending.Add(new GamePacket
-                    {
-                        NotiDeath = new NotiDeath { EntityId = nearestPlayer.AccountId, IsMonster = false }
-                    });
-                    _combat.CheckAllPlayersDead(_pending, players);
-                }
+                _combat.CheckAllPlayersDead(_pending, alivePlayers);
             }
-
-            // 이동한 몬스터들을 단일 패킷으로 배치
-            if (movedList is { Count: > 0 })
-            {
-                var movePacket = new NotiMonsterMove();
-                movePacket.Moves.AddRange(movedList);
-                _pending.Add(new GamePacket { NotiMonsterMove = movePacket });
-            }
-
-            // 리스폰 없는 죽은 몬스터 정리 (보스 계열) — 매 틱 대신 10틱(1초)마다
-            _cleanupCounter++;
-            if (_cleanupCounter >= 10)
-            {
-                _cleanupCounter = 0;
-                foreach (var id in _monsters.Values
-                             .Where(m => !m.IsAlive && !m.CanRespawn)
-                             .Select(m => m.MonsterId)
-                             .ToList())
-                {
-                    _monsters.Remove(id);
-                }
-            }
-
-            // 서버사이드 자동 무기 틱
-            _weaponManager.Players = alivePlayers;
-            _weaponManager.Monsters = _monsters.Values;
-            _weaponManager.Update(dt);
-            // attacker 조회를 O(1)으로 처리하기 위해 Dictionary 캐시 (LastHits 수 × 플레이어 수 O(n²) 방지)
-            var attackerMap = alivePlayers.ToDictionary(p => p.AccountId);
-            foreach (var (attackerId, monsterId, dmg, wid, pushX, pushY, projectileId) in _weaponManager.LastHits)
-                _combat.ApplyWeaponHit(
-                    attackerMap.GetValueOrDefault(attackerId),
-                    monsterId, dmg, wid, pushX, pushY, projectileId, _pending);
-            _pending.AddRange(_weaponManager.LastPackets);
-
-            // 웨이브 스포너 틱
-            _waveSpawner.MonsterCount = _monsters.Count;
-            _waveSpawner.Update(dt);
-            if (_waveSpawner.LastSpawns is { Count: > 0 }) DoWaveSpawn(_waveSpawner.LastSpawns, _pending);
         }
 
-        foreach (var pkt in _pending)
-            _room.BroadcastPacket(pkt);
+        // 이동한 몬스터들을 단일 패킷으로 배치
+        if (movedList is { Count: > 0 })
+        {
+            var movePacket = new NotiMonsterMove();
+            movePacket.Moves.AddRange(movedList);
+            _pending.Add(new GamePacket { NotiMonsterMove = movePacket });
+        }
+    }
+
+    private void CleanupDeadMonsters()
+    {
+        // 리스폰 없는 죽은 몬스터 정리 (보스 계열) — 매 틱 대신 10틱(1초)마다
+        _cleanupCounter++;
+        if (_cleanupCounter >= 10)
+        {
+            _cleanupCounter = 0;
+            foreach (var id in _monsters.Values
+                         .Where(m => !m.IsAlive && !m.CanRespawn)
+                         .Select(m => m.MonsterId)
+                         .ToList())
+            {
+                _monsters.Remove(id);
+            }
+        }
+    }
+
+    private void TickWeapons(float dt, List<PlayerComponent> alivePlayers)
+    {
+        // 서버사이드 자동 무기 틱
+        _weaponManager.Players = alivePlayers;
+        _weaponManager.Monsters = _monsters.Values;
+        _weaponManager.Update(dt);
+        // attacker 조회를 O(1)으로 처리하기 위해 Dictionary 캐시 (LastHits 수 × 플레이어 수 O(n²) 방지)
+        var attackerMap = alivePlayers.ToDictionary(p => p.AccountId);
+        foreach (var (attackerId, monsterId, dmg, wid, pushX, pushY, projectileId) in _weaponManager.LastHits)
+        {
+            _combat.ApplyWeaponHit(
+                attackerMap.GetValueOrDefault(attackerId),
+                monsterId, dmg, wid, pushX, pushY, projectileId, _pending);
+        }
+        _pending.AddRange(_weaponManager.LastPackets);
+    }
+
+    private void TickWaveSpawner(float dt)
+    {
+        _waveSpawner.MonsterCount = _monsters.Count;
+        _waveSpawner.Update(dt);
+        if (_waveSpawner.LastSpawns is { Count: > 0 })
+        {
+            DoWaveSpawn(_waveSpawner.LastSpawns, _pending);
+        }
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -316,12 +376,24 @@ public class StageComponent : BaseComponent
 
     public void ProcessAttack(PlayerComponent player, ulong monsterId)
     {
-        if (_endedFlag == 1) return;
+        if (_endedFlag == 1)
+        {
+            return;
+        }
         _inputQueue.Enqueue(pending =>
         {
-            if (!player.Character.IsAlive) return;
-            if (!player.World.CanAttack()) return;
-            if (!_monsters.TryGetValue(monsterId, out var monster) || !monster.IsAlive) return;
+            if (!player.Character.IsAlive)
+            {
+                return;
+            }
+            if (!player.World.CanAttack())
+            {
+                return;
+            }
+            if (!_monsters.TryGetValue(monsterId, out var monster) || !monster.IsAlive)
+            {
+                return;
+            }
 
             var damage = StageCombatHelper.CalcDamage(player.Character.Attack, monster.Def);
             player.World.ResetAttackCooldown();
@@ -351,17 +423,26 @@ public class StageComponent : BaseComponent
                 });
                 _combat.SpawnGem(monster.X, monster.Y, monster.ExpReward, pending);
                 StageCombatHelper.GiveGold(player, monster.GoldReward);
-                if (monster.IsBoss) EndGame(true, pending);
+                if (monster.IsBoss)
+                {
+                    EndGame(true, pending);
+                }
             }
         });
     }
 
     public void ProcessMove(PlayerComponent player, uint seq, uint flags, uint dtMs)
     {
-        if (_endedFlag == 1) return;
+        if (_endedFlag == 1)
+        {
+            return;
+        }
         _inputQueue.Enqueue(pending =>
         {
-            if (!player.Character.IsAlive) return;
+            if (!player.Character.IsAlive)
+            {
+                return;
+            }
             player.World.ApplyInput(flags, dtMs / 1000f);
             pending.Add(new GamePacket
             {
@@ -379,7 +460,10 @@ public class StageComponent : BaseComponent
 
     public void ProcessChooseWeapon(PlayerComponent player, int weaponId)
     {
-        if (_endedFlag == 1) return;
+        if (_endedFlag == 1)
+        {
+            return;
+        }
         _inputQueue.Enqueue(_ => _weaponManager.ApplyChoice(player, weaponId));
     }
 
@@ -395,7 +479,10 @@ public class StageComponent : BaseComponent
     // ProcessChat은 게임 상태를 수정하지 않으므로 큐 없이 직접 브로드캐스트
     public void ProcessChat(PlayerComponent player, string message)
     {
-        if (string.IsNullOrWhiteSpace(message) || message.Length > 500) return;
+        if (string.IsNullOrWhiteSpace(message) || message.Length > 500)
+        {
+            return;
+        }
         _room.BroadcastPacket(new GamePacket
         {
             NotiGameChat = new NotiGameChat { PlayerId = player.AccountId, PlayerName = player.Name, Message = message }
@@ -425,7 +512,9 @@ public class StageComponent : BaseComponent
             float dx = gem.X - x;
             float dy = gem.Y - y;
             if (dx * dx + dy * dy <= radiusSq)
+            {
                 result.Add((gem.Id, gem.X, gem.Y, gem.ExpValue));
+            }
         }
         foreach (var (id, _, _, _) in result)
         {
@@ -465,7 +554,10 @@ public class StageComponent : BaseComponent
 
     private void EndGame(bool isClear, List<GamePacket> pending)
     {
-        if (Interlocked.CompareExchange(ref _endedFlag, 1, 0) != 0) return;
+        if (Interlocked.CompareExchange(ref _endedFlag, 1, 0) != 0)
+        {
+            return;
+        }
 
         pending.Add(new GamePacket
         {

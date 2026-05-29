@@ -39,7 +39,9 @@ public class BibleWeapon : WeaponBase
         IEnumerable<MonsterComponent> monsters)
     {
         for (int i = 0; i < _angles.Count; i++)
+        {
             _angles[i] = (_angles[i] + _angularSpeed * dt) % (2f * MathF.PI);
+        }
 
         var hits = new List<WeaponHit>();
 
@@ -48,11 +50,23 @@ public class BibleWeapon : WeaponBase
         foreach (var (id, elapsed) in _enemyCooldowns)
         {
             float next = elapsed + dt;
-            if (next >= _perEnemyCooldown) expired.Add(id);
-            else                          toUpdate.Add((id, next));
+            if (next >= _perEnemyCooldown)
+            {
+                expired.Add(id);
+            }
+            else
+            {
+                toUpdate.Add((id, next));
+            }
         }
-        foreach (var id in expired)        _enemyCooldowns.Remove(id);
-        foreach (var (id, e) in toUpdate)  _enemyCooldowns[id] = e;
+        foreach (var id in expired)
+        {
+            _enemyCooldowns.Remove(id);
+        }
+        foreach (var (id, e) in toUpdate)
+        {
+            _enemyCooldowns[id] = e;
+        }
 
         foreach (var angle in _angles)
         {
@@ -61,8 +75,14 @@ public class BibleWeapon : WeaponBase
 
             foreach (var m in monsters)
             {
-                if (!m.IsAlive) continue;
-                if (_enemyCooldowns.ContainsKey(m.MonsterId)) continue;
+                if (!m.IsAlive)
+                {
+                    continue;
+                }
+                if (_enemyCooldowns.ContainsKey(m.MonsterId))
+                {
+                    continue;
+                }
 
                 float dx = m.X - bibleX, dy = m.Y - bibleY;
                 float combined = _hitRadius + m.HitRadius;
@@ -80,12 +100,16 @@ public class BibleWeapon : WeaponBase
     protected override void OnUpgrade()
     {
         if (Level % 2 == 1)
+        {
             AddBible();
+        }
         else
         {
             if (!GameDataTable.Weapons.TryGetValue(Id.ToString(), out var stat))
+            {
                 throw new InvalidOperationException(
                     $"WeaponId '{Id}'을(를) GameDataTable에서 찾을 수 없습니다. weapons.json을 확인하세요.");
+            }
             Damage = (int)(Damage * stat.UpgradeMultDamage);
         }
     }
@@ -98,6 +122,8 @@ public class BibleWeapon : WeaponBase
 
         _angles.Clear();
         for (int i = 0; i < count; i++)
+        {
             _angles.Add((baseAngle + spacing * i) % (2f * MathF.PI));
+        }
     }
 }

@@ -47,16 +47,28 @@ public class PlayerSaveComponent : BaseComponent
     public override void Update(float dt)
     {
         base.Update(dt);
-        if (IsDisposed || Volatile.Read(ref _dbInserted) == 0) return;
+        if (IsDisposed || Volatile.Read(ref _dbInserted) == 0)
+        {
+            return;
+        }
 
         // 접속 해제(SaveAsync) 진행 중이면 중복 upsert 방지를 위해 주기적 저장 스킵
-        if (Volatile.Read(ref _disconnecting) == 1) return;
+        if (Volatile.Read(ref _disconnecting) == 1)
+        {
+            return;
+        }
 
         _saveAcc += dt;
-        if (_saveAcc < SaveInterval) return;
+        if (_saveAcc < SaveInterval)
+        {
+            return;
+        }
         _saveAcc = 0f;
 
-        if (Interlocked.Exchange(ref _isDirty, 0) == 0) return;
+        if (Interlocked.Exchange(ref _isDirty, 0) == 0)
+        {
+            return;
+        }
 
         _ = SaveCharacterAsync(_player.Character);
     }
@@ -83,7 +95,10 @@ public class PlayerSaveComponent : BaseComponent
         // 플래그 세트 — Update()의 주기적 저장이 이후 틱에서 중복 upsert하지 않도록 방지
         Interlocked.Exchange(ref _disconnecting, 1);
 
-        if (Volatile.Read(ref _dbInserted) == 0) return;
+        if (Volatile.Read(ref _dbInserted) == 0)
+        {
+            return;
+        }
 
         if (character != null)
         {

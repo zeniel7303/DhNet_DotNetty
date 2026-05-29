@@ -31,12 +31,18 @@ public class GarlicWeapon : WeaponBase
 
         foreach (var m in monsters)
         {
-            if (!m.IsAlive) continue;
+            if (!m.IsAlive)
+            {
+                continue;
+            }
 
             float dx = m.X - ownerX;
             float dy = m.Y - ownerY;
             float dSq = dx * dx + dy * dy;
-            if (dSq > radSq) continue;
+            if (dSq > radSq)
+            {
+                continue;
+            }
 
             float pushX, pushY;
             if (dSq < 1f)

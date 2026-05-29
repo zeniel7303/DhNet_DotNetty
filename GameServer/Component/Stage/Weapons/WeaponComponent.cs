@@ -83,14 +83,23 @@ public class WeaponComponent : BaseComponent
         _lastHits.Clear();
         _lastPackets.Clear();
 
-        if (Players == null || Monsters == null) return;
+        if (Players == null || Monsters == null)
+        {
+            return;
+        }
 
         var orbital = new NotiOrbitalWeaponSync();
 
         foreach (var player in Players)
         {
-            if (!player.Character.IsAlive) continue;
-            if (!_playerWeapons.TryGetValue(player.AccountId, out var weapons)) continue;
+            if (!player.Character.IsAlive)
+            {
+                continue;
+            }
+            if (!_playerWeapons.TryGetValue(player.AccountId, out var weapons))
+            {
+                continue;
+            }
 
             foreach (var weapon in weapons)
             {
@@ -102,24 +111,34 @@ public class WeaponComponent : BaseComponent
 
                 var weaponHits = weapon.Tick(dt, player.World.X, player.World.Y, Monsters);
                 foreach (var hit in weaponHits)
+                {
                     _lastHits.Add((player.AccountId, hit.MonsterId, hit.Damage, weapon.Id, hit.PushX, hit.PushY, hit.ProjectileId));
+                }
 
                 foreach (var pkt in weapon.GetPendingPackets(player.AccountId))
+                {
                     _lastPackets.Add(pkt);
+                }
 
                 if (weapon is BibleWeapon bible)
+                {
                     foreach (var angle in bible.Angles)
+                    {
                         orbital.Orbitals.Add(new OrbitalWeaponInfo
                         {
                             OwnerId  = player.AccountId,
                             WeaponId = (int)WeaponId.Bible,
                             Angle    = angle
                         });
+                    }
+                }
             }
         }
 
         if (orbital.Orbitals.Count > 0)
+        {
             _lastPackets.Add(new GamePacket { NotiOrbitalWeaponSync = orbital });
+        }
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -165,7 +184,9 @@ public class WeaponComponent : BaseComponent
     public List<WeaponChoice> GenerateChoices(PlayerComponent player)
     {
         if (!_playerWeapons.TryGetValue(player.AccountId, out var owned))
+        {
             return [];
+        }
 
         var ownedIds = owned.Select(w => w.Id).ToHashSet();
         var pool     = new List<WeaponChoice>();
@@ -178,7 +199,9 @@ public class WeaponComponent : BaseComponent
         foreach (var (id, name) in WeaponPool)
         {
             if (!ownedIds.Contains(id))
+            {
                 pool.Add(new WeaponChoice((int)id, name, 1, IsUpgrade: false));
+            }
         }
 
         _statUpgradeLevels.TryGetValue(player.AccountId, out var statLevels);
@@ -188,7 +211,12 @@ public class WeaponComponent : BaseComponent
             pool.Add(new WeaponChoice(id, name, curLevel + 1, IsUpgrade: curLevel > 0));
         }
 
-        return pool.OrderBy(_ => Random.Shared.Next()).Take(3).ToList();
+        for (int i = pool.Count - 1; i > 0; i--)
+        {
+            int j = Random.Shared.Next(i + 1);
+            (pool[i], pool[j]) = (pool[j], pool[i]);
+        }
+        return pool.Take(3).ToList();
     }
 
     public void EnqueueChoice(PlayerComponent player)
@@ -214,11 +242,13 @@ public class WeaponComponent : BaseComponent
 
         var noti = new NotiWeaponChoice();
         foreach (var c in choices)
+        {
             noti.Choices.Add(new WeaponChoiceInfo
             {
                 WeaponId  = c.WeaponId, Name      = c.Name,
                 NextLevel = c.NextLevel, IsUpgrade = c.IsUpgrade
             });
+        }
 
         _ = player.Session.SendAsync(new GamePacket { NotiWeaponChoice = noti });
     }
@@ -226,19 +256,27 @@ public class WeaponComponent : BaseComponent
     public void ApplyChoice(PlayerComponent player, int choiceId)
     {
         // 레벨업 선택 대기 중이 아니면 처리 거부 — 악의적 ReqChooseWeapon 스팸 방지
-        if (!_waitingForChoice.Contains(player.AccountId)) return;
+        if (!_waitingForChoice.Contains(player.AccountId))
+        {
+            return;
+        }
 
         if (choiceId >= 100)
         {
             ApplyStatUpgrade(player, (StatUpgradeId)choiceId);
             var accountId = player.AccountId;
             if (!_statUpgradeLevels.TryGetValue(accountId, out var statLevels))
+            {
                 _statUpgradeLevels[accountId] = statLevels = new Dictionary<int, int>();
+            }
             statLevels[choiceId] = statLevels.GetValueOrDefault(choiceId, 0) + 1;
         }
         else
         {
-            if (!_playerWeapons.TryGetValue(player.AccountId, out var owned)) return;
+            if (!_playerWeapons.TryGetValue(player.AccountId, out var owned))
+            {
+                return;
+            }
 
             var wId      = (WeaponId)choiceId;
             var existing = owned.FirstOrDefault(w => w.Id == wId);
@@ -259,7 +297,10 @@ public class WeaponComponent : BaseComponent
                     WeaponId.Cross  => new CrossWeapon(),
                     _               => null,
                 };
-                if (newWeapon == null) return;
+                if (newWeapon == null)
+                {
+                    return;
+                }
                 owned.Add(newWeapon);
                 SendWeaponUpgrade(player, newWeapon);
             }
@@ -310,7 +351,9 @@ public class WeaponComponent : BaseComponent
             Level    = weapon.Level,
         };
         if (weapon is GarlicWeapon garlic)
+        {
             noti.Param1 = garlic.Radius;
+        }
         _ = player.Session.SendAsync(new GamePacket { NotiWeaponUpgrade = noti });
     }
 }

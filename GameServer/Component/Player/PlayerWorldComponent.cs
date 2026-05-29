@@ -35,10 +35,10 @@ public class PlayerWorldComponent : BaseComponent
         dtSec = Math.Min(dtSec, GameDataTable.Map.MaxDtSec);
 
         float dirX = 0, dirY = 0;
-        if ((flags & 1) != 0) dirY -= 1f; // W
-        if ((flags & 2) != 0) dirY += 1f; // S
-        if ((flags & 4) != 0) dirX -= 1f; // A
-        if ((flags & 8) != 0) dirX += 1f; // D
+        if ((flags & 1) != 0) { dirY -= 1f; } // W
+        if ((flags & 2) != 0) { dirY += 1f; } // S
+        if ((flags & 4) != 0) { dirX -= 1f; } // A
+        if ((flags & 8) != 0) { dirX += 1f; } // D
 
         if (dirX != 0 || dirY != 0)
         {
