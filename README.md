@@ -619,16 +619,31 @@ Docker 환경에서는 `DOTNET_ENVIRONMENT=Docker`가 설정되어 `appsettings.
 
 ## Claude 환경 설정 (선택)
 
-작업 문서(`dev/`), Claude 설정(`.claude/`), AI 메모리를 여러 기기에서 동기화하려면 아래 스크립트를 실행한다.  
-`claude-workspace` private 레포 접근 권한 필요.
+`.claude/`(커스텀 명령·에이전트·스킬), `dev/`(작업 문서), AI 메모리를 `claude-workspace` private 레포로 관리한다.  
+이 파일들은 `.gitignore`에 포함되어 이 레포에는 없고, `claude-workspace`가 진짜 저장소다.
+
+#### 새 기기 초기 설정 (1회)
 
 ```bash
-# 새 기기에서 1회 실행 (레포 루트에서)
+# 레포 루트에서 실행 (claude-workspace 접근 권한 필요)
 bash setup-claude.sh
 ```
 
-내부적으로 `claude-workspace`를 클론하고, `.claude/`, `dev/`, `CLAUDE.md`를 복원하며, 자동 sync 훅을 설치한다.  
-이후 `git commit` 시 자동 sync, `git pull` 후 자동 복원.
+`claude-workspace` 클론 → `.claude/`, `dev/`, `CLAUDE.md`, 메모리 복원 → git hooks 설치까지 자동으로 처리된다.
+
+#### 평상시 동작 (자동)
+
+| 상황 | 동작 |
+|------|------|
+| `git commit` | post-commit 훅이 `.claude/`, `dev/`, 메모리를 `claude-workspace`에 자동 push |
+| `git pull` | post-merge 훅이 `claude-workspace`에서 최신 내용을 자동 복원 |
+
+두 PC에서 작업할 경우 커밋/풀만 해도 Claude 환경이 자동으로 맞춰진다.
+
+#### 주의사항
+
+- `.claude/`와 `dev/`는 로컬 디스크에 있어야 Claude Code가 정상 동작한다. 삭제하지 말 것.
+- `CLAUDE.md`는 `claude-workspace/CLAUDE.md`(공통 룰) + `claude-workspace/DhNet_DotNetty/CLAUDE.md`(프로젝트 룰)를 합쳐서 생성된다. 직접 편집하지 말고 workspace에서 수정할 것.
 
 ---
 
