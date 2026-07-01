@@ -34,8 +34,9 @@ DhNet_DotNetty/
 - DotNetty 채널 핸들러, async/await, ConcurrentDictionary, IDisposable 패턴 적용
 - 상세 패턴은 `.claude/skills/csharp-dotnetty-gameserver/resources/` 참조
 
-### 에이전트 (Task 도구로 실행)
-- **code-architecture-reviewer** - 코드 리뷰 요청 시 사용
+### 에이전트 (Agent 도구로 실행)
+- **code-architecture-reviewer** - 코드 리뷰 요청 시 사용  
+  (**주의**: 이 환경에 등록되지 않음 — `subagent_type="general-purpose"`로 페르소나 위임)
 - **refactor-planner** - 리팩토링 계획 수립 시 사용
 - **documentation-architect** - 문서 생성 시 사용
 - **plan-reviewer** - 구현 계획 검토 시 사용
@@ -89,7 +90,16 @@ pipeline.AddLast("protobuf-encoder", new ProtobufEncoder());
 pipeline.AddLast("handler", new GameServerHandler());
 ```
 
-## 작업 워크플로우 (자동 실행 규칙 - 사용자가 요청하지 않아도 반드시 실행)
+## 작업 워크플로우
+
+### 거버넌스 룰 (항상 적용)
+
+- **계획 먼저**: 코드 작성 전 반드시 구현 계획을 세우고 사용자에게 컨펌받는다. 사용자가 명시적으로 승인하기 전까지 구현하지 않는다.
+- **커밋 금지**: `git commit`을 직접 실행하지 않는다. 커밋 메시지만 제안하고 실제 커밋은 사용자가 직접 수행한다. 사용자가 명시적으로 "커밋해줘"라고 요청한 경우만 예외.
+- **Co-Authored-By 금지**: 커밋 메시지에 `Co-Authored-By: Claude ...` 줄을 절대 추가하지 않는다.
+- **git push 금지**: 사용자가 명시적으로 요청하지 않는 한 push하지 않는다.
+
+### 자동 실행 규칙 (사용자가 요청하지 않아도 반드시 실행)
 
 ### RULE 0: C# 코드 작성 전 → csharp-dotnetty-gameserver 스킬 실행 [필수]
 .cs 또는 .proto 파일을 작성/수정하기 **직전에** 반드시 Skill 도구로 `csharp-dotnetty-gameserver`를 실행한다.
@@ -107,7 +117,7 @@ pipeline.AddLast("handler", new GameServerHandler());
 ### RULE 2: 코드 작업 완료 후 → dev-docs-update + code-architecture-reviewer 자동 실행 [필수]
 C# 파일(.cs) 또는 .proto 파일을 하나 이상 작성/수정하고 나면 **응답 마지막에** 반드시 두 가지를 순서대로 실행한다.
 1. `Skill("dev-docs-update")` — 작업 상태 저장
-2. `Task(subagent_type="code-architecture-reviewer", prompt="방금 작성한 코드를 리뷰해줘")` — 코드 리뷰
+2. `Agent(subagent_type="general-purpose", prompt="You are a code-architecture-reviewer. 방금 작성한 코드를 리뷰해줘.")` — 코드 리뷰
 - **둘 다 반드시 실행. 어느 하나도 생략 불가. 사용자가 요청하지 않아도 자동 실행.**
 
 ### 순서
@@ -115,6 +125,11 @@ C# 파일(.cs) 또는 .proto 파일을 하나 이상 작성/수정하고 나면 
 2. C# 코드 작성 직전 → **`csharp-dotnetty-gameserver` 스킬 실행** → 리소스 로드 및 패턴 확인
 3. 코드 작성
 4. 코드 완성 → **즉시 `dev-docs-update` 실행** → **즉시 `code-architecture-reviewer` 에이전트 실행**
+
+## Claude Workspace (다중 PC 동기화)
+
+`dev/`와 Claude 메모리는 private `claude-workspace` 레포를 통해 기기 간 동기화된다.  
+새 PC 셋업 시 `README.md` **"Claude Workspace 초기 설정"** 섹션 참고.
 
 ## 참고 문서
 
