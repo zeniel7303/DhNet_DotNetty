@@ -31,7 +31,7 @@ node_modules/
 # Windows artifacts
 nul
 
-# Claude Code 개발 도구 (포트폴리오에 불필요)
+# Claude (claude-workspace 레포로 별도 관리)
 .claude/
 .claude-setup-prompt.md
 CLAUDE.md

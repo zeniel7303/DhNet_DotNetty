@@ -617,23 +617,18 @@ Docker 환경에서는 `DOTNET_ENVIRONMENT=Docker`가 설정되어 `appsettings.
 
 ---
 
-## Claude Workspace 초기 설정 (선택)
+## Claude 환경 설정 (선택)
 
-작업 문서(`dev/`)와 Claude AI 메모리를 여러 기기에서 동기화하려면 아래 설정을 추가한다.
+작업 문서(`dev/`), Claude 설정(`.claude/`), AI 메모리를 여러 기기에서 동기화하려면 아래 스크립트를 실행한다.  
+`claude-workspace` private 레포 접근 권한 필요.
 
 ```bash
-# 1. private workspace 레포 클론 (접근 권한 필요)
-git clone https://github.com/zeniel7303/claude-workspace /path/to/claude-workspace
-
-# 2. 이 PC의 workspace 경로 등록 (기기마다 1회)
-git config --global claude.workspace "/path/to/claude-workspace"
-
-# 3. 동기화 훅 설치 (레포 루트에서, 기기마다 1회)
-bash .claude/install-hooks.sh
+# 새 기기에서 1회 실행 (레포 루트에서)
+bash setup-claude.sh
 ```
 
-설정 완료 후 `git commit` 시 자동으로 `dev/`와 Claude 메모리가 workspace에 sync되고,  
-`git pull` 후 자동으로 다른 기기에서 작업한 내용이 복원된다.
+내부적으로 `claude-workspace`를 클론하고, `.claude/`, `dev/`, `CLAUDE.md`를 복원하며, 자동 sync 훅을 설치한다.  
+이후 `git commit` 시 자동 sync, `git pull` 후 자동 복원.
 
 ---
 
