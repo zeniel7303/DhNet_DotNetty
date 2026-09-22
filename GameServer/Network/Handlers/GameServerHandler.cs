@@ -51,7 +51,6 @@ public class GameServerHandler : SimpleChannelInboundHandler<GamePacket>
 
             default:
                 // 미인증 세션에서 게임 패킷 수신 시 즉시 연결 종료
-                // 인증 후는 워커(틱 100ms)가 매 틱 큐 전체를 드레인하므로 큐 상한 불필요
                 if (!_session.IsEntryHandshakeCompleted)
                 {
                     if (!_closing)
@@ -63,8 +62,8 @@ public class GameServerHandler : SimpleChannelInboundHandler<GamePacket>
                     }
                     return;
                 }
-                // 인증 후 패킷: 모든 정책(PacketPairPolicy, PacketRatePolicy) 검증 후 큐 적재
-                // 정책 위반 시 연결 종료 — 로그는 SessionComponent.ProcessPacket에서 출력됨
+                // 인증 후 패킷: SessionComponent.ProcessPacket이 정책 검증 + 큐 상한 체크
+                // 정책 위반 또는 큐 상한(200) 초과 시 false 반환 → 연결 종료
                 if (!_session.ProcessPacket(packet))
                 {
                     if (!_closing)
