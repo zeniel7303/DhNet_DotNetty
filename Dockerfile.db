@@ -1,0 +1,33 @@
+# ── Stage 1: Build ──────────────────────────────────────────────────────────
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+COPY DotNetty.sln .
+COPY Directory.Build.props .
+COPY DBServer/DBServer.csproj                                 DBServer/
+COPY GameServer.Database/GameServer.Database.csproj           GameServer.Database/
+COPY GameServer.Database.Contract/GameServer.Database.Contract.csproj GameServer.Database.Contract/
+COPY Common.Server/Common.Server.csproj                       Common.Server/
+COPY Common.Shared/Common.Shared.csproj                       Common.Shared/
+
+RUN dotnet restore DBServer/DBServer.csproj
+
+COPY DBServer/                    DBServer/
+COPY GameServer.Database/         GameServer.Database/
+COPY GameServer.Database.Contract/ GameServer.Database.Contract/
+COPY Common.Server/               Common.Server/
+COPY Common.Shared/               Common.Shared/
+
+RUN dotnet publish DBServer/DBServer.csproj \
+    -c Release -o /app/publish --no-restore
+
+# ── Stage 2: Runtime ────────────────────────────────────────────────────────
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+WORKDIR /app
+
+COPY --from=build /app/publish .
+
+EXPOSE 50051
+EXPOSE 50052
+
+ENTRYPOINT ["dotnet", "DBServer.dll"]

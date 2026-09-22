@@ -16,25 +16,22 @@ internal static class ServerStartup
     {
         var gameSettings = config.GetSection("GameServer").Get<GameServerSettings>()
             ?? throw new InvalidOperationException("appsettings.json에 'GameServer' 섹션이 없습니다.");
-        var dbSettings = config.GetSection("Database").Get<DatabaseSettings>()
-            ?? throw new InvalidOperationException("appsettings.json에 'Database' 섹션이 없습니다.");
+        var dbSettings = config.GetSection("DbServer").Get<DbServerClientSettings>()
+            ?? new DbServerClientSettings();
         var encSettings = config.GetSection("Encryption").Get<EncryptionSettings>()
             ?? new EncryptionSettings();
         if (!encSettings.IsEnabled)
             GameLogger.Warn("Server", "[Encryption] Key가 비어있어 암호화가 비활성화되었습니다.");
 
-        var dbResult = await DatabaseSystem.Instance.InitializeAsync(dbSettings);
-        IdGenerators.Account.Initialize(dbResult.MaxAccountId);
-        IdGenerators.Room.Initialize(dbResult.MaxRoomId);
-        GameLogger.Info("Server", $"IdGenerators 초기화: Account={dbResult.MaxAccountId}, Room={dbResult.MaxRoomId}");
-
-        var walDirectory = Path.Combine(AppContext.BaseDirectory, "db-wal");
-        var gateway = LocalDbGateway.Create(DatabaseSystem.Instance, walDirectory);
+        var gateway = new GrpcDbGateway(dbSettings.Address);
         gateway.OnlineCount = () => PlayerSystem.Instance.Count;
         gateway.OnSustainedOutage = ForceDisconnectDirty;
         gateway.OnWalWriteFailed = ForceDisconnectAccount;
+        var seeds = await gateway.StartAsync(dbSettings.RequireConnection);
+        IdGenerators.Account.Initialize(seeds.MaxAccountId);
+        IdGenerators.Room.Initialize(seeds.MaxRoomId);
+        GameLogger.Info("Server", $"IdGenerators 초기화: Account={seeds.MaxAccountId}, Room={seeds.MaxRoomId} DBServer={dbSettings.Address}");
         DbGateway.Use(gateway);
-        gateway.Start();
 
         var resourceDir = FindResourceDir();
         GameLogger.Info("Server", $"GameDataTable 로드 시작: {resourceDir}");

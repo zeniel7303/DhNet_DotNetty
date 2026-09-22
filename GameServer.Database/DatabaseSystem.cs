@@ -18,6 +18,9 @@ public class DatabaseSystem
     public GameDbContext Game { get; private set; } = null!;
     public GameLogContext GameLog { get; private set; } = null!;
 
+    private DbConnector? _gameConnector;
+    private DbConnector? _logConnector;
+
     private DatabaseSystem() { }
 
     /// <summary>
@@ -31,6 +34,8 @@ public class DatabaseSystem
 
         var connector = new DbConnector(gameConnStr);
         var logConnector = new DbConnector(logConnStr);
+        _gameConnector = connector;
+        _logConnector = logConnector;
 
         Game = new GameDbContext(connector);
         GameLog = new GameLogContext(logConnector);
@@ -40,8 +45,12 @@ public class DatabaseSystem
             PingAsync(connector, settings.Database, settings.RequireConnection),
             PingAsync(logConnector, settings.LogDatabase, settings.RequireConnection));
 
-        // IdGenerator 초기화를 위한 max 값 조회
-        // DB 연결 실패 시에는 0 반환 (서버가 계속 실행 중인 경우)
+        return await ReadIdSeedsAsync();
+    }
+
+    /// <summary>게임 서버가 ID를 이어받을 때 호출한다. 실패하면 0이다.</summary>
+    public async Task<DbInitResult> ReadIdSeedsAsync()
+    {
         ulong maxAccountId = 0;
         ulong maxRoomId = 0;
         try
@@ -55,6 +64,19 @@ public class DatabaseSystem
         }
 
         return new DbInitResult(maxAccountId, maxRoomId);
+    }
+
+    /// <summary>게임 DB와 로그 DB가 모두 응답하면 true.</summary>
+    public async Task<bool> CheckHealthAsync()
+    {
+        if (_gameConnector == null || _logConnector == null)
+        {
+            return false;
+        }
+
+        var game = await _gameConnector.PingAsync();
+        var log = await _logConnector.PingAsync();
+        return game && log;
     }
 
     private static async Task PingAsync(DbConnector connector, string dbName, bool requireConnection)
@@ -86,7 +108,11 @@ public class DatabaseSystem
             CharacterSet            = "utf8mb4",
             ConvertZeroDateTime     = true,
             AllowPublicKeyRetrieval = true,
-            SslMode                 = MySqlSslMode.None
+            SslMode                 = MySqlSslMode.None,
+            Pooling                 = true,
+            MinimumPoolSize         = (uint)Math.Clamp(s.MinPoolSize, 0, 1000),
+            MaximumPoolSize         = (uint)Math.Clamp(s.MaxPoolSize, 1, 10_000),
+            ConnectionTimeout       = (uint)Math.Clamp(s.ConnectionTimeoutSeconds, 1, 120)
         };
         return builder.ConnectionString;
     }

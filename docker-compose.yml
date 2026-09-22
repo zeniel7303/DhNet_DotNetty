@@ -18,6 +18,33 @@ services:
     networks:
       - gamenet
 
+  dbserver:
+    build:
+      context: .
+      dockerfile: Dockerfile.db
+    ports:
+      - "50051:50051"
+      - "50052:50052"
+    environment:
+      Database__Host: mysql
+      Database__Password: "0000"
+      Database__RequireConnection: "true"
+      DbServer__BindAddress: 0.0.0.0
+      DbServer__Port: "50051"
+      DbServer__HealthPort: "50052"
+      DbServer__UseTls: "false"
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/50051'"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    networks:
+      - gamenet
+
   gameserver:
     build:
       context: .
@@ -28,11 +55,13 @@ services:
       - "8080:8080"
     environment:
       DOTNET_ENVIRONMENT: Docker
+      GAMESERVER_DbServer__Address: http://dbserver:50051
+      GAMESERVER_DbServer__RequireConnection: "true"
     volumes:
       - ./Bin/logs:/app/Bin/logs
     restart: unless-stopped
     depends_on:
-      mysql:
+      dbserver:
         condition: service_healthy
     networks:
       - gamenet

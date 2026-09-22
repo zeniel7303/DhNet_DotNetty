@@ -221,14 +221,7 @@ public class RoomComponent : BaseComponent
 
     public void Chat(PlayerComponent sender, string message)
     {
-        // DatabaseSystem.Instance.GameLog.ChatLogs.InsertAsync(new ChatLogRow
-        // {
-        //     account_id = sender.AccountId,
-        //     room_id    = RoomId,
-        //     channel    = "room",
-        //     message    = message,
-        //     created_at = DateTime.UtcNow
-        // }).FireAndForget("Room");
+        // 룸 채팅 로그는 아직 게이트웨이에 넣지 않는다.
 
         var noti = new GamePacket
         {

@@ -3,8 +3,6 @@ using Common.Logging;
 using Common.Server.Component;
 using GameServer.Component.Player;
 using GameServer.Component.Room;
-using GameServer.Database;
-using GameServer.Database.Rows;
 using GameServer.Protocol;
 using GameServer.Systems;
 

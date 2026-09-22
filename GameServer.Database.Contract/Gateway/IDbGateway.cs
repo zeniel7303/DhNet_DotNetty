@@ -66,6 +66,12 @@ public interface IDbGateway
 
     /// <summary>dirty 비율 계산에 쓰는 현재 온라인 세션 수.</summary>
     Func<int>? OnlineCount { get; set; }
+
+    /// <summary>로그인 차단 여부가 바뀔 때 호출된다. 인자는 차단 중이면 true.</summary>
+    Action<bool>? OnLoginBlockedChanged { get; set; }
+
+    /// <summary>버퍼에 남아 있는 계정. 신호 재연결 시 스냅샷으로 쓴다.</summary>
+    IReadOnlyList<ulong> ParkedAccounts { get; }
 }
 
 /// <summary>인증 조회 결과. 비밀번호 검증은 호출자(LoginProcessor)가 한다.</summary>

@@ -1,10 +1,12 @@
 using System.Text.Json;
+using System.Threading.Channels;
 using Common.Logging;
 
 namespace GameServer.Database.Gateway;
 
 /// <summary>
 /// 캐릭터 단위로 저장을 직렬화하고, 실패 시 지수 백오프로 최대 3회 재시도한 뒤 WAL에 남긴다.
+/// 계정마다 <see cref="Channel"/> 소비자가 하나라서 같은 계정의 저장과 로그아웃은 겹치지 않는다.
 /// 연속 실패 60초, 버퍼 한도, dirty 세션 한도 중 하나라도 넘으면 신규 로그인을 막는다.
 /// WAL 기록 자체가 실패하면 그 임계치까지 세션을 남기지 않고 해당 계정을 즉시 알린다.
 /// </summary>
@@ -56,6 +58,9 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
     /// <summary>WAL에 쓰지 못하면 해당 계정을 즉시 알린다. 테스트에서는 기록을 실패시키는 예외.</summary>
     public Action<ulong>? OnWalWriteFailed { get; set; }
 
+    /// <summary>로그인 차단 플래그가 켜지거나 꺼질 때 호출된다.</summary>
+    public Action<bool>? OnLoginBlockedChanged { get; set; }
+
     internal Exception? WalFault { get; set; }
     public Func<int>? OnlineCount { get; set; }
 
@@ -69,6 +74,11 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
     public int ParkedAccountCount
     {
         get { lock (_sync) return _parked.Count; }
+    }
+
+    public IReadOnlyList<ulong> ParkedAccounts
+    {
+        get { lock (_sync) return _parked.ToArray(); }
     }
 
     /// <summary>테스트용. 게이트가 끝나기 전에는 배치를 DB로 넘기지 않는다.</summary>
@@ -128,7 +138,6 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
     public Task FlushAccountAsync(ulong accountId)
     {
         AccountLane? lane;
-        bool start;
         Task wait;
         lock (_sync)
         {
@@ -138,14 +147,10 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
             }
 
             wait = lane.ArmFlush();
-            start = lane.TryMarkRunning();
+            lane.MarkWake();
         }
 
-        if (start)
-        {
-            _ = Task.Run(() => lane.RunAsync());
-        }
-
+        lane.Wake();
         return wait;
     }
 
@@ -201,8 +206,9 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
         {
             foreach (var lane in _lanes.Values)
             {
-                if (lane.TryMarkRunning())
+                if (lane.HasPending())
                 {
+                    lane.MarkWake();
                     startLanes.Add(lane);
                 }
             }
@@ -212,7 +218,7 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
 
         foreach (var lane in startLanes)
         {
-            _ = Task.Run(() => lane.RunAsync());
+            lane.Wake();
         }
 
         if (startLogs)
@@ -229,8 +235,9 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
         {
             foreach (var lane in _lanes.Values)
             {
-                if (lane.TryMarkRunning())
+                if (lane.HasPending())
                 {
+                    lane.MarkWake();
                     lanes.Add(lane);
                 }
             }
@@ -240,7 +247,7 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
 
         foreach (var lane in lanes)
         {
-            _ = Task.Run(() => lane.RunAsync());
+            lane.Wake();
         }
 
         if (startLogs)
@@ -268,6 +275,7 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
 
         List<ulong>? parked = null;
         var fire = false;
+        bool? blockedEdge = null;
         lock (_sync)
         {
             var failureFor = _failureSince is { } since ? _utcNow() - since : TimeSpan.Zero;
@@ -284,6 +292,7 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
             {
                 _blocked = 1;
                 fire = true;
+                blockedEdge = true;
                 parked = _parked.ToList();
                 GameLogger.Warn(
                     "DbGateway",
@@ -292,7 +301,20 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
             else if (!trip && _blocked == 1)
             {
                 _blocked = 0;
+                blockedEdge = false;
                 GameLogger.Info("DbGateway", "DB 장애가 해소되어 신규 로그인을 다시 허용합니다.");
+            }
+        }
+
+        if (blockedEdge is bool blocked)
+        {
+            try
+            {
+                OnLoginBlockedChanged?.Invoke(blocked);
+            }
+            catch (Exception ex)
+            {
+                GameLogger.Error("DbGateway", "로그인 차단 콜백 실행 실패", ex);
             }
         }
 
@@ -364,20 +386,15 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
 
     private void Start(ulong accountId, Action<AccountLane> mutate)
     {
-        var start = false;
         AccountLane lane;
         lock (_sync)
         {
             lane = GetLane(accountId);
             mutate(lane);
-            start = lane.TryMarkRunning();
+            lane.MarkWake();
         }
 
-        if (start)
-        {
-            _ = Task.Run(() => lane.RunAsync());
-        }
-
+        lane.Wake();
         Evaluate();
     }
 
@@ -680,6 +697,11 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
         private readonly DurableSaveQueue _owner;
         private readonly List<TaskCompletionSource> _waiters = new();
 
+        private readonly Channel<byte> _mailbox = Channel.CreateUnbounded<byte>(
+            new UnboundedChannelOptions { SingleReader = true });
+        private int _consumerStarted;
+        private bool _wokeAfterPark;
+
         public AccountLane(DurableSaveQueue owner, ulong accountId)
         {
             _owner = owner;
@@ -698,15 +720,86 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
 
         public bool HasSessionPending() => GoldPayload != null || LogoutPayload != null;
 
-        public bool TryMarkRunning()
+        /// <summary>락을 잡은 쪽에서 호출한다. 소비자가 멈춰 있을 때만 실패 후 재시작 대상으로 표시한다.</summary>
+        public void MarkWake()
         {
-            if (Running || !HasPending())
+            if (!Running)
             {
-                return false;
+                _wokeAfterPark = true;
             }
+        }
 
-            Running = true;
-            return true;
+        /// <summary>계정 채널에 처리 신호를 넣는다. 소비자는 하나다.</summary>
+        public void Wake()
+        {
+            _mailbox.Writer.TryWrite(0);
+            if (Interlocked.CompareExchange(ref _consumerStarted, 1, 0) == 0)
+            {
+                _ = Task.Run(ConsumeAsync);
+            }
+        }
+
+        private async Task ConsumeAsync()
+        {
+            try
+            {
+                await foreach (var kick in _mailbox.Reader.ReadAllAsync(_owner._cts.Token))
+                {
+                    _ = kick;
+                    while (_mailbox.Reader.TryRead(out var extra))
+                    {
+                        _ = extra;
+                    }
+
+                    var run = false;
+                    lock (_owner._sync)
+                    {
+                        if (!Running && HasPending())
+                        {
+                            Running = true;
+                            _wokeAfterPark = false;
+                            run = true;
+                        }
+                    }
+
+                    if (!run)
+                    {
+                        continue;
+                    }
+
+                    var parked = await RunAsync();
+                    if (!parked)
+                    {
+                        continue;
+                    }
+
+                    // 처리 중에 쌓인 신호는 실패 배치를 즉시 다시 돌리지 않도록 버린다.
+                    // 소비자가 멈춘 뒤에 들어온 저장은 다시 신호를 넣어 놓치지 않는다.
+                    while (_mailbox.Reader.TryRead(out var extra))
+                    {
+                        _ = extra;
+                    }
+
+                    var again = false;
+                    lock (_owner._sync)
+                    {
+                        if (_wokeAfterPark && !Running && HasPending())
+                        {
+                            again = true;
+                        }
+
+                        _wokeAfterPark = false;
+                    }
+
+                    if (again)
+                    {
+                        _mailbox.Writer.TryWrite(0);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
         }
 
         public Task ArmFlush()
@@ -721,10 +814,11 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
             return waiter.Task;
         }
 
-        public async Task RunAsync()
+        public async Task<bool> RunAsync()
         {
             List<TaskCompletionSource>? waiters = null;
             var evaluate = false;
+            var parked = false;
             try
             {
                 while (!_owner._cts.IsCancellationRequested)
@@ -775,6 +869,7 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
                         }
 
                         evaluate = true;
+                        parked = true;
                         break;
                     }
 
@@ -795,6 +890,8 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
                     Running = false;
                     waiters = DetachWaiters();
                 }
+
+                parked = true;
             }
 
             if (evaluate)
@@ -803,6 +900,7 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
             }
 
             Signal(waiters);
+            return parked;
         }
 
         private Batch Take()

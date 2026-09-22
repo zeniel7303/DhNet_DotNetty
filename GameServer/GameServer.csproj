@@ -38,7 +38,7 @@
         <ProjectReference Include="..\Common.Shared\Common.Shared.csproj" />
         <ProjectReference Include="..\Common.Server\Common.Server.csproj" />
         <ProjectReference Include="..\GameServer.Protocol\GameServer.Protocol.csproj" />
-        <ProjectReference Include="..\GameServer.Database\GameServer.Database.csproj" />
+        <ProjectReference Include="..\GameServer.Database.Contract\GameServer.Database.Contract.csproj" />
         <ProjectReference Include="..\GameServer.Resources\GameServer.Resources.csproj" />
     </ItemGroup>
 
