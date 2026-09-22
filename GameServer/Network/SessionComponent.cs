@@ -20,11 +20,14 @@ public class SessionComponent : IDisposable
     private readonly ConcurrentQueue<GamePacket> _packetQueue = new();
     // 패킷 타입별 큐 적재 수 카운터 — LINQ O(n) 순회 대신 O(1) 조회 (PacketPairPolicy용)
     private readonly ConcurrentDictionary<GamePacket.PayloadOneofCase, int> _typeCounters = new();
+    private int _packetQueueCount;
     private int _disposed;
     private int _disconnectedFlag;
     private int _entryHandshakeCompleted;
     private int _loginStarted;
     private int _registerStarted;
+
+    private const int MaxPacketQueueSize = 200;
 
     public SessionComponent(IChannel channel)
     {
@@ -65,6 +68,15 @@ public class SessionComponent : IDisposable
                 return false;
             }
         }
+
+        var currentCount = Interlocked.Increment(ref _packetQueueCount);
+        if (currentCount > MaxPacketQueueSize)
+        {
+            Interlocked.Decrement(ref _packetQueueCount);
+            GameLogger.Warn("SessionComponent", $"패킷 큐 상한 초과 (limit={MaxPacketQueueSize}) — 연결 종료");
+            return false;
+        }
+
         _packetQueue.Enqueue(packet);
         _typeCounters.AddOrUpdate(type, 1, (_, c) => c + 1);
         return true;
@@ -76,6 +88,7 @@ public class SessionComponent : IDisposable
     {
         while (_packetQueue.TryDequeue(out var packet))
         {
+            Interlocked.Decrement(ref _packetQueueCount);
             PacketHandler?.Invoke(packet);
 
             var type = packet.PayloadCase;
@@ -93,6 +106,7 @@ public class SessionComponent : IDisposable
     {
         while (_packetQueue.TryDequeue(out _)) { }
         _typeCounters.Clear();
+        Interlocked.Exchange(ref _packetQueueCount, 0);
     }
 
     public Task SendAsync(GamePacket packet) => Channel.WriteAndFlushAsync(packet);
