@@ -96,8 +96,8 @@ public class PlayerSystem
         }
     }
 
-    // DisconnectAsync가 PlayerSystem.Remove()를 DB write 이후에 호출하므로,
-    // Count == 0은 모든 플레이어의 DB 로그아웃 저장 완료를 의미함
+    // DisconnectAsync는 flush 시도가 끝난 뒤 Remove한다.
+    // 전송이 끝나지 않은 flush는 플레이어를 붙잡아 두므로, Count == 0은 그 시도가 모두 돌아왔다는 뜻이다.
     public async Task WaitUntilEmptyAsync(TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;
