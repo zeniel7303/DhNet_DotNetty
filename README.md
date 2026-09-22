@@ -550,7 +550,7 @@ GameServer는 `DbServer:Address`만 바꾸면 된다. DBServer는 루프백 대�
 GameServer 주소는 `https://10.0.0.2:50051`이다. TLS를 쓰지 않을 때는 사설망 안에서만 연다. 비밀번호 해시가 이 채널을 지난다.
 
 - 방화벽은 DBServer의 TCP 50051을 GameServer 주소에만 연다. 공인망에 열지 않는다.
-- 동기 호출 제한은 로그인·가입·비밀번호 재설정 3초, 관리 API 5초다. gRPC 데드라인은 양쪽 시계를 본다. NTP 또는 chrony로 오차를 1초 안으로 맞춘다.
+- 동기 호출 제한은 로그인·가입·비밀번호 재설정 3초, 관리 API 5초다. 클라이언트 데드라인과 DBServer의 SQL 제한을 같은 값으로 겹쳐, 호출부가 포기할 때 서버 쿼리도 함께 끊는다. 데드라인은 양쪽 시계를 보므로 NTP 또는 chrony로 오차를 1초 안으로 맞춘다.
 - TLS를 끄면 gRPC는 50051(HTTP/2), `GET /health`는 50052(HTTP/1.1)다. TLS를 켜면 둘 다 50051이다. MySQL이 응답할 때 200이다. gRPC 헬스 서비스도 같은 결과를 쓴다.
 - 연결 풀은 `Database:MinPoolSize`, `MaxPoolSize`, `ConnectionTimeoutSeconds`다. 저장 실패는 200ms부터 지수 백오프로 최대 3회 재시도한 뒤 WAL(`db-wal`)에 남긴다.
 

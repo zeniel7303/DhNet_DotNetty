@@ -320,26 +320,91 @@ public sealed class GrpcDbGateway : IDbGateway, IAsyncDisposable
         {
             await foreach (var item in channel.Reader.ReadAllAsync(cancellationToken))
             {
-                try
-                {
-                    await SendOneAsync(item, cancellationToken);
-                }
-                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-                {
-                    GameLogger.Error("DbGateway", "DBServer로 기록을 보내지 못했습니다.", ex);
-                }
-                finally
-                {
-                    if (item is OutFlush flush)
-                    {
-                        flush.Done.TrySetResult();
-                    }
-                }
+                await SendUntilAcceptedAsync(item, cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
+    }
+
+    /// <summary>
+    /// 서버가 받기 전에는 다음 기록으로 넘어가지 않는다.
+    /// flush는 성공 응답이거나, 서버가 오류 상태를 돌려준 뒤에만 완료한다.
+    /// 연결이 끊기면 완료하지 않고 이 항목을 버퍼로 둔 채 다시 보낸다.
+    /// </summary>
+    private async Task SendUntilAcceptedAsync(IOutgoing item, CancellationToken cancellationToken)
+    {
+        var delay = TimeSpan.FromMilliseconds(200);
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await SendOneAsync(item, cancellationToken);
+                if (item is OutFlush succeeded)
+                {
+                    succeeded.Done.TrySetResult();
+                }
+
+                return;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex) when (item is OutFlush rejected && IsExplicitServerFailure(ex))
+            {
+                GameLogger.Error(
+                    "DbGateway",
+                    $"DBServer가 계정 {rejected.AccountId} flush를 거부했습니다. 성공으로 끝내지 않습니다.",
+                    ex);
+                rejected.Done.TrySetException(ex);
+                return;
+            }
+            catch (Exception ex)
+            {
+                GameLogger.Error(
+                    "DbGateway",
+                    $"DBServer로 기록을 보내지 못했습니다. 버퍼에 두고 다시 보냅니다. account={AccountOf(item)?.ToString() ?? "-"}.",
+                    ex);
+                try
+                {
+                    await Task.Delay(delay, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+
+                delay = TimeSpan.FromMilliseconds(Math.Min(delay.TotalMilliseconds * 2, 5_000));
+            }
+        }
+    }
+
+    private static ulong? AccountOf(IOutgoing item) => item switch
+    {
+        OutCharacter character => character.Row.account_id,
+        OutLogout logout => logout.AccountId,
+        OutLogin login => login.Row.account_id,
+        OutRoom room => room.Row.account_id,
+        OutFlush flush => flush.AccountId,
+        _ => null
+    };
+
+    /// <summary>서버가 상태 코드를 돌려준 경우다. 연결 거절·데드라인·취소는 여기 넣지 않는다.</summary>
+    private static bool IsExplicitServerFailure(Exception ex)
+    {
+        if (ex is not RpcException rpc)
+        {
+            return false;
+        }
+
+        // Unknown은 핸들러가 예외를 던진 뒤 서버가 돌려주는 상태다.
+        return rpc.StatusCode is not (
+            StatusCode.Unavailable
+            or StatusCode.DeadlineExceeded
+            or StatusCode.Cancelled
+            or StatusCode.Aborted);
     }
 
     private async Task SendOneAsync(IOutgoing item, CancellationToken cancellationToken)
@@ -504,6 +569,8 @@ public sealed class GrpcDbGateway : IDbGateway, IAsyncDisposable
         }
     }
 
+    // 클라이언트의 3초·5초와 DBServer의 SQL 제한은 같은 값이다.
+    // 호출부가 포기하는 시각에 서버 쿼리도 끊기도록 겹쳐 둔다.
     private async Task<T> Call<T>(TimeSpan timeout, CancellationToken cancellationToken, Func<CancellationToken, Task<T>> call)
     {
         return await DbGatewayTimeout.Run(async ct =>
