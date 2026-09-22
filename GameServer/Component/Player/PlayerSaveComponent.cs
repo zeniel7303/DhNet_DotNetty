@@ -1,6 +1,8 @@
 using Common.Logging;
 using Common.Server.Component;
 using GameServer.Database.Gateway;
+using GameServer.Database.Rows;
+using GameServer.World;
 
 namespace GameServer.Component.Player;
 
@@ -43,6 +45,27 @@ public class PlayerSaveComponent : BaseComponent
     // 단일 틱 스레드 외부(ex. ThreadPool)에서도 호출될 수 있으므로 Volatile 사용
     public void MarkDirty() => Volatile.Write(ref _isDirty, 1);
 
+    public void MarkDisconnecting() => Interlocked.Exchange(ref _disconnecting, 1);
+
+    public CharacterRow? ReadSnapshot()
+    {
+        if (Volatile.Read(ref _dbInserted) == 0)
+            return null;
+
+        return _player.Character.ToRow();
+    }
+
+    public CharacterRow? TryConsumeDirtySnapshot()
+    {
+        if (Volatile.Read(ref _dbInserted) == 0 || Volatile.Read(ref _disconnecting) == 1)
+            return null;
+
+        if (Interlocked.Exchange(ref _isDirty, 0) == 0)
+            return null;
+
+        return _player.Character.ToRow();
+    }
+
     // 주기적 저장 — PlayerComponent.Update(dt)에서 호출
     // 단일 틱 스레드에서만 실행되므로 _saveAcc는 volatile 불필요
     public override void Update(float dt)
@@ -55,6 +78,12 @@ public class PlayerSaveComponent : BaseComponent
 
         // 접속 해제(SaveAsync) 진행 중이면 중복 upsert 방지를 위해 주기적 저장 스킵
         if (Volatile.Read(ref _disconnecting) == 1)
+        {
+            return;
+        }
+
+        // 존에 있는 동안 주기 적재는 ZoneLoop가 맡는다.
+        if (ContentZone.Shared.IsSpawned(_player.AccountId))
         {
             return;
         }
@@ -102,6 +131,20 @@ public class PlayerSaveComponent : BaseComponent
             gateway.UpsertCharacter(character.ToRow());
         }
 
+        gateway.UpdateLogout(_player.AccountId, logoutAt);
+        await gateway.FlushAccountAsync(_player.AccountId);
+    }
+
+    /// <summary>
+    /// 존 끊김 경로. 스냅샷 적재는 World가 이미 끝냈으므로 Flush와 로그아웃만 수행한다.
+    /// </summary>
+    public async Task FlushSessionAsync(DateTime logoutAt)
+    {
+        Interlocked.Exchange(ref _disconnecting, 1);
+        if (Volatile.Read(ref _dbInserted) == 0)
+            return;
+
+        var gateway = DbGateway.Current;
         gateway.UpdateLogout(_player.AccountId, logoutAt);
         await gateway.FlushAccountAsync(_player.AccountId);
     }

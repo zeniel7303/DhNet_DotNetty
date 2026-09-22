@@ -5,6 +5,7 @@ using GameServer.Database.Rows;
 using GameServer.Network;
 using GameServer.Protocol;
 using GameServer.Systems;
+using GameServer.World;
 
 namespace GameServer.Auth;
 
@@ -195,6 +196,9 @@ internal static class LoginProcessor
 
         GameLogger.Info("Login", $"로그인 성공: {player.Name} (Id={player.AccountId})");
 
+        if (!session.IsDisconnected)
+            await EnterContentZoneAsync(session, player);
+
         // 로비 입장 완료 후 ResLogin 전송
         await session.SendAsync(new GamePacket
         {
@@ -225,6 +229,36 @@ internal static class LoginProcessor
             ip_address  = ip,
             login_at    = loginAt
         });
+    }
+
+    // CharacterId는 기존 account_id를 재사용한다. 배정과 토큰이 맞을 때만 스폰한다.
+    private static async Task EnterContentZoneAsync(SessionComponent session, PlayerComponent player)
+    {
+        try
+        {
+            var assignment = ContentZone.Shared.AssignZone(
+                player.AccountId,
+                player.AccountId,
+                ContentZone.RoomMapSpawn);
+            var entered = await ContentZone.Shared.EnterZoneAsync(new EnterZoneCommand
+            {
+                SessionToken = assignment.SessionToken,
+                CharacterId = player.AccountId,
+                WorldId = assignment.WorldId,
+                ZoneId = assignment.ZoneId,
+                CanSpawn = () => session.IsConnected && !session.IsDisconnected,
+                ReadSnapshot = player.Save.ReadSnapshot,
+                ConsumeDirty = player.Save.TryConsumeDirtySnapshot,
+            });
+            if (entered.Status != EnterZoneStatus.Spawned)
+            {
+                GameLogger.Warn("Login", $"EnterZone 거절 ({entered.Status}): {player.Name}");
+            }
+        }
+        catch (Exception ex)
+        {
+            GameLogger.Error("Login", $"EnterZone 실패 — 로비 접속은 유지: {player.Name}", ex);
+        }
     }
 
     /// <summary>

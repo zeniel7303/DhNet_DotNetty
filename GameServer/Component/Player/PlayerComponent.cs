@@ -5,6 +5,7 @@ using GameServer.Controllers;
 using GameServer.Network;
 using GameServer.Protocol;
 using GameServer.Systems;
+using GameServer.World;
 
 namespace GameServer.Component.Player;
 
@@ -117,37 +118,70 @@ public class PlayerComponent : BaseComponent
         }
     }
 
+    public bool TryBeginDisconnectCleanup()
+        => Interlocked.Exchange(ref _disconnected, 1) == 0;
+
+    // 룸·로비에서 빼고 세션을 닫는다. 스냅샷 적재와 Flush는 호출하지 않는다.
+    public void CleanupPresence()
+    {
+        try
+        {
+            PlayerRoomComponent? room;
+            PlayerLobbyComponent? lobby;
+            lock (_disposeLock)
+            {
+                room = Room;
+                lobby = Lobby;
+            }
+
+            room?.Disconnect();
+            lobby?.Disconnect();
+            Session.DetachPlayer();
+            Session.Dispose();
+        }
+        catch (Exception ex)
+        {
+            GameLogger.Error("PlayerComponent", $"연결 해제 정리 중 예외 (AccountId={AccountId}): {ex.Message}", ex);
+        }
+    }
+
     private async Task DisconnectAsync()
     {
-        if (Interlocked.Exchange(ref _disconnected, 1) == 1) return;
+        if (!TryBeginDisconnectCleanup()) return;
+
+        // 존 입장이 끝난 계정은 Session 조율 경로로 보낸다. 여기서 Flush하지 않는다.
+        if (ContentZone.Shared.IsSpawned(AccountId))
+        {
+            try
+            {
+                await SessionZoneDisconnect.CompleteAsync(this, alreadyOnPlayerWorker: true);
+            }
+            catch (Exception ex)
+            {
+                GameLogger.Error("PlayerComponent", $"존 끊김 조율 실패 (AccountId={AccountId}): {ex.Message}", ex);
+                try
+                {
+                    PlayerSystem.Instance.Remove(this);
+                }
+                catch (Exception removeEx)
+                {
+                    GameLogger.Error("PlayerComponent", $"존 끊김 제거 실패 (AccountId={AccountId}): {removeEx.Message}", removeEx);
+                }
+            }
+            return;
+        }
 
         // 세션은 flush보다 먼저 닫는다. flush가 예외로 끝나도 아래에서 플레이어는 반드시 뺀다.
         // 전송이 끝나지 않은 flush는 await가 돌아오지 않으므로 Remove까지 가지 않는다.
         try
         {
             PlayerCharacterComponent? character = null;
-            try
+            lock (_disposeLock)
             {
-                // lock(this): Room/Lobby/Character 참조 캡처 원자화
-                PlayerRoomComponent?  room;
-                PlayerLobbyComponent? lobby;
-                lock (_disposeLock)
-                {
-                    room      = Room;
-                    lobby     = Lobby;
-                    character = Character;
-                }
-
-                room?.Disconnect();
-                lobby?.Disconnect();
-
-                Session.DetachPlayer();
-                Session.Dispose();
+                character = Character;
             }
-            catch (Exception ex)
-            {
-                GameLogger.Error("PlayerComponent", $"DisconnectAsync 정리 중 예외 (AccountId={AccountId}): {ex.Message}", ex);
-            }
+
+            CleanupPresence();
 
             // 성공, 명시적 실패, 예외 중 하나로 flush 시도가 끝난 뒤에만 제거한다.
             await Save.SaveAsync(character, DateTime.UtcNow);

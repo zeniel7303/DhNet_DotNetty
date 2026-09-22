@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Common.Logging;
 using GameServer.Component.Player;
 using GameServer.Network;
+using GameServer.World;
 
 namespace GameServer.Systems;
 
@@ -217,8 +218,11 @@ public class SessionSystem
 
         if (session.IsEntryHandshakeCompleted)
         {
-            // 정상 입장 완료 후 연결 해제 — 워커 틱에서 DisconnectAsync 처리
-            player.DisconnectForNextTick();
+            // 존에 있으면 Session이 Flush·Remove를 조율한다. 그 외는 기존 워커 경로.
+            if (ContentZone.Shared.IsSpawned(player.AccountId))
+                _ = SessionZoneDisconnect.RunFromSessionAsync(player);
+            else
+                player.DisconnectForNextTick();
         }
         else
         {

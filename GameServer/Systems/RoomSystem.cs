@@ -6,6 +6,7 @@ namespace GameServer.Systems;
 /// <summary>
 /// RoomComponent의 틱 스레드를 제공하는 시스템.
 /// 구동 체인: RoomSystem → RoomComponent.Update(dt) → StageComponent.Update(dt)
+/// RPG 룸 전투 틱은 유지한다. 룸 맵 하나의 월드 입장(스폰·AOI·스냅샷)은 ContentZone이 대체한다.
 ///
 /// 설계 결정 — Dispose 책임:
 ///   RoomSystem은 워커 스레드 관리만 담당하며, RoomComponent의 Dispose 책임은 LobbyComponent가 갖는다.

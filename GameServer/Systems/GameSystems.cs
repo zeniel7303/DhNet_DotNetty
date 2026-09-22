@@ -1,5 +1,6 @@
 using Common;
 using Common.Logging;
+using GameServer.World;
 
 namespace GameServer.Systems;
 
@@ -17,6 +18,12 @@ internal static class GameSystems
         SessionSystem.Instance.StartSystem();
         PlayerSystem.Instance.StartSystem();
         RoomSystem.Instance.StartSystem();
+
+        ContentZone.Shared.Apply(settings);
+        var snapshotWait = TimeSpan.FromSeconds(
+            settings.SnapshotQueuedTimeoutSeconds > 0 ? settings.SnapshotQueuedTimeoutSeconds : 3);
+        SessionZoneDisconnect.Configure(snapshotWait);
+        ContentZone.Shared.Start();
     }
 
     // 서버 바인딩 해제 후 호출 — 세션/플레이어 정리 및 DB 동기화 대기
@@ -32,6 +39,10 @@ internal static class GameSystems
 
         GameLogger.Info("GameSystems", "[Shutdown] 플레이어 DB 동기화 대기...");
         await PlayerSystem.Instance.WaitUntilEmptyAsync(TimeSpan.FromSeconds(30));
+
+        // 끊김 조율이 SnapshotQueued를 받은 뒤에 존 루프를 멈춘다.
+        GameLogger.Info("GameSystems", "[Shutdown] 존 루프 정리...");
+        ContentZone.Shared.StopAndDrain();
         PlayerSystem.Instance.Stop();
     }
 }
