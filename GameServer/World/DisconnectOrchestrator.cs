@@ -14,7 +14,8 @@ public sealed class DisconnectWork
 
 /// <summary>
 /// BeginDisconnect 이후 SnapshotQueued를 제한 시간만 기다린 뒤 FlushAccount와 Remove를 진행한다.
-/// 이미 제거한 계정의 늦은 SnapshotQueued는 무시한다.
+/// 스냅샷이 그 시간 안에 없어도 Flush를 미루지 않는다.
+/// Remove 이후의 Despawn·Upsert·SnapshotQueued는 존이 무시한다.
 /// </summary>
 public sealed class DisconnectOrchestrator
 {
@@ -65,14 +66,29 @@ public sealed class DisconnectOrchestrator
             }
             finally
             {
+                var removed = false;
                 try
                 {
                     work.Remove();
+                    removed = true;
                 }
                 catch (Exception ex)
                 {
                     GameLogger.Error("DisconnectOrchestrator",
                         $"세션 제거 실패 (AccountId={work.AccountId})", ex);
+                }
+
+                if (removed)
+                {
+                    try
+                    {
+                        work.World.MarkSessionRemoved(work.AccountId);
+                    }
+                    catch (Exception ex)
+                    {
+                        GameLogger.Error("DisconnectOrchestrator",
+                            $"제거 표시 실패 (AccountId={work.AccountId})", ex);
+                    }
                 }
             }
         }

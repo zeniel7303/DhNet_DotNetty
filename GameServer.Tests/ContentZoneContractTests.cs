@@ -231,8 +231,87 @@ public class ContentZoneContractTests
 
         Assert.Equal(1, flushCount);
         Assert.Equal(1, removeCount);
-        Assert.Contains("upsert", order);
+        Assert.DoesNotContain("upsert", order);
+        Assert.Empty(writer.Rows);
         Assert.False(zone.IsSpawned(6));
+    }
+
+    [Fact(Timeout = 3000)]
+    public async Task Disconnect_AfterRemove_LateWorkDoesNotReplaceNewSpawn()
+    {
+        var order = new List<string>();
+        var writer = new RecordingWriter(() => order.Add("upsert"));
+        var zone = OpenZone(writer);
+        await Spawn(zone, 6, () => Row(6, 1));
+
+        var orchestrator = new DisconnectOrchestrator(TimeSpan.FromMilliseconds(30));
+        await orchestrator.RunAsync(Work(zone, 6, order));
+
+        var assignment = zone.AssignZone(6, 6, ContentZone.RoomMapSpawn);
+        var again = Done();
+        zone.PostEnter(Command(assignment.SessionToken, 6, zone, () => Row(6, 9)), again);
+        zone.RunOneTick(0.1f);
+
+        Assert.Equal(EnterZoneStatus.Spawned, (await again.Task).Status);
+        Assert.True(zone.IsSpawned(6));
+        Assert.DoesNotContain("upsert", order);
+        Assert.Empty(writer.Rows);
+    }
+
+    [Fact(Timeout = 3000)]
+    public async Task EnterZoneAsync_TimeoutBeforeLoop_DoesNotLeaveSpawn()
+    {
+        var writer = new RecordingWriter();
+        var zone = new ContentZone(writer, enterTimeout: TimeSpan.FromMilliseconds(40));
+        zone.Open();
+        var assignment = zone.AssignZone(4, 4, ContentZone.RoomMapSpawn);
+
+        var result = await zone.EnterZoneAsync(Command(assignment.SessionToken, 4, zone, () => Row(4, 3)));
+        zone.RunOneTick(0.1f);
+
+        Assert.Equal(EnterZoneStatus.RejectedZoneUnavailable, result.Status);
+        Assert.False(zone.IsSpawned(4));
+        Assert.Empty(writer.Rows);
+    }
+
+    [Fact(Timeout = 8000)]
+    public async Task EnterZoneAsync_TimeoutDuringSpawn_RollsBackOccupant()
+    {
+        var writer = new RecordingWriter();
+        var zone = new ContentZone(writer, enterTimeout: TimeSpan.FromMilliseconds(400));
+        zone.Open();
+        var assignment = zone.AssignZone(4, 4, ContentZone.RoomMapSpawn);
+        var inCanSpawn = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var release = new ManualResetEventSlim(false);
+        var command = Command(assignment.SessionToken, 4, zone, () => Row(4, 3));
+        command.CanSpawn = () =>
+        {
+            inCanSpawn.TrySetResult();
+            release.Wait();
+            return true;
+        };
+
+        var enterTask = Task.Run(() => zone.EnterZoneAsync(command));
+        var tickTask = Task.Run(() =>
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(3);
+            while (!inCanSpawn.Task.IsCompleted && DateTime.UtcNow < deadline)
+            {
+                zone.RunOneTick(0.1f);
+                Thread.Sleep(5);
+            }
+        });
+
+        await inCanSpawn.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var result = await enterTask;
+        Assert.Equal(EnterZoneStatus.RejectedZoneUnavailable, result.Status);
+        release.Set();
+        await tickTask;
+
+        zone.RunOneTick(0.1f);
+        Assert.False(zone.IsSpawned(4));
+        Assert.Equal(0, zone.OccupantCount);
+        Assert.Empty(writer.Rows);
     }
 
     private static void AssertTickPathIsSynchronous()

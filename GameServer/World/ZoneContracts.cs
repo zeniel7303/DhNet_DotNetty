@@ -60,4 +60,9 @@ public interface IZoneSnapshotWriter
 public interface IZoneDisconnect
 {
     void BeginDisconnect(ulong accountId, ulong characterId, Action snapshotQueued);
+
+    /// <summary>
+    /// Session.Remove가 끝난 계정. 이후의 Despawn·Upsert·SnapshotQueued는 무시한다.
+    /// </summary>
+    void MarkSessionRemoved(ulong accountId);
 }

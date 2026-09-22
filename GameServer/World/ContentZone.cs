@@ -24,6 +24,7 @@ public sealed class ContentZone : IZoneDisconnect
     private readonly ZoneLoop _loop;
     private readonly Dictionary<ulong, Occupant> _occupants = new();
     private readonly ConcurrentDictionary<ulong, byte> _spawned = new();
+    private readonly ConcurrentDictionary<ulong, int> _epoch = new();
     private readonly float _snapshotIntervalSeconds;
     private float _snapshotAcc;
     private long _nextEntityId;
@@ -32,10 +33,15 @@ public sealed class ContentZone : IZoneDisconnect
     private string _zoneId = "room-map";
     private TimeSpan _enterTimeout = TimeSpan.FromSeconds(3);
 
-    public ContentZone(IZoneSnapshotWriter snapshots, float snapshotIntervalSeconds = 60f)
+    public ContentZone(
+        IZoneSnapshotWriter snapshots,
+        float snapshotIntervalSeconds = 60f,
+        TimeSpan? enterTimeout = null)
     {
         _snapshots = snapshots;
         _snapshotIntervalSeconds = snapshotIntervalSeconds;
+        if (enterTimeout is { } timeout)
+            _enterTimeout = timeout;
         _loop = new ZoneLoop(OnTick);
     }
 
@@ -85,7 +91,7 @@ public sealed class ContentZone : IZoneDisconnect
         {
             try
             {
-                done.TrySetResult(EnterOnLoop(command));
+                done.TrySetResult(EnterOnLoop(command).Result);
             }
             catch (Exception ex)
             {
@@ -101,27 +107,53 @@ public sealed class ContentZone : IZoneDisconnect
             return Unavailable();
 
         var done = new TaskCompletionSource<EnterZoneResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var cancelled = 0;
+        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var outcome = 0;
+        var phase = 0;
+        var createdFlag = 0;
+        ulong createdAccount = 0;
+
         _loop.Post(() =>
         {
-            if (Volatile.Read(ref cancelled) == 1)
-            {
-                done.TrySetResult(Unavailable());
-                return;
-            }
-
-            EnterZoneResult result;
+            Volatile.Write(ref phase, 1);
             try
             {
-                result = EnterOnLoop(command);
-            }
-            catch (Exception ex)
-            {
-                GameLogger.Error("ContentZone", "EnterZone 실패", ex);
-                result = Unavailable();
-            }
+                if (Volatile.Read(ref outcome) == 2)
+                {
+                    done.TrySetResult(Unavailable());
+                    return;
+                }
 
-            done.TrySetResult(result);
+                LoopEnter entered;
+                try
+                {
+                    entered = EnterOnLoop(command);
+                }
+                catch (Exception ex)
+                {
+                    GameLogger.Error("ContentZone", "EnterZone 실패", ex);
+                    entered = new LoopEnter(Unavailable(), false, 0);
+                }
+
+                var result = entered.Result;
+                if (entered.Created)
+                {
+                    Volatile.Write(ref createdAccount, entered.AccountId);
+                    Volatile.Write(ref createdFlag, 1);
+                    if (Interlocked.CompareExchange(ref outcome, 1, 0) != 0)
+                    {
+                        Despawn(entered.AccountId, enqueueSnapshot: false);
+                        result = Unavailable();
+                    }
+                }
+
+                done.TrySetResult(result);
+            }
+            finally
+            {
+                Volatile.Write(ref phase, 2);
+                finished.TrySetResult();
+            }
         });
 
         try
@@ -130,7 +162,26 @@ public sealed class ContentZone : IZoneDisconnect
         }
         catch (TimeoutException)
         {
-            Volatile.Write(ref cancelled, 1);
+            if (Interlocked.CompareExchange(ref outcome, 2, 0) != 0)
+            {
+                if (Volatile.Read(ref createdFlag) == 1)
+                    await RollbackSpawnAsync(createdAccount);
+
+                return Unavailable();
+            }
+
+            if (Volatile.Read(ref phase) != 0)
+            {
+                try
+                {
+                    await finished.Task.WaitAsync(_enterTimeout);
+                }
+                catch (TimeoutException)
+                {
+                    GameLogger.Warn("ContentZone", "입장 취소가 존 루프에서 끝나지 않았습니다.");
+                }
+            }
+
             return Unavailable();
         }
     }
@@ -151,29 +202,39 @@ public sealed class ContentZone : IZoneDisconnect
             return;
         }
 
-        _loop.Post(() => DisconnectOnLoop(accountId, characterId, snapshotQueued));
+        var epoch = EpochOf(accountId);
+        _loop.Post(() => DisconnectOnLoop(accountId, characterId, snapshotQueued, epoch));
     }
 
-    private EnterZoneResult EnterOnLoop(EnterZoneCommand command)
+    public void MarkSessionRemoved(ulong accountId)
+        => _epoch.AddOrUpdate(accountId, 1, static (_, value) => value + 1);
+
+    private LoopEnter EnterOnLoop(EnterZoneCommand command)
     {
         if (!IsOpen)
-            return Unavailable();
+            return new LoopEnter(Unavailable(), false, 0);
 
         if (!_assignments.TryGet(command.SessionToken, out var assignment))
-            return new EnterZoneResult(EnterZoneStatus.RejectedInvalidToken, null);
+            return new LoopEnter(new EnterZoneResult(EnterZoneStatus.RejectedInvalidToken, null), false, 0);
 
         if (assignment.CharacterId != command.CharacterId
             || assignment.WorldId != command.WorldId
             || assignment.ZoneId != command.ZoneId)
         {
-            return new EnterZoneResult(EnterZoneStatus.RejectedAssignmentMismatch, null);
+            return new LoopEnter(new EnterZoneResult(EnterZoneStatus.RejectedAssignmentMismatch, null), false, 0);
         }
 
         if (command.CanSpawn != null && !command.CanSpawn())
-            return Unavailable();
+            return new LoopEnter(Unavailable(), false, 0);
 
+        var epoch = EpochOf(assignment.AccountId);
         if (_occupants.TryGetValue(assignment.AccountId, out var existing))
-            return new EnterZoneResult(EnterZoneStatus.Spawned, existing.EntityId);
+        {
+            if (existing.Epoch == epoch)
+                return new LoopEnter(new EnterZoneResult(EnterZoneStatus.Spawned, existing.EntityId), false, assignment.AccountId);
+
+            Despawn(assignment.AccountId, enqueueSnapshot: false);
+        }
 
         var entityId = Interlocked.Increment(ref _nextEntityId);
         var occupant = new Occupant
@@ -181,6 +242,7 @@ public sealed class ContentZone : IZoneDisconnect
             EntityId = entityId,
             AccountId = assignment.AccountId,
             CharacterId = assignment.CharacterId,
+            Epoch = epoch,
             Pose = assignment.EnterPose,
             ReadSnapshot = command.ReadSnapshot,
             ConsumeDirty = command.ConsumeDirty,
@@ -195,13 +257,19 @@ public sealed class ContentZone : IZoneDisconnect
             occupant.Deliver(new ZoneEvent(ZoneEventKind.Snapshot, other.EntityId));
 
         _aoi.Publish(new ZoneEvent(ZoneEventKind.Entered, entityId));
-        return new EnterZoneResult(EnterZoneStatus.Spawned, entityId);
+        return new LoopEnter(new EnterZoneResult(EnterZoneStatus.Spawned, entityId), true, assignment.AccountId);
     }
 
-    private void DisconnectOnLoop(ulong accountId, ulong characterId, Action snapshotQueued)
+    private void DisconnectOnLoop(ulong accountId, ulong characterId, Action snapshotQueued, int epoch)
     {
         try
         {
+            if (EpochOf(accountId) != epoch)
+            {
+                DropStale(accountId, epoch);
+                return;
+            }
+
             if (_occupants.TryGetValue(accountId, out var occupant) && occupant.CharacterId != characterId)
             {
                 GameLogger.Warn("ContentZone",
@@ -218,13 +286,16 @@ public sealed class ContentZone : IZoneDisconnect
         }
         finally
         {
-            try
+            if (EpochOf(accountId) == epoch)
             {
-                snapshotQueued();
-            }
-            catch (Exception ex)
-            {
-                GameLogger.Error("ContentZone", $"SnapshotQueued 통지 실패 (AccountId={accountId})", ex);
+                try
+                {
+                    snapshotQueued();
+                }
+                catch (Exception ex)
+                {
+                    GameLogger.Error("ContentZone", $"SnapshotQueued 통지 실패 (AccountId={accountId})", ex);
+                }
             }
         }
     }
@@ -235,7 +306,7 @@ public sealed class ContentZone : IZoneDisconnect
             return;
 
         _spawned.TryRemove(accountId, out _);
-        if (enqueueSnapshot)
+        if (enqueueSnapshot && occupant.Epoch == EpochOf(accountId))
         {
             try
             {
@@ -252,6 +323,36 @@ public sealed class ContentZone : IZoneDisconnect
         _aoi.Publish(new ZoneEvent(ZoneEventKind.Left, occupant.EntityId));
     }
 
+    private void DropStale(ulong accountId, int epoch)
+    {
+        if (!_occupants.TryGetValue(accountId, out var occupant) || occupant.Epoch != epoch)
+            return;
+
+        Despawn(accountId, enqueueSnapshot: false);
+    }
+
+    private async Task RollbackSpawnAsync(ulong accountId)
+    {
+        var undone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _loop.Post(() =>
+        {
+            Despawn(accountId, enqueueSnapshot: false);
+            undone.TrySetResult();
+        });
+
+        try
+        {
+            await undone.Task.WaitAsync(_enterTimeout);
+        }
+        catch (TimeoutException)
+        {
+            GameLogger.Warn("ContentZone",
+                $"입장 실패 후 스폰 회수가 끝나지 않았습니다 (AccountId={accountId})");
+        }
+    }
+
+    private int EpochOf(ulong accountId) => _epoch.GetValueOrDefault(accountId);
+
     private void OnTick(float dtSeconds)
     {
         if (_snapshotIntervalSeconds > 0f)
@@ -264,6 +365,9 @@ public sealed class ContentZone : IZoneDisconnect
 
         foreach (var occupant in _occupants.Values)
         {
+            if (occupant.Epoch != EpochOf(occupant.AccountId))
+                continue;
+
             try
             {
                 EnqueueRow(occupant.ConsumeDirty);
@@ -289,11 +393,14 @@ public sealed class ContentZone : IZoneDisconnect
     private static EnterZoneResult Unavailable()
         => new(EnterZoneStatus.RejectedZoneUnavailable, null);
 
+    private readonly record struct LoopEnter(EnterZoneResult Result, bool Created, ulong AccountId);
+
     private sealed class Occupant
     {
         public long EntityId { get; init; }
         public ulong AccountId { get; init; }
         public ulong CharacterId { get; init; }
+        public int Epoch { get; init; }
         public ZonePose Pose { get; init; }
         public Func<CharacterRow?>? ReadSnapshot { get; init; }
         public Func<CharacterRow?>? ConsumeDirty { get; init; }
