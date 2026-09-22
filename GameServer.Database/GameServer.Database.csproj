@@ -17,4 +17,8 @@
         <ProjectReference Include="..\Common.Server\Common.Server.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="GameServer.Tests" />
+    </ItemGroup>
+
 </Project>

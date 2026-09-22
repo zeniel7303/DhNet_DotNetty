@@ -1,6 +1,7 @@
 using Common;
 using Common.Logging;
 using GameServer.Database;
+using GameServer.Database.Gateway;
 using GameServer.Network;
 using GameServer.Resources;
 using GameServer.Systems;
@@ -26,6 +27,13 @@ internal static class ServerStartup
         IdGenerators.Account.Initialize(dbResult.MaxAccountId);
         IdGenerators.Room.Initialize(dbResult.MaxRoomId);
         GameLogger.Info("Server", $"IdGenerators 초기화: Account={dbResult.MaxAccountId}, Room={dbResult.MaxRoomId}");
+
+        var walDirectory = Path.Combine(AppContext.BaseDirectory, "db-wal");
+        var gateway = LocalDbGateway.Create(DatabaseSystem.Instance, walDirectory);
+        gateway.OnlineCount = () => PlayerSystem.Instance.Count;
+        gateway.OnSustainedOutage = ForceDisconnectDirty;
+        DbGateway.Use(gateway);
+        gateway.Start();
 
         var resourceDir = FindResourceDir();
         GameLogger.Info("Server", $"GameDataTable 로드 시작: {resourceDir}");
@@ -58,12 +66,29 @@ internal static class ServerStartup
         await server.RunAsync(cts.Token);
 
         await GameSystems.StopAsync();
+        await gateway.DisposeAsync();
 
         GameLogger.Info("Server", "[Shutdown] Web/WS 서버, Stat 로거 종료 대기...");
         await Task.WhenAll(statTask, webTask, wsTask);
 
         GameLogger.Info("Server", "[Shutdown] 완료.");
         await GameLogger.FlushAsync();
+    }
+
+    /// <summary>
+    /// DB에 반영되지 못한 계정과, 메모리에만 남은 dirty 세션을 끊는다.
+    /// 끊김 경로가 골드·로그아웃을 WAL에 남긴 뒤 PlayerSystem에서 제거한다.
+    /// </summary>
+    private static void ForceDisconnectDirty(IReadOnlyList<ulong> parkedAccountIds)
+    {
+        var parked = new HashSet<ulong>(parkedAccountIds);
+        foreach (var player in PlayerSystem.Instance.GetAll())
+        {
+            if (parked.Contains(player.AccountId) || player.Save.IsDirty)
+            {
+                player.DisconnectForNextTick();
+            }
+        }
     }
 
     /// <summary>

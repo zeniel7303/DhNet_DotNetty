@@ -142,8 +142,8 @@ public class PlayerComponent : BaseComponent
 
             await Save.SaveAsync(character, DateTime.UtcNow);
 
-            // DB write 완료 후 Remove — PlayerSystem.WaitUntilEmptyAsync가 DB 동기화 완료를 정확히 감지하도록 보장
-            // (단, LoginLog.UpdateLogoutAsync는 FireAndForget으로 처리되어 완료 보장 범위 외)
+            // 선행 저장·로그아웃 flush 후 Remove.
+            // DB가 죽어도 WAL에 남긴 뒤 여기로 온다. WaitUntilEmptyAsync는 이 순서를 본다.
             PlayerSystem.Instance.Remove(this);
         }
         catch (Exception ex)

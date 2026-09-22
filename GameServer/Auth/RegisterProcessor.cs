@@ -1,7 +1,7 @@
 using Common.Logging;
-using GameServer.Database;
-using GameServer.Network;
+using GameServer.Database.Gateway;
 using GameServer.Database.Rows;
+using GameServer.Network;
 using GameServer.Protocol;
 using GameServer.Systems;
 
@@ -61,7 +61,7 @@ internal static class RegisterProcessor
         int inserted;
         try
         {
-            inserted = await DatabaseSystem.Instance.Game.Accounts.InsertAsync(new AccountRow
+            inserted = await DbGateway.Current.RegisterAccountAsync(new AccountRow
             {
                 account_id    = accountId,
                 username      = username,

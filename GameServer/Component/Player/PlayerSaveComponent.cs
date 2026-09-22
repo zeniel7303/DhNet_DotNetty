@@ -1,7 +1,6 @@
 using Common.Logging;
 using Common.Server.Component;
-using GameServer.Database;
-using GameServer.Systems;
+using GameServer.Database.Gateway;
 
 namespace GameServer.Component.Player;
 
@@ -18,6 +17,8 @@ public class PlayerSaveComponent : BaseComponent
 
     // 0 = 저장 불필요, 1 = dirty (주기적 저장 대상)
     private int _isDirty;
+
+    public bool IsDirty => Volatile.Read(ref _isDirty) == 1;
 
     // 0 = 정상, 1 = 접속 해제 진행 중 — 주기적 저장 중복 방지
     private int _disconnecting;
@@ -70,20 +71,15 @@ public class PlayerSaveComponent : BaseComponent
             return;
         }
 
-        _ = SaveCharacterAsync(_player.Character);
-    }
-
-    private async Task SaveCharacterAsync(PlayerCharacterComponent character)
-    {
+        // 틱에서는 큐에만 넣는다. DB 대기는 게이트웨이 워커가 맡는다.
         try
         {
-            await DatabaseSystem.Instance.Game.Characters.UpsertAsync(character.ToRow());
+            DbGateway.Current.UpsertCharacter(_player.Character.ToRow());
         }
         catch (Exception ex)
         {
-            GameLogger.Error("PlayerSaveComponent", $"주기적 캐릭터 저장 실패 (AccountId={_player.AccountId})", ex);
-            // 저장 실패 시 dirty 복구 — 다음 주기에 재시도
             Volatile.Write(ref _isDirty, 1);
+            GameLogger.Error("PlayerSaveComponent", $"주기적 캐릭터 저장 큐 적재 실패 (AccountId={_player.AccountId})", ex);
         }
     }
 
@@ -100,29 +96,13 @@ public class PlayerSaveComponent : BaseComponent
             return;
         }
 
+        var gateway = DbGateway.Current;
         if (character != null)
         {
-            try
-            {
-                await DatabaseSystem.Instance.Game.Characters.UpsertAsync(character.ToRow());
-            }
-            catch (Exception ex)
-            {
-                GameLogger.Error("PlayerSaveComponent", $"캐릭터 DB 저장 실패 (AccountId={_player.AccountId})", ex);
-            }
+            gateway.UpsertCharacter(character.ToRow());
         }
 
-        try
-        {
-            await DatabaseSystem.Instance.Game.Players.UpdateLogoutAsync(_player.AccountId, logoutAt);
-        }
-        catch (Exception ex)
-        {
-            GameLogger.Error("PlayerSaveComponent", $"로그아웃 DB 저장 실패 (AccountId={_player.AccountId})", ex);
-        }
-
-        DatabaseSystem.Instance.GameLog.LoginLogs
-            .UpdateLogoutAsync(_player.AccountId, logoutAt)
-            .FireAndForget("PlayerSaveComponent");
+        gateway.UpdateLogout(_player.AccountId, logoutAt);
+        await gateway.FlushAccountAsync(_player.AccountId);
     }
 }

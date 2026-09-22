@@ -1,5 +1,5 @@
 using Common.Logging;
-using GameServer.Database;
+using GameServer.Database.Gateway;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GameServer.Web.Controllers;
@@ -20,7 +20,7 @@ public class AnalyticsController : ControllerBase
     {
         try
         {
-            var rows = await DatabaseSystem.Instance.GameLog.ChatLogs.QueryAsync(accountId, roomId, startTime, endTime, limit);
+            var rows = await DbGateway.Current.QueryChatLogsAsync(accountId, roomId, startTime, endTime, limit);
             var result = rows.Select(r => new ChatLogDto(r.account_id, r.room_id, r.channel, r.message, r.created_at));
             return Ok(result);
         }
@@ -42,7 +42,7 @@ public class AnalyticsController : ControllerBase
     {
         try
         {
-            var rows = await DatabaseSystem.Instance.GameLog.LoginLogs.QueryAsync(accountId, startTime, endTime, limit);
+            var rows = await DbGateway.Current.QueryLoginLogsAsync(accountId, startTime, endTime, limit);
             var result = rows.Select(r => new LoginLogDto(r.account_id, r.player_name, r.ip_address, r.login_at, r.logout_at));
             return Ok(result);
         }
@@ -66,7 +66,7 @@ public class AnalyticsController : ControllerBase
     {
         try
         {
-            var rows = await DatabaseSystem.Instance.GameLog.RoomLogs.QueryAsync(accountId, roomId, action, startTime, endTime, limit);
+            var rows = await DbGateway.Current.QueryRoomLogsAsync(accountId, roomId, action, startTime, endTime, limit);
             var result = rows.Select(r => new RoomLogEntryDto(r.account_id, r.room_id, r.action, r.created_at));
             return Ok(result);
         }
