@@ -85,7 +85,9 @@ internal static class LoginProcessor
         }
         catch (Exception ex)
         {
-            GameLogger.Error("Login", $"플레이어 DB 저장 실패: {player.Name}", ex);
+            GameLogger.Error("Login", ex is TimeoutException
+                ? $"DB 응답 시간 초과: {player.Name}"
+                : $"플레이어 DB 저장 실패: {player.Name}", ex);
             await session.SendAsync(new GamePacket
             {
                 ResLogin = new ResLogin { PlayerId = 0, PlayerName = string.Empty, ErrorCode = ErrorCode.DbError }
@@ -180,7 +182,9 @@ internal static class LoginProcessor
         }
         catch (Exception ex)
         {
-            GameLogger.Error("Login", $"캐릭터 로드 실패 — 로그인 거부: {player.Name}", ex);
+            GameLogger.Error("Login", ex is TimeoutException
+                ? $"캐릭터 로드 시간 초과 — 로그인 거부: {player.Name}"
+                : $"캐릭터 로드 실패 — 로그인 거부: {player.Name}", ex);
             await session.SendAsync(new GamePacket
             {
                 ResLogin = new ResLogin { ErrorCode = ErrorCode.DbError }
@@ -261,7 +265,9 @@ internal static class LoginProcessor
         }
         catch (Exception ex)
         {
-            GameLogger.Error("Login", $"계정 조회 실패: {username}", ex);
+            GameLogger.Error("Login", ex is TimeoutException
+                ? $"계정 조회 시간 초과: {username}"
+                : $"계정 조회 실패: {username}", ex);
             await session.SendAsync(new GamePacket
             {
                 ResLogin = new ResLogin { ErrorCode = ErrorCode.DbError }

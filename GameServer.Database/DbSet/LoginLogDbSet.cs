@@ -39,7 +39,8 @@ public class LoginLogDbSet
         ulong? accountId = null,
         DateTime? startTime = null,
         DateTime? endTime = null,
-        int limit = 100)
+        int limit = 100,
+        CancellationToken cancellationToken = default)
     {
         limit = Math.Clamp(limit, 1, 100);
         var where = new List<string>();
@@ -54,6 +55,6 @@ public class LoginLogDbSet
         sql += " ORDER BY `login_at` DESC LIMIT @limit";
         param.Add("limit", limit);
 
-        return _conn.QueryAsync<LoginLogRow>(sql, param);
+        return _conn.QueryAsync<LoginLogRow>(sql, param, cancellationToken);
     }
 }

@@ -6,6 +6,7 @@ namespace GameServer.Database.Gateway;
 /// <summary>
 /// 캐릭터 단위로 저장을 직렬화하고, 실패 시 지수 백오프로 최대 3회 재시도한 뒤 WAL에 남긴다.
 /// 연속 실패 60초, 버퍼 한도, dirty 세션 한도 중 하나라도 넘으면 신규 로그인을 막는다.
+/// WAL 기록 자체가 실패하면 그 임계치까지 세션을 남기지 않고 해당 계정을 즉시 알린다.
 /// </summary>
 internal sealed class DurableSaveQueue : IAsyncDisposable
 {
@@ -51,6 +52,11 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
     }
 
     public Action<IReadOnlyList<ulong>>? OnSustainedOutage { get; set; }
+
+    /// <summary>WAL에 쓰지 못하면 해당 계정을 즉시 알린다. 테스트에서는 기록을 실패시키는 예외.</summary>
+    public Action<ulong>? OnWalWriteFailed { get; set; }
+
+    internal Exception? WalFault { get; set; }
     public Func<int>? OnlineCount { get; set; }
 
     public bool IsLoginBlocked => Volatile.Read(ref _blocked) == 1;
@@ -431,13 +437,13 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
         }
         else if (rewrite != null)
         {
-            TryWrite(key, rewrite);
+            TryWrite(key, rewrite, work: null);
         }
     }
 
     private async Task<bool> CommitOne(Pending pending)
     {
-        if (!TryWrite(pending.Key, pending.Payload))
+        if (!TryWrite(pending.Key, pending.Payload, pending.Work))
         {
             return false;
         }
@@ -481,10 +487,15 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
         }
     }
 
-    private bool TryWrite(string key, byte[] payload)
+    private bool TryWrite(string key, byte[] payload, SaveWork? work)
     {
         try
         {
+            if (WalFault != null)
+            {
+                throw WalFault;
+            }
+
             _wal.Write(key, payload);
             return true;
         }
@@ -492,8 +503,37 @@ internal sealed class DurableSaveQueue : IAsyncDisposable
         {
             NoteFailure();
             GameLogger.Error("DbGateway", $"WAL 기록 실패 key={key}", ex);
+            NotifyWalWriteFailed(work, key);
             return false;
         }
+    }
+
+    private void NotifyWalWriteFailed(SaveWork? work, string key)
+    {
+        var accountId = work?.SessionAccountId ?? AccountFromDurableKey(key);
+        if (accountId is not ulong id)
+        {
+            return;
+        }
+
+        try
+        {
+            OnWalWriteFailed?.Invoke(id);
+        }
+        catch (Exception ex)
+        {
+            GameLogger.Error("DbGateway", $"WAL 실패 세션 종료 콜백 오류 AccountId={id}", ex);
+        }
+    }
+
+    private static ulong? AccountFromDurableKey(string key)
+    {
+        if (!(key.StartsWith("c-", StringComparison.Ordinal) || key.StartsWith("o-", StringComparison.Ordinal)))
+        {
+            return null;
+        }
+
+        return ulong.TryParse(key[2..], out var accountId) ? accountId : null;
     }
 
     private void TryDelete(string key)

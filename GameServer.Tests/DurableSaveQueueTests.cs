@@ -342,6 +342,50 @@ public class DurableSaveQueueTests
         Assert.Equal(0, queue.PendingCount);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task Wal_Write_Failure_Notifies_Account_Without_Waiting_For_Threshold()
+    {
+        var notified = new List<ulong>();
+        var sinkCalls = 0;
+        await using var queue = CreateQueue(
+            _ =>
+            {
+                Interlocked.Increment(ref sinkCalls);
+                return Task.CompletedTask;
+            });
+
+        queue.OnWalWriteFailed = notified.Add;
+        queue.WalFault = new IOException("disk full");
+
+        queue.EnqueueCharacter(42, 7);
+        await queue.FlushAccountAsync(42);
+
+        Assert.Contains(42ul, notified);
+        Assert.Equal(0, sinkCalls);
+        Assert.False(queue.IsLoginBlocked);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Wal_Write_Failure_Notifies_Room_Log_Account()
+    {
+        var notified = new TaskCompletionSource<ulong>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var queue = CreateQueue(_ =>
+        {
+            Assert.Fail("WAL 기록에 실패하면 DB로 넘기지 않아야 합니다.");
+            return Task.CompletedTask;
+        });
+
+        queue.OnWalWriteFailed = id => notified.TrySetResult(id);
+        queue.WalFault = new IOException("disk full");
+
+        queue.EnqueueRoom(9, 3, "join", new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc));
+
+        var finished = await Task.WhenAny(notified.Task, Task.Delay(2000));
+        Assert.Same(notified.Task, finished);
+        Assert.Equal(9ul, await notified.Task);
+        Assert.False(queue.IsLoginBlocked);
+    }
+
     [Fact]
     public void CharacterRow_Persists_Account_And_Gold_Only()
     {

@@ -20,9 +20,15 @@ public class AnalyticsController : ControllerBase
     {
         try
         {
-            var rows = await DbGateway.Current.QueryChatLogsAsync(accountId, roomId, startTime, endTime, limit);
+            var rows = await DbGateway.Current.QueryChatLogsAsync(
+                accountId, roomId, startTime, endTime, limit, HttpContext.RequestAborted);
             var result = rows.Select(r => new ChatLogDto(r.account_id, r.room_id, r.channel, r.message, r.created_at));
             return Ok(result);
+        }
+        catch (TimeoutException ex)
+        {
+            GameLogger.Error("AnalyticsController", "chat-logs 조회 시간 초과", ex);
+            return StatusCode(503, new { error = "Database timeout" });
         }
         catch (Exception ex)
         {
@@ -42,9 +48,15 @@ public class AnalyticsController : ControllerBase
     {
         try
         {
-            var rows = await DbGateway.Current.QueryLoginLogsAsync(accountId, startTime, endTime, limit);
+            var rows = await DbGateway.Current.QueryLoginLogsAsync(
+                accountId, startTime, endTime, limit, HttpContext.RequestAborted);
             var result = rows.Select(r => new LoginLogDto(r.account_id, r.player_name, r.ip_address, r.login_at, r.logout_at));
             return Ok(result);
+        }
+        catch (TimeoutException ex)
+        {
+            GameLogger.Error("AnalyticsController", "login-logs 조회 시간 초과", ex);
+            return StatusCode(503, new { error = "Database timeout" });
         }
         catch (Exception ex)
         {
@@ -66,9 +78,15 @@ public class AnalyticsController : ControllerBase
     {
         try
         {
-            var rows = await DbGateway.Current.QueryRoomLogsAsync(accountId, roomId, action, startTime, endTime, limit);
+            var rows = await DbGateway.Current.QueryRoomLogsAsync(
+                accountId, roomId, action, startTime, endTime, limit, HttpContext.RequestAborted);
             var result = rows.Select(r => new RoomLogEntryDto(r.account_id, r.room_id, r.action, r.created_at));
             return Ok(result);
+        }
+        catch (TimeoutException ex)
+        {
+            GameLogger.Error("AnalyticsController", "room-logs 조회 시간 초과", ex);
+            return StatusCode(503, new { error = "Database timeout" });
         }
         catch (Exception ex)
         {

@@ -28,7 +28,8 @@ public class ChatLogDbSet
         ulong? roomId = null,
         DateTime? startTime = null,
         DateTime? endTime = null,
-        int limit = 100)
+        int limit = 100,
+        CancellationToken cancellationToken = default)
     {
         limit = Math.Clamp(limit, 1, 100);
         var where = new List<string>();
@@ -44,6 +45,6 @@ public class ChatLogDbSet
         sql += " ORDER BY `created_at` DESC LIMIT @limit";
         param.Add("limit", limit);
 
-        return _conn.QueryAsync<ChatLogRow>(sql, param);
+        return _conn.QueryAsync<ChatLogRow>(sql, param, cancellationToken);
     }
 }

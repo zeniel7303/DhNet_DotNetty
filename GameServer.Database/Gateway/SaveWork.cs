@@ -15,4 +15,13 @@ internal abstract record SaveWork
     public sealed record Room(ulong AccountId, ulong RoomId, string Action, DateTime CreatedAt) : SaveWork;
 
     public sealed record Stat(int PlayerCount, DateTime CreatedAt) : SaveWork;
+
+    public ulong? SessionAccountId => this switch
+    {
+        Character character => character.AccountId,
+        Logout logout => logout.AccountId,
+        Login login => login.AccountId,
+        Room room => room.AccountId,
+        _ => null
+    };
 }

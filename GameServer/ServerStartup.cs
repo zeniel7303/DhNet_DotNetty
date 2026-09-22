@@ -32,6 +32,7 @@ internal static class ServerStartup
         var gateway = LocalDbGateway.Create(DatabaseSystem.Instance, walDirectory);
         gateway.OnlineCount = () => PlayerSystem.Instance.Count;
         gateway.OnSustainedOutage = ForceDisconnectDirty;
+        gateway.OnWalWriteFailed = ForceDisconnectAccount;
         DbGateway.Use(gateway);
         gateway.Start();
 
@@ -90,6 +91,9 @@ internal static class ServerStartup
             }
         }
     }
+
+    private static void ForceDisconnectAccount(ulong accountId)
+        => PlayerSystem.Instance.TryGet(accountId)?.DisconnectForNextTick();
 
     /// <summary>
     /// 솔루션 루트의 Bin/resources/ 를 우선 사용한다.

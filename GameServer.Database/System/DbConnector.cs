@@ -23,28 +23,32 @@ public class DbConnector
     // 단순 쿼리 (자동 연결 열기/닫기)
     // ──────────────────────────────────────────────
 
-    public async Task<IEnumerable<T>> QueryAsync<T>(string sql, object? param = null)
+    public async Task<IEnumerable<T>> QueryAsync<T>(
+        string sql, object? param = null, CancellationToken cancellationToken = default)
     {
         await using var conn = CreateConnection();
-        return await conn.QueryAsync<T>(sql, param);
+        return await conn.QueryAsync<T>(new CommandDefinition(sql, param, cancellationToken: cancellationToken));
     }
 
-    public async Task<T?> QuerySingleOrDefaultAsync<T>(string sql, object? param = null)
+    public async Task<T?> QuerySingleOrDefaultAsync<T>(
+        string sql, object? param = null, CancellationToken cancellationToken = default)
     {
         await using var conn = CreateConnection();
-        return await conn.QuerySingleOrDefaultAsync<T>(sql, param);
+        return await conn.QuerySingleOrDefaultAsync<T>(new CommandDefinition(sql, param, cancellationToken: cancellationToken));
     }
 
-    public async Task<int> ExecuteAsync(string sql, object? param = null)
+    public async Task<int> ExecuteAsync(
+        string sql, object? param = null, CancellationToken cancellationToken = default)
     {
         await using var conn = CreateConnection();
-        return await conn.ExecuteAsync(sql, param);
+        return await conn.ExecuteAsync(new CommandDefinition(sql, param, cancellationToken: cancellationToken));
     }
 
-    public async Task<T?> ExecuteScalarAsync<T>(string sql, object? param = null)
+    public async Task<T?> ExecuteScalarAsync<T>(
+        string sql, object? param = null, CancellationToken cancellationToken = default)
     {
         await using var conn = CreateConnection();
-        return await conn.ExecuteScalarAsync<T>(sql, param);
+        return await conn.ExecuteScalarAsync<T>(new CommandDefinition(sql, param, cancellationToken: cancellationToken));
     }
 
     // ──────────────────────────────────────────────

@@ -15,14 +15,14 @@ public class PlayerDbSet
     /// 로그인 시 플레이어 레코드 삽입.
     /// INSERT IGNORE: account_id 중복(서버 재시작)은 조용히 무시한다.
     /// </summary>
-    public Task<int> InsertAsync(PlayerRow row)
+    public Task<int> InsertAsync(PlayerRow row, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             INSERT IGNORE INTO `players`
                 (`account_id`, `player_name`, `login_at`, `ip_address`)
             VALUES
                 (@account_id, @player_name, @login_at, @ip_address)";
-        return _conn.ExecuteAsync(sql, row);
+        return _conn.ExecuteAsync(sql, row, cancellationToken);
     }
 
     /// <summary>접속 종료 시 logout_at 업데이트.</summary>

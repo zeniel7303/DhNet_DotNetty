@@ -10,33 +10,37 @@ namespace GameServer.Database.Gateway;
 public interface IDbGateway
 {
     // 요청-응답. 틱 루프에서 호출하지 않는다.
-    Task<int> RegisterAccountAsync(AccountRow account);
+    // 로그인·가입·비밀번호 재설정은 3초, 관리 API는 5초를 넘기면 TimeoutException.
+    Task<int> RegisterAccountAsync(AccountRow account, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// username으로 계정과 캐릭터 스냅샷(account_id, gold)을 읽는다.
     /// 계정이 없으면 null. 캐릭터 행이 없으면 Character는 null이며 생성하지 않는다.
     /// </summary>
-    Task<AuthenticateAndLoadResult?> AuthenticateAndLoadAsync(string username);
+    Task<AuthenticateAndLoadResult?> AuthenticateAndLoadAsync(string username, CancellationToken cancellationToken = default);
 
     /// <summary>최초 로그인 시 기본 캐릭터(gold 0)를 동기 저장한다.</summary>
-    Task<CharacterRow> CreateDefaultCharacterAsync(ulong accountId);
+    Task<CharacterRow> CreateDefaultCharacterAsync(ulong accountId, CancellationToken cancellationToken = default);
 
-    Task InsertPlayerSessionAsync(PlayerRow player);
+    Task InsertPlayerSessionAsync(PlayerRow player, CancellationToken cancellationToken = default);
 
-    Task DeleteExpiredPasswordResetTokensAsync();
-    Task<AccountRow?> FindAccountByUsernameAsync(string username);
-    Task InsertPasswordResetTokenAsync(PasswordResetTokenRow row);
-    Task<PasswordResetTokenRow?> FindPasswordResetTokenAsync(string token);
-    Task<int> ConsumePasswordResetTokenAsync(ulong tokenId);
-    Task UpdatePasswordHashAsync(ulong accountId, string passwordHash);
+    Task DeleteExpiredPasswordResetTokensAsync(CancellationToken cancellationToken = default);
+    Task<AccountRow?> FindAccountByUsernameAsync(string username, CancellationToken cancellationToken = default);
+    Task InsertPasswordResetTokenAsync(PasswordResetTokenRow row, CancellationToken cancellationToken = default);
+    Task<PasswordResetTokenRow?> FindPasswordResetTokenAsync(string token, CancellationToken cancellationToken = default);
+    Task<int> ConsumePasswordResetTokenAsync(ulong tokenId, CancellationToken cancellationToken = default);
+    Task UpdatePasswordHashAsync(ulong accountId, string passwordHash, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ChatLogRow>> QueryChatLogsAsync(
-        ulong? accountId, ulong? roomId, DateTime? startTime, DateTime? endTime, int limit);
+        ulong? accountId, ulong? roomId, DateTime? startTime, DateTime? endTime, int limit,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<LoginLogRow>> QueryLoginLogsAsync(
-        ulong? accountId, DateTime? startTime, DateTime? endTime, int limit);
+        ulong? accountId, DateTime? startTime, DateTime? endTime, int limit,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<RoomLogRow>> QueryRoomLogsAsync(
-        ulong? accountId, ulong? roomId, string? action, DateTime? startTime, DateTime? endTime, int limit);
-    Task<IReadOnlyList<StatLogRow>> QueryStatHistoryAsync(int limit);
+        ulong? accountId, ulong? roomId, string? action, DateTime? startTime, DateTime? endTime, int limit,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<StatLogRow>> QueryStatHistoryAsync(int limit, CancellationToken cancellationToken = default);
 
     // 비동기 기록. 호출 스레드에서 DB를 기다리지 않는다.
     // 영속 스냅샷은 account_id·gold·로그아웃 시각뿐이다.
@@ -56,6 +60,9 @@ public interface IDbGateway
 
     /// <summary>지속 장애로 로그인을 막을 때 한 번 호출된다. 인자는 버퍼에 남은 계정이다.</summary>
     Action<IReadOnlyList<ulong>>? OnSustainedOutage { get; set; }
+
+    /// <summary>WAL 기록에 실패하면 해당 계정을 즉시 끊기 위해 호출된다. 임계치까지 기다리지 않는다.</summary>
+    Action<ulong>? OnWalWriteFailed { get; set; }
 
     /// <summary>dirty 비율 계산에 쓰는 현재 온라인 세션 수.</summary>
     Func<int>? OnlineCount { get; set; }
