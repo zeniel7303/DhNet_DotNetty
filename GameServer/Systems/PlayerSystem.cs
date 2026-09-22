@@ -24,7 +24,22 @@ public class PlayerSystem
 
     // LoginProcessor에서 DB Insert 전 호출 — account_id 중복 로그인 차단
     // 이미 활성(_players) 또는 로그인 진행 중(_reservedAccounts)이면 false 반환
-    // 이중 검증: TryAdd 성공 후 _players 재확인으로 ContainsKey-TryAdd 사이 TOCTOU 방지
+    //
+    // 동시성 안전성:
+    //   1) 첫 ContainsKey: 빠른 조기 거부 (이미 로그인 완료된 경우)
+    //   2) TryAdd: 원자적 예약 — 동시 호출 시 단 하나만 성공
+    //   3) 둘째 ContainsKey: Add()가 TryAdd 사이에 완료된 경우 감지 후 예약 롤백
+    //
+    // Race 시나리오 분석:
+    //   - 두 스레드가 동시에 TryReserveLogin 호출
+    //     → TryAdd 단계에서 하나만 성공, 나머지는 line 35에서 false 반환 ✓
+    //
+    //   - TryReserveLogin과 Add() 동시 실행
+    //     → Add()가 _players.TryAdd 완료 시, line 38 재검증에서 감지하여 예약 롤백 ✓
+    //     → TryReserveLogin이 먼저 예약 완료 시, Add()의 _players.TryAdd가 실패하여 차단 ✓
+    //
+    // Add() 순서 의존성: _players.TryAdd → _reservedAccounts.TryRemove 순서 필수
+    // (역순 시 TryReserveLogin이 사이 구간을 통과할 수 있음)
     public bool TryReserveLogin(ulong accountId)
     {
         if (_players.ContainsKey(accountId))
