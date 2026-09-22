@@ -121,35 +121,52 @@ public class PlayerComponent : BaseComponent
     {
         if (Interlocked.Exchange(ref _disconnected, 1) == 1) return;
 
+        // 세션은 flush보다 먼저 닫는다. flush가 예외로 끝나도 아래에서 플레이어는 반드시 뺀다.
+        // 전송이 끝나지 않은 flush는 await가 돌아오지 않으므로 Remove까지 가지 않는다.
         try
         {
-            // lock(this): Room/Lobby/Character 참조 캡처 원자화
-            PlayerRoomComponent?  room;
-            PlayerLobbyComponent? lobby;
-            PlayerCharacterComponent?   character;
-            lock (_disposeLock)
+            PlayerCharacterComponent? character = null;
+            try
             {
-                room      = Room;
-                lobby     = Lobby;
-                character = Character;
+                // lock(this): Room/Lobby/Character 참조 캡처 원자화
+                PlayerRoomComponent?  room;
+                PlayerLobbyComponent? lobby;
+                lock (_disposeLock)
+                {
+                    room      = Room;
+                    lobby     = Lobby;
+                    character = Character;
+                }
+
+                room?.Disconnect();
+                lobby?.Disconnect();
+
+                Session.DetachPlayer();
+                Session.Dispose();
+            }
+            catch (Exception ex)
+            {
+                GameLogger.Error("PlayerComponent", $"DisconnectAsync 정리 중 예외 (AccountId={AccountId}): {ex.Message}", ex);
             }
 
-            room?.Disconnect();
-            lobby?.Disconnect();
-
-            Session.DetachPlayer();
-            Session.Dispose();
-
+            // 성공, 명시적 실패, 예외 중 하나로 flush 시도가 끝난 뒤에만 제거한다.
             await Save.SaveAsync(character, DateTime.UtcNow);
-
-            // flush가 돌아온 뒤에만 제거한다.
-            // DBServer에 닿지 않으면 flush가 대기하거나 예외가 나서 이 줄에 오지 않는다.
-            PlayerSystem.Instance.Remove(this);
         }
         catch (Exception ex)
         {
-            // _ = DisconnectAsync() fire-and-forget 경로에서 예외가 unhandled Task가 되지 않도록 최상위 catch.
-            GameLogger.Error("PlayerComponent", $"DisconnectAsync 중 예외 (AccountId={AccountId}): {ex.Message}", ex);
+            // _ = DisconnectAsync() fire-and-forget 경로에서 예외가 unhandled Task가 되지 않도록 잡는다.
+            GameLogger.Error("PlayerComponent", $"DisconnectAsync flush 중 예외 (AccountId={AccountId}): {ex.Message}", ex);
+        }
+        finally
+        {
+            try
+            {
+                PlayerSystem.Instance.Remove(this);
+            }
+            catch (Exception ex)
+            {
+                GameLogger.Error("PlayerComponent", $"DisconnectAsync 제거 중 예외 (AccountId={AccountId}): {ex.Message}", ex);
+            }
         }
     }
 
