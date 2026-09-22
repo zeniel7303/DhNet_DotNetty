@@ -1,5 +1,6 @@
 using System.Net;
 using DBServer;
+using Grpc.Core;
 using GameServer.Database;
 using GameServer.Database.Gateway;
 using GameServer.Database.Rows;
@@ -38,6 +39,37 @@ public class GrpcDbGatewayTests
 
         fake.ReleaseFlush();
         await flush.WaitAsync(TimeSpan.FromSeconds(3));
+    }
+
+    [Fact(Timeout = 15000)]
+    public async Task Flush_Explicit_Failure_Does_Not_Complete_As_Success()
+    {
+        var fake = new FakeGateway { FailFlush = true };
+        await using var host = await TestDbServer.StartAsync(fake);
+        await using var gateway = new GrpcDbGateway(host.Address);
+        await gateway.StartAsync(requireConnection: true);
+
+        gateway.UpsertCharacter(new CharacterRow { account_id = 7, gold = 4 });
+        var flush = gateway.FlushAccountAsync(7);
+
+        await Assert.ThrowsAnyAsync<RpcException>(() => flush);
+        Assert.False(flush.IsCompletedSuccessfully);
+    }
+
+    [Fact(Timeout = 20000)]
+    public async Task Flush_Stays_Pending_When_DbServer_Is_Unreachable()
+    {
+        var fake = new FakeGateway();
+        await using var host = await TestDbServer.StartAsync(fake);
+        await using var gateway = new GrpcDbGateway(host.Address);
+        await gateway.StartAsync(requireConnection: true);
+        await host.DisposeAsync();
+
+        var flush = gateway.FlushAccountAsync(9);
+
+        await Task.Delay(2500);
+        Assert.False(flush.IsCompleted);
+        Assert.False(flush.IsCompletedSuccessfully);
     }
 
     [Fact(Timeout = 15000)]
@@ -141,6 +173,7 @@ public class GrpcDbGatewayTests
                 options.Listen(IPAddress.Loopback, 0, listen => listen.Protocols = HttpProtocols.Http2);
             });
             builder.WebHost.PreferHostingUrls(false);
+            builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(1));
 
             var hub = new GatewaySignalHub();
             var online = new OnlineCountSource();
@@ -163,7 +196,17 @@ public class GrpcDbGatewayTests
             return new TestDbServer(app, address);
         }
 
-        public async ValueTask DisposeAsync() => await _app.StopAsync();
+        public async ValueTask DisposeAsync()
+        {
+            using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            try
+            {
+                await _app.StopAsync(stop.Token);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
 
         private sealed class FixedSeeds : IDbIdSeeds
         {
@@ -178,6 +221,7 @@ public class GrpcDbGatewayTests
         public readonly TaskCompletionSource FlushEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly List<int> Golds = new();
         public bool RegisterHangs { get; init; }
+        public bool FailFlush { get; init; }
 
         public void ReleaseFlush() => _flushRelease.TrySetResult();
 
@@ -254,6 +298,11 @@ public class GrpcDbGatewayTests
         public async Task FlushAccountAsync(ulong accountId)
         {
             FlushEntered.TrySetResult();
+            if (FailFlush)
+            {
+                throw new InvalidOperationException("flush rejected");
+            }
+
             await _flushRelease.Task;
         }
     }

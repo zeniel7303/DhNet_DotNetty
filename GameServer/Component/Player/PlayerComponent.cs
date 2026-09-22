@@ -142,8 +142,8 @@ public class PlayerComponent : BaseComponent
 
             await Save.SaveAsync(character, DateTime.UtcNow);
 
-            // 선행 저장·로그아웃 flush 후 Remove.
-            // DB가 죽어도 WAL에 남긴 뒤 여기로 온다. WaitUntilEmptyAsync는 이 순서를 본다.
+            // flush가 돌아온 뒤에만 제거한다.
+            // DBServer에 닿지 않으면 flush가 대기하거나 예외가 나서 이 줄에 오지 않는다.
             PlayerSystem.Instance.Remove(this);
         }
         catch (Exception ex)

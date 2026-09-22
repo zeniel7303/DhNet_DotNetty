@@ -6,6 +6,7 @@ namespace GameServer.Database.Gateway;
 /// DBServer 프로세스 안에서 <see cref="DatabaseSystem"/>에 위임하는 게이트웨이.
 /// SQL은 DbSet에 그대로 두고, 틱에서 기다리면 안 되는 쓰기만 큐와 WAL로 넘긴다.
 /// GameServer는 이 클래스를 쓰지 않고 gRPC 클라이언트로 여기를 호출한다.
+/// 동기 호출의 3초·5초 제한은 클라이언트 데드라인과 같다. 양쪽이 함께 멈추게 하려는 것이다.
 /// </summary>
 public sealed class LocalDbGateway : IDbGateway, IAsyncDisposable
 {
