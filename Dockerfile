@@ -7,7 +7,7 @@ COPY DotNetty.sln .
 COPY Directory.Build.props .
 COPY GameServer/GameServer.csproj                         GameServer/
 COPY GameServer.Protocol/GameServer.Protocol.csproj       GameServer.Protocol/
-COPY GameServer.Database/GameServer.Database.csproj       GameServer.Database/
+COPY GameServer.Database.Contract/GameServer.Database.Contract.csproj GameServer.Database.Contract/
 COPY GameServer.Resources/GameServer.Resources.csproj     GameServer.Resources/
 COPY Common.Server/Common.Server.csproj                   Common.Server/
 COPY Common.Shared/Common.Shared.csproj                   Common.Shared/
@@ -17,7 +17,7 @@ RUN dotnet restore GameServer/GameServer.csproj
 # 소스 전체 복사 후 publish
 COPY GameServer/          GameServer/
 COPY GameServer.Protocol/ GameServer.Protocol/
-COPY GameServer.Database/ GameServer.Database/
+COPY GameServer.Database.Contract/ GameServer.Database.Contract/
 COPY GameServer.Resources/ GameServer.Resources/
 COPY Common.Server/       Common.Server/
 COPY Common.Shared/       Common.Shared/

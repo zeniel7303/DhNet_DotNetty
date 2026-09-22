@@ -67,9 +67,9 @@ await session.EnqueueEventAsync(() => { /* 상태 변경 */ });
                                        LobbyComponent / RoomComponent
                                        (CAS 기반 동시성 제어)
                                                  │
-                              GameServer.Database (싱글톤)
-                              ├── GameDbContext  → gameserver DB (핵심 데이터, await)
-                              └── GameLogContext → gamelog DB   (로그, FireAndForget)
+                              GameServer ──gRPC──▶ DBServer
+                                                     ├── 계정별 저장 큐 + WAL
+                                                     └── MySQL (gameserver / gamelog)
 
 [Browser / curl] ──HTTP:8080──▶ ASP.NET Core REST API
                                  ├─ ApiKeyMiddleware + IpWhitelistMiddleware
@@ -365,13 +365,22 @@ DhNet_DotNetty/
 │       ├── heartbeat.proto / system.proto
 │       └── error_codes.proto
 │
-├── GameServer.Database/              MySQL + Dapper DB 레이어
+├── GameServer.Database.Contract/     GameServer와 DBServer가 공유하는 계약
+│   ├── Gateway/                      IDbGateway, 동기 호출 시간 제한
+│   ├── Rows/                         Row DTO
+│   └── Protos/db_gateway.proto       gRPC 계약
+│
+├── GameServer.Database/              DBServer 전용 MySQL + Dapper
 │   ├── System/
-│   │   ├── DbConnector.cs            연결 풀 (MySqlConnectionStringBuilder)
-│   │   ├── GameDbContext.cs          gameserver DB — 핵심 데이터 (await)
-│   │   └── GameLogContext.cs         gamelog DB — 이벤트 로그 (FireAndForget)
+│   │   ├── DbConnector.cs            연결 풀 (MySqlConnector)
+│   │   ├── GameDbContext.cs          gameserver DB
+│   │   └── GameLogContext.cs         gamelog DB
 │   ├── DbSet/                        DbSet 7종 (Account/Player/Character/Chat/Login/Room/Stat)
-│   └── Rows/                         Row DTO 7종
+│   └── Gateway/                      계정별 Channel 저장 큐, append-only WAL
+│
+├── DBServer/                         ASP.NET Core gRPC 프로세스
+│   ├── Program.cs                    Kestrel, 헬스체크, MySQL 초기화
+│   └── DbGatewayGrpcService.cs       IDbGateway를 gRPC로 노출
 │
 ├── GameServer.Resources/             게임 데이터 테이블
 │   └── GameDataTable.cs              config/player/monsters/waves/weapons JSON 로더 (싱글톤)
@@ -478,8 +487,9 @@ DhNet_DotNetty/
 │   ├── resources/                    빌드 결과 JSON (GameDataTable 로드 대상)
 │   └── logs/                         일별 롤링 로그
 │
-├── Dockerfile                        멀티스테이지 빌드 (sdk:9.0 → aspnet:9.0)
-├── docker-compose.yml                gameserver + mysql
+├── Dockerfile                        GameServer 이미지
+├── Dockerfile.db                     DBServer 이미지
+├── docker-compose.yml                dbserver + gameserver + mysql
 └── dev/                              작업별 plan/context/tasks 개발 문서
 ```
 
@@ -494,13 +504,13 @@ source db/schema_game.sql;
 source db/schema_log.sql;
 ```
 
-`GameServer/appsettings.json` 설정:
+MySQL 접속은 `DBServer/appsettings.json`, GameServer가 붙는 주소는 `GameServer/appsettings.json`이다.
 
 ```json
 {
   "AdminApi": { "ApiKey": "CHANGE-THIS-SECRET-KEY", "AllowedIps": [] },
   "GameServer": { "GamePort": 7777, "WebPort": 8080 },
-  "Database": { "Host": "127.0.0.1", "Port": 3306, "UserId": "root", "Password": "0000" },
+  "DbServer": { "Address": "http://127.0.0.1:50051", "RequireConnection": false },
   "Encryption": { "Key": "AiZROpbIadx1uVbp64v7nQ==" }
 }
 ```
@@ -508,15 +518,41 @@ source db/schema_log.sql;
 > `Encryption.Key`는 Base64 인코딩된 16바이트 키다. 빈 문자열(`""`)로 설정하면 암호화가 비활성화된다.
 > 새 키 생성: `Convert.ToBase64String(RandomNumberGenerator.GetBytes(16))`
 
-> 설정은 JSON → 환경변수 → CLI 순으로 오버라이드된다.
-> `GAMESERVER_Database__Password=pw` / `dotnet run -- --GameServer:MaxPlayers 500`
+> GameServer 설정은 JSON → `GAMESERVER_` 환경변수 → CLI 순으로 오버라이드된다.
+> `GAMESERVER_DbServer__Address=http://10.0.0.2:50051`
 
 ### 서버 실행
 
 ```bash
+dotnet run --project DBServer
 dotnet run --project GameServer
-# TCP 7777 (게임) + HTTP 8080 (관리 API) 동시 수신 대기
+# DBServer gRPC 50051, 게임 TCP 7777, 관리 HTTP 8080
 ```
+
+DBServer를 먼저 띄운다. 기본 주소는 같은 장비의 `127.0.0.1:50051`이다. MySQL이 없어도 DBServer는 경고 후 뜨고, GameServer는 ID를 1부터 시작한다. 운영에서는 `Database:RequireConnection`과 `DbServer:RequireConnection`을 true로 둔다.
+
+### DBServer를 다른 장비로 둘 때
+
+GameServer는 `DbServer:Address`만 바꾸면 된다. DBServer는 루프백 대신 사설 주소에 바인딩한다.
+
+```json
+{
+  "DbServer": {
+    "BindAddress": "10.0.0.2",
+    "Port": 50051,
+    "UseTls": true,
+    "CertificatePath": "/certs/dbserver.pfx",
+    "CertificatePassword": ""
+  }
+}
+```
+
+GameServer 주소는 `https://10.0.0.2:50051`이다. TLS를 쓰지 않을 때는 사설망 안에서만 연다. 비밀번호 해시가 이 채널을 지난다.
+
+- 방화벽은 DBServer의 TCP 50051을 GameServer 주소에만 연다. 공인망에 열지 않는다.
+- 동기 호출 제한은 로그인·가입·비밀번호 재설정 3초, 관리 API 5초다. gRPC 데드라인은 양쪽 시계를 본다. NTP 또는 chrony로 오차를 1초 안으로 맞춘다.
+- TLS를 끄면 gRPC는 50051(HTTP/2), `GET /health`는 50052(HTTP/1.1)다. TLS를 켜면 둘 다 50051이다. MySQL이 응답할 때 200이다. gRPC 헬스 서비스도 같은 결과를 쓴다.
+- 연결 풀은 `Database:MinPoolSize`, `MaxPoolSize`, `ConnectionTimeoutSeconds`다. 저장 실패는 200ms부터 지수 백오프로 최대 3회 재시도한 뒤 WAL(`db-wal`)에 남긴다.
 
 ### 관리 웹 API
 
@@ -609,11 +645,15 @@ docker compose down -v             # 종료 + 볼륨 삭제
 
 | 포트 | 용도 |
 |------|------|
+| 50051 | DBServer gRPC (HTTP/2). TLS를 켜면 `/health`도 이 포트 |
+| 50052 | DBServer `/health` (TLS를 끈 기본값) |
 | 7777 | 게임 서버 (TCP) |
+| 7778 | 게임 서버 (WebSocket) |
 | 8080 | 관리 Web API (HTTP) |
+| 8081 | 웹 클라이언트 |
 | 3306 | MySQL |
 
-Docker 환경에서는 `DOTNET_ENVIRONMENT=Docker`가 설정되어 `appsettings.Docker.json`(`Database.Host=mysql`)이 자동 로드된다.
+DBServer는 `Database__Host=mysql`로 MySQL에 붙고, GameServer는 `GAMESERVER_DbServer__Address=http://dbserver:50051`로 DBServer에 붙는다. 컨테이너 안에서는 DBServer가 `0.0.0.0`에 바인딩된다. 호스트로 published된 50051은 개발용이며, 운영 원격 구성에서는 방화벽으로 GameServer만 허용한다.
 
 ---
 

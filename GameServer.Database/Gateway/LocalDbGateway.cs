@@ -3,8 +3,9 @@ using GameServer.Database.Rows;
 namespace GameServer.Database.Gateway;
 
 /// <summary>
-/// 같은 프로세스의 <see cref="DatabaseSystem"/>에 위임하는 게이트웨이.
+/// DBServer 프로세스 안에서 <see cref="DatabaseSystem"/>에 위임하는 게이트웨이.
 /// SQL은 DbSet에 그대로 두고, 틱에서 기다리면 안 되는 쓰기만 큐와 WAL로 넘긴다.
+/// GameServer는 이 클래스를 쓰지 않고 gRPC 클라이언트로 여기를 호출한다.
 /// </summary>
 public sealed class LocalDbGateway : IDbGateway, IAsyncDisposable
 {
@@ -48,6 +49,14 @@ public sealed class LocalDbGateway : IDbGateway, IAsyncDisposable
         get => _queue.OnlineCount;
         set => _queue.OnlineCount = value;
     }
+
+    public Action<bool>? OnLoginBlockedChanged
+    {
+        get => _queue.OnLoginBlockedChanged;
+        set => _queue.OnLoginBlockedChanged = value;
+    }
+
+    public IReadOnlyList<ulong> ParkedAccounts => _queue.ParkedAccounts;
 
     public bool IsLoginBlocked => _queue.IsLoginBlocked;
 

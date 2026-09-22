@@ -1,0 +1,214 @@
+syntax = "proto3";
+
+option csharp_namespace = "GameServer.Database.Grpc";
+
+import "google/protobuf/empty.proto";
+
+package dhnet.db;
+
+// GameServer와 DBServer 사이의 DB 계약.
+// 동기 호출은 클라이언트가 3초(로그인·가입·비밀번호) 또는 5초(관리 API) 데드라인을 건다.
+// 캐릭터 저장·로그아웃·로그는 서버 큐에 넣은 뒤 바로 반환한다.
+service DbGatewayApi {
+  rpc GetIdSeeds (google.protobuf.Empty) returns (IdSeeds);
+
+  rpc RegisterAccount (AccountMessage) returns (RowCount);
+  rpc AuthenticateAndLoad (UsernameRequest) returns (AuthLoadResponse);
+  rpc CreateDefaultCharacter (AccountIdRequest) returns (CharacterMessage);
+  rpc InsertPlayerSession (PlayerMessage) returns (google.protobuf.Empty);
+
+  rpc DeleteExpiredPasswordResetTokens (google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc FindAccountByUsername (UsernameRequest) returns (AccountResponse);
+  rpc InsertPasswordResetToken (PasswordResetTokenMessage) returns (google.protobuf.Empty);
+  rpc FindPasswordResetToken (TokenRequest) returns (PasswordResetTokenResponse);
+  rpc ConsumePasswordResetToken (TokenIdRequest) returns (RowCount);
+  rpc UpdatePasswordHash (UpdatePasswordRequest) returns (google.protobuf.Empty);
+
+  rpc QueryChatLogs (ChatLogQuery) returns (ChatLogList);
+  rpc QueryLoginLogs (LoginLogQuery) returns (LoginLogList);
+  rpc QueryRoomLogs (RoomLogQuery) returns (RoomLogList);
+  rpc QueryStatHistory (StatQuery) returns (StatLogList);
+
+  rpc UpsertCharacter (CharacterMessage) returns (google.protobuf.Empty);
+  rpc UpdateLogout (LogoutRequest) returns (google.protobuf.Empty);
+  rpc WriteLoginLog (LoginLogMessage) returns (google.protobuf.Empty);
+  rpc WriteRoomLog (RoomLogMessage) returns (google.protobuf.Empty);
+  rpc WriteStatLog (StatLogMessage) returns (google.protobuf.Empty);
+  rpc FlushAccount (AccountIdRequest) returns (google.protobuf.Empty);
+
+  rpc ReportOnlineCount (OnlineCountRequest) returns (google.protobuf.Empty);
+  rpc WatchServer (google.protobuf.Empty) returns (stream ServerSignal);
+}
+
+message IdSeeds {
+  uint64 max_account_id = 1;
+  uint64 max_room_id = 2;
+}
+
+message RowCount {
+  int32 value = 1;
+}
+
+message UsernameRequest {
+  string username = 1;
+}
+
+message AccountIdRequest {
+  uint64 account_id = 1;
+}
+
+message TokenRequest {
+  string token = 1;
+}
+
+message TokenIdRequest {
+  uint64 token_id = 1;
+}
+
+message UpdatePasswordRequest {
+  uint64 account_id = 1;
+  string password_hash = 2;
+}
+
+message LogoutRequest {
+  uint64 account_id = 1;
+  int64 logout_at_ticks = 2;
+}
+
+message OnlineCountRequest {
+  int32 count = 1;
+}
+
+message AccountMessage {
+  uint64 account_id = 1;
+  string username = 2;
+  string password_hash = 3;
+  optional string email = 4;
+  int64 created_at_ticks = 5;
+}
+
+message AccountResponse {
+  bool found = 1;
+  AccountMessage account = 2;
+}
+
+message CharacterMessage {
+  uint64 account_id = 1;
+  int32 gold = 2;
+}
+
+message AuthLoadResponse {
+  bool found = 1;
+  AccountMessage account = 2;
+  bool has_character = 3;
+  CharacterMessage character = 4;
+}
+
+message PlayerMessage {
+  uint64 account_id = 1;
+  string player_name = 2;
+  int64 login_at_ticks = 3;
+  optional int64 logout_at_ticks = 4;
+  optional string ip_address = 5;
+}
+
+message PasswordResetTokenMessage {
+  uint64 token_id = 1;
+  uint64 account_id = 2;
+  string token = 3;
+  int64 expires_at_ticks = 4;
+  optional int64 used_at_ticks = 5;
+}
+
+message PasswordResetTokenResponse {
+  bool found = 1;
+  PasswordResetTokenMessage token = 2;
+}
+
+message ChatLogQuery {
+  optional uint64 account_id = 1;
+  optional uint64 room_id = 2;
+  optional int64 start_ticks = 3;
+  optional int64 end_ticks = 4;
+  int32 limit = 5;
+}
+
+message ChatLogMessage {
+  uint64 account_id = 1;
+  optional uint64 room_id = 2;
+  string channel = 3;
+  string message = 4;
+  int64 created_at_ticks = 5;
+}
+
+message ChatLogList {
+  repeated ChatLogMessage rows = 1;
+}
+
+message LoginLogQuery {
+  optional uint64 account_id = 1;
+  optional int64 start_ticks = 2;
+  optional int64 end_ticks = 3;
+  int32 limit = 4;
+}
+
+message LoginLogMessage {
+  uint64 account_id = 1;
+  string player_name = 2;
+  optional string ip_address = 3;
+  int64 login_at_ticks = 4;
+  optional int64 logout_at_ticks = 5;
+}
+
+message LoginLogList {
+  repeated LoginLogMessage rows = 1;
+}
+
+message RoomLogQuery {
+  optional uint64 account_id = 1;
+  optional uint64 room_id = 2;
+  optional string action = 3;
+  optional int64 start_ticks = 4;
+  optional int64 end_ticks = 5;
+  int32 limit = 6;
+}
+
+message RoomLogMessage {
+  uint64 account_id = 1;
+  uint64 room_id = 2;
+  string action = 3;
+  int64 created_at_ticks = 4;
+}
+
+message RoomLogList {
+  repeated RoomLogMessage rows = 1;
+}
+
+message StatQuery {
+  int32 limit = 1;
+}
+
+message StatLogMessage {
+  int32 player_count = 1;
+  int64 created_at_ticks = 2;
+}
+
+message StatLogList {
+  repeated StatLogMessage rows = 1;
+}
+
+message AccountList {
+  repeated uint64 account_ids = 1;
+}
+
+message LoginBlocked {
+  bool blocked = 1;
+}
+
+message ServerSignal {
+  oneof event {
+    LoginBlocked login_blocked = 1;
+    AccountList sustained_outage = 2;
+    uint64 wal_write_failed_account = 3;
+  }
+}
