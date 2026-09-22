@@ -34,9 +34,14 @@ public class StatsController : ControllerBase
     {
         try
         {
-            var rows = await DbGateway.Current.QueryStatHistoryAsync(limit);
+            var rows = await DbGateway.Current.QueryStatHistoryAsync(limit, HttpContext.RequestAborted);
             var result = rows.Select(r => new StatHistoryItemDto(r.player_count, r.created_at));
             return Ok(result);
+        }
+        catch (TimeoutException ex)
+        {
+            GameLogger.Error("StatsController", "stats/history 조회 시간 초과", ex);
+            return StatusCode(503, new { error = "Database timeout" });
         }
         catch (Exception ex)
         {

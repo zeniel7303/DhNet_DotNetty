@@ -37,6 +37,12 @@ public sealed class LocalDbGateway : IDbGateway, IAsyncDisposable
         set => _queue.OnSustainedOutage = value;
     }
 
+    public Action<ulong>? OnWalWriteFailed
+    {
+        get => _queue.OnWalWriteFailed;
+        set => _queue.OnWalWriteFailed = value;
+    }
+
     public Func<int>? OnlineCount
     {
         get => _queue.OnlineCount;
@@ -45,75 +51,108 @@ public sealed class LocalDbGateway : IDbGateway, IAsyncDisposable
 
     public bool IsLoginBlocked => _queue.IsLoginBlocked;
 
-    public Task<int> RegisterAccountAsync(AccountRow account)
-        => _database.Game.Accounts.InsertAsync(account);
+    public Task<int> RegisterAccountAsync(AccountRow account, CancellationToken cancellationToken = default)
+        => DbGatewayTimeout.Run(
+            ct => _database.Game.Accounts.InsertAsync(account, ct),
+            DbGatewayTimeout.LoginAndRegister,
+            cancellationToken);
 
-    public async Task<AuthenticateAndLoadResult?> AuthenticateAndLoadAsync(string username)
-    {
-        var account = await _database.Game.Accounts.SelectByUsernameAsync(username);
-        if (account == null)
+    public Task<AuthenticateAndLoadResult?> AuthenticateAndLoadAsync(string username, CancellationToken cancellationToken = default)
+        => DbGatewayTimeout.Run(async ct =>
         {
-            return null;
-        }
+            var account = await _database.Game.Accounts.SelectByUsernameAsync(username, ct);
+            if (account == null)
+            {
+                return (AuthenticateAndLoadResult?)null;
+            }
 
-        var character = await _database.Game.Characters.SelectAsync(account.account_id);
-        return new AuthenticateAndLoadResult(account, character);
-    }
+            var character = await _database.Game.Characters.SelectAsync(account.account_id, ct);
+            return new AuthenticateAndLoadResult(account, character);
+        }, DbGatewayTimeout.LoginAndRegister, cancellationToken);
 
-    public async Task<CharacterRow> CreateDefaultCharacterAsync(ulong accountId)
-    {
-        var row = new CharacterRow { account_id = accountId };
-        await _database.Game.Characters.UpsertAsync(row);
-        return row;
-    }
+    public Task<CharacterRow> CreateDefaultCharacterAsync(ulong accountId, CancellationToken cancellationToken = default)
+        => DbGatewayTimeout.Run(async ct =>
+        {
+            var row = new CharacterRow { account_id = accountId };
+            await _database.Game.Characters.UpsertAsync(row, ct);
+            return row;
+        }, DbGatewayTimeout.LoginAndRegister, cancellationToken);
 
-    public Task InsertPlayerSessionAsync(PlayerRow player)
-        => _database.Game.Players.InsertAsync(player);
+    public Task InsertPlayerSessionAsync(PlayerRow player, CancellationToken cancellationToken = default)
+        => DbGatewayTimeout.Run(
+            ct => _database.Game.Players.InsertAsync(player, ct),
+            DbGatewayTimeout.LoginAndRegister,
+            cancellationToken);
 
-    public Task DeleteExpiredPasswordResetTokensAsync()
-        => _database.Game.PasswordResetTokens.DeleteExpiredAsync();
+    public Task DeleteExpiredPasswordResetTokensAsync(CancellationToken cancellationToken = default)
+        => DbGatewayTimeout.Run(
+            ct => _database.Game.PasswordResetTokens.DeleteExpiredAsync(ct),
+            DbGatewayTimeout.LoginAndRegister,
+            cancellationToken);
 
-    public Task<AccountRow?> FindAccountByUsernameAsync(string username)
-        => _database.Game.Accounts.SelectByUsernameAsync(username);
+    public Task<AccountRow?> FindAccountByUsernameAsync(string username, CancellationToken cancellationToken = default)
+        => DbGatewayTimeout.Run(
+            ct => _database.Game.Accounts.SelectByUsernameAsync(username, ct),
+            DbGatewayTimeout.LoginAndRegister,
+            cancellationToken);
 
-    public Task InsertPasswordResetTokenAsync(PasswordResetTokenRow row)
-        => _database.Game.PasswordResetTokens.InsertAsync(row);
+    public Task InsertPasswordResetTokenAsync(PasswordResetTokenRow row, CancellationToken cancellationToken = default)
+        => DbGatewayTimeout.Run(
+            ct => _database.Game.PasswordResetTokens.InsertAsync(row, ct),
+            DbGatewayTimeout.LoginAndRegister,
+            cancellationToken);
 
-    public Task<PasswordResetTokenRow?> FindPasswordResetTokenAsync(string token)
-        => _database.Game.PasswordResetTokens.SelectByTokenAsync(token);
+    public Task<PasswordResetTokenRow?> FindPasswordResetTokenAsync(string token, CancellationToken cancellationToken = default)
+        => DbGatewayTimeout.Run(
+            ct => _database.Game.PasswordResetTokens.SelectByTokenAsync(token, ct),
+            DbGatewayTimeout.LoginAndRegister,
+            cancellationToken);
 
-    public Task<int> ConsumePasswordResetTokenAsync(ulong tokenId)
-        => _database.Game.PasswordResetTokens.MarkUsedConditionalAsync(tokenId);
+    public Task<int> ConsumePasswordResetTokenAsync(ulong tokenId, CancellationToken cancellationToken = default)
+        => DbGatewayTimeout.Run(
+            ct => _database.Game.PasswordResetTokens.MarkUsedConditionalAsync(tokenId, ct),
+            DbGatewayTimeout.LoginAndRegister,
+            cancellationToken);
 
-    public Task UpdatePasswordHashAsync(ulong accountId, string passwordHash)
-        => _database.Game.Accounts.UpdatePasswordHashAsync(accountId, passwordHash);
+    public Task UpdatePasswordHashAsync(ulong accountId, string passwordHash, CancellationToken cancellationToken = default)
+        => DbGatewayTimeout.Run(
+            ct => _database.Game.Accounts.UpdatePasswordHashAsync(accountId, passwordHash, ct),
+            DbGatewayTimeout.LoginAndRegister,
+            cancellationToken);
 
-    public async Task<IReadOnlyList<ChatLogRow>> QueryChatLogsAsync(
-        ulong? accountId, ulong? roomId, DateTime? startTime, DateTime? endTime, int limit)
-    {
-        var rows = await _database.GameLog.ChatLogs.QueryAsync(accountId, roomId, startTime, endTime, limit);
-        return rows.ToArray();
-    }
+    public Task<IReadOnlyList<ChatLogRow>> QueryChatLogsAsync(
+        ulong? accountId, ulong? roomId, DateTime? startTime, DateTime? endTime, int limit,
+        CancellationToken cancellationToken = default)
+        => DbGatewayTimeout.Run(async ct =>
+        {
+            var rows = await _database.GameLog.ChatLogs.QueryAsync(accountId, roomId, startTime, endTime, limit, ct);
+            return (IReadOnlyList<ChatLogRow>)rows.ToArray();
+        }, DbGatewayTimeout.AdminApi, cancellationToken);
 
-    public async Task<IReadOnlyList<LoginLogRow>> QueryLoginLogsAsync(
-        ulong? accountId, DateTime? startTime, DateTime? endTime, int limit)
-    {
-        var rows = await _database.GameLog.LoginLogs.QueryAsync(accountId, startTime, endTime, limit);
-        return rows.ToArray();
-    }
+    public Task<IReadOnlyList<LoginLogRow>> QueryLoginLogsAsync(
+        ulong? accountId, DateTime? startTime, DateTime? endTime, int limit,
+        CancellationToken cancellationToken = default)
+        => DbGatewayTimeout.Run(async ct =>
+        {
+            var rows = await _database.GameLog.LoginLogs.QueryAsync(accountId, startTime, endTime, limit, ct);
+            return (IReadOnlyList<LoginLogRow>)rows.ToArray();
+        }, DbGatewayTimeout.AdminApi, cancellationToken);
 
-    public async Task<IReadOnlyList<RoomLogRow>> QueryRoomLogsAsync(
-        ulong? accountId, ulong? roomId, string? action, DateTime? startTime, DateTime? endTime, int limit)
-    {
-        var rows = await _database.GameLog.RoomLogs.QueryAsync(accountId, roomId, action, startTime, endTime, limit);
-        return rows.ToArray();
-    }
+    public Task<IReadOnlyList<RoomLogRow>> QueryRoomLogsAsync(
+        ulong? accountId, ulong? roomId, string? action, DateTime? startTime, DateTime? endTime, int limit,
+        CancellationToken cancellationToken = default)
+        => DbGatewayTimeout.Run(async ct =>
+        {
+            var rows = await _database.GameLog.RoomLogs.QueryAsync(accountId, roomId, action, startTime, endTime, limit, ct);
+            return (IReadOnlyList<RoomLogRow>)rows.ToArray();
+        }, DbGatewayTimeout.AdminApi, cancellationToken);
 
-    public async Task<IReadOnlyList<StatLogRow>> QueryStatHistoryAsync(int limit)
-    {
-        var rows = await _database.GameLog.StatLogs.GetHistoryAsync(limit);
-        return rows.ToArray();
-    }
+    public Task<IReadOnlyList<StatLogRow>> QueryStatHistoryAsync(int limit, CancellationToken cancellationToken = default)
+        => DbGatewayTimeout.Run(async ct =>
+        {
+            var rows = await _database.GameLog.StatLogs.GetHistoryAsync(limit, ct);
+            return (IReadOnlyList<StatLogRow>)rows.ToArray();
+        }, DbGatewayTimeout.AdminApi, cancellationToken);
 
     public void UpsertCharacter(CharacterRow row)
     {

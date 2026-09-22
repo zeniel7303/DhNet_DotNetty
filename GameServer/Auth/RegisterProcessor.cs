@@ -72,7 +72,9 @@ internal static class RegisterProcessor
         }
         catch (Exception ex)
         {
-            GameLogger.Error("Register", $"DB 저장 실패: {username}", ex);
+            GameLogger.Error("Register", ex is TimeoutException
+                ? $"DB 응답 시간 초과: {username}"
+                : $"DB 저장 실패: {username}", ex);
             await session.SendAsync(new GamePacket
             {
                 ResRegister = new ResRegister { AccountId = 0, ErrorCode = ErrorCode.DbError }

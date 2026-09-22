@@ -15,25 +15,25 @@ public class AccountDbSet
     /// 계정 생성. account_id는 호출자가 IdGenerators.Account.Next()로 생성하여 전달한다.
     /// INSERT IGNORE: username 중복 시 0 반환 (rows affected).
     /// </summary>
-    public Task<int> InsertAsync(AccountRow row)
+    public Task<int> InsertAsync(AccountRow row, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             INSERT IGNORE INTO `accounts`
                 (`account_id`, `username`, `password_hash`, `email`, `created_at`)
             VALUES
                 (@account_id, @username, @password_hash, @email, @created_at)";
-        return _conn.ExecuteAsync(sql, row);
+        return _conn.ExecuteAsync(sql, row, cancellationToken);
     }
 
     /// <summary>username으로 계정 조회. 없으면 null 반환.</summary>
-    public Task<AccountRow?> SelectByUsernameAsync(string username)
+    public Task<AccountRow?> SelectByUsernameAsync(string username, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             SELECT `account_id`, `username`, `password_hash`, `email`, `created_at`
             FROM `accounts`
             WHERE `username` = @username
             LIMIT 1";
-        return _conn.QuerySingleOrDefaultAsync<AccountRow>(sql, new { username });
+        return _conn.QuerySingleOrDefaultAsync<AccountRow>(sql, new { username }, cancellationToken);
     }
 
     /// <summary>email로 계정 조회. 없으면 null 반환.</summary>
@@ -48,13 +48,13 @@ public class AccountDbSet
     }
 
     /// <summary>password_hash 갱신.</summary>
-    public Task<int> UpdatePasswordHashAsync(ulong accountId, string newHash)
+    public Task<int> UpdatePasswordHashAsync(ulong accountId, string newHash, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             UPDATE `accounts`
             SET `password_hash` = @newHash
             WHERE `account_id` = @accountId";
-        return _conn.ExecuteAsync(sql, new { accountId, newHash });
+        return _conn.ExecuteAsync(sql, new { accountId, newHash }, cancellationToken);
     }
 
     /// <summary>서버 시작 시 IdGenerators.Account 초기화에 사용.</summary>
