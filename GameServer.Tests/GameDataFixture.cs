@@ -10,10 +10,24 @@ public class GameDataFixture
 {
     public GameDataFixture()
     {
-        // 테스트 출력 디렉토리(bin/Debug/net9.0/)에서 프로젝트 루트의 Bin/resources로 올라간다.
-        var resourceDir = Path.GetFullPath(
-            Path.Combine(AppContext.BaseDirectory, "../../../../Bin/resources"));
+        GameDataTable.Load(FindResourceDir());
+    }
 
-        GameDataTable.Load(resourceDir);
+    // 출력 경로가 bin/Debug/net9.0 이든 Bin/output/Debug/... 이든 Bin/resources 를 찾는다.
+    private static string FindResourceDir()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null)
+        {
+            var candidate = Path.Combine(dir.FullName, "Bin", "resources");
+            if (File.Exists(Path.Combine(candidate, "player.json")))
+            {
+                return candidate;
+            }
+
+            dir = dir.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Bin/resources 를 찾지 못했습니다.");
     }
 }

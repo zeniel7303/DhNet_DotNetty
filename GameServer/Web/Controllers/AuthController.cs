@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using Common.Logging;
 using GameServer.Auth;
-using GameServer.Database;
+using GameServer.Database.Gateway;
 using GameServer.Database.Rows;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -22,14 +22,14 @@ public class AuthController(SmtpService smtp, IConfiguration config) : Controlle
         const string genericOk = "처리되었습니다. 계정이 확인되면 이메일이 발송됩니다.";
 
         // 만료 토큰 정리 (요청마다 실행하여 누적 방지)
-        await DatabaseSystem.Instance.Game.PasswordResetTokens.DeleteExpiredAsync();
+        await DbGateway.Current.DeleteExpiredPasswordResetTokensAsync();
 
         // username 또는 email이 비어 있으면 조용히 성공 반환 (enumeration 방지)
         if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Email))
             return Ok(new { message = genericOk });
 
         // 계정 조회 — username + email 양쪽이 일치해야 함
-        var account = await DatabaseSystem.Instance.Game.Accounts.SelectByUsernameAsync(req.Username.Trim());
+        var account = await DbGateway.Current.FindAccountByUsernameAsync(req.Username.Trim());
         if (account == null
             || string.IsNullOrEmpty(account.email)
             || !string.Equals(account.email, req.Email.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -42,7 +42,7 @@ public class AuthController(SmtpService smtp, IConfiguration config) : Controlle
         var rawBytes = SHA256.HashData(Guid.NewGuid().ToByteArray());
         var token    = Convert.ToHexString(rawBytes).ToLower();
 
-        await DatabaseSystem.Instance.Game.PasswordResetTokens.InsertAsync(new PasswordResetTokenRow
+        await DbGateway.Current.InsertPasswordResetTokenAsync(new PasswordResetTokenRow
         {
             account_id = account.account_id,
             token      = token,
@@ -76,21 +76,21 @@ public class AuthController(SmtpService smtp, IConfiguration config) : Controlle
             return BadRequest(new { error = $"비밀번호는 {MinPasswordLength}~{MaxPasswordLength}자여야 합니다." });
 
         // 만료 토큰 정리
-        await DatabaseSystem.Instance.Game.PasswordResetTokens.DeleteExpiredAsync();
+        await DbGateway.Current.DeleteExpiredPasswordResetTokensAsync();
 
-        var row = await DatabaseSystem.Instance.Game.PasswordResetTokens.SelectByTokenAsync(req.Token.Trim());
+        var row = await DbGateway.Current.FindPasswordResetTokenAsync(req.Token.Trim());
         if (row == null || row.used_at.HasValue || row.expires_at < DateTime.UtcNow)
             return BadRequest(new { error = "유효하지 않거나 만료된 토큰입니다." });
 
         // C-1: 토큰을 먼저 원자적으로 소모 — 동시 요청에 의한 이중 사용 방지
         // MarkUsedConditionalAsync: used_at IS NULL AND 미만료인 경우에만 UPDATE
-        var marked = await DatabaseSystem.Instance.Game.PasswordResetTokens.MarkUsedConditionalAsync(row.token_id);
+        var marked = await DbGateway.Current.ConsumePasswordResetTokenAsync(row.token_id);
         if (marked == 0)
             return BadRequest(new { error = "유효하지 않거나 만료된 토큰입니다." });
 
         // 토큰 소모 확정 후 BCrypt 해시 — ThreadPool 분리 (블로킹 연산)
         var newHash = await Task.Run(() => BCrypt.Net.BCrypt.HashPassword(req.NewPassword, workFactor: AuthConstants.BcryptWorkFactor));
-        await DatabaseSystem.Instance.Game.Accounts.UpdatePasswordHashAsync(row.account_id, newHash);
+        await DbGateway.Current.UpdatePasswordHashAsync(row.account_id, newHash);
 
         GameLogger.Info("Auth", $"비밀번호 재설정 완료: account_id={row.account_id}");
         return Ok(new { message = "비밀번호가 변경되었습니다." });

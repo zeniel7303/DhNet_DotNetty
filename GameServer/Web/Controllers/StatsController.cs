@@ -1,5 +1,5 @@
 using Common.Logging;
-using GameServer.Database;
+using GameServer.Database.Gateway;
 using GameServer.Systems;
 using Microsoft.AspNetCore.Mvc;
 
@@ -34,7 +34,7 @@ public class StatsController : ControllerBase
     {
         try
         {
-            var rows = await DatabaseSystem.Instance.GameLog.StatLogs.GetHistoryAsync(limit);
+            var rows = await DbGateway.Current.QueryStatHistoryAsync(limit);
             var result = rows.Select(r => new StatHistoryItemDto(r.player_count, r.created_at));
             return Ok(result);
         }

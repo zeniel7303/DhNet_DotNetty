@@ -1,8 +1,8 @@
 using Common.Logging;
 using GameServer.Component.Player;
-using GameServer.Network;
-using GameServer.Database;
+using GameServer.Database.Gateway;
 using GameServer.Database.Rows;
+using GameServer.Network;
 using GameServer.Protocol;
 using GameServer.Systems;
 
@@ -39,11 +39,13 @@ internal static class LoginProcessor
     private static async Task ProcessInternalAsync(SessionComponent session, ReqLogin req)
     {
         // 계정 인증 — 실패 시 에러 응답 전송 후 null 반환
-        var account = await AuthenticateAsync(session, req.Username, req.Password);
-        if (account == null)
+        var loaded = await AuthenticateAsync(session, req.Username, req.Password);
+        if (loaded == null)
         {
             return;
         }
+
+        var account = loaded.Value.Account;
 
         if (PlayerSystem.Instance.Count >= PlayerSystem.Instance.MaxPlayers)
         {
@@ -73,7 +75,7 @@ internal static class LoginProcessor
 
         try
         {
-            await DatabaseSystem.Instance.Game.Players.InsertAsync(new PlayerRow
+            await DbGateway.Current.InsertPlayerSessionAsync(new PlayerRow
             {
                 account_id  = player.AccountId,
                 player_name = player.Name,
@@ -169,15 +171,11 @@ internal static class LoginProcessor
             return;
         }
 
-        // 캐릭터 로드 (없으면 기본값으로 신규 생성)
+        // 캐릭터 로드 (없으면 기본값으로 신규 생성). 조회는 인증 시 이미 했다.
         try
         {
-            var charRow = await DatabaseSystem.Instance.Game.Characters.SelectAsync(player.AccountId);
-            if (charRow == null)
-            {
-                charRow = new CharacterRow { account_id = player.AccountId };
-                await DatabaseSystem.Instance.Game.Characters.UpsertAsync(charRow);
-            }
+            var charRow = loaded.Value.Character
+                ?? await DbGateway.Current.CreateDefaultCharacterAsync(player.AccountId);
             player.Character.LoadFrom(charRow);
         }
         catch (Exception ex)
@@ -216,24 +214,35 @@ internal static class LoginProcessor
             }
         });
 
-        DatabaseSystem.Instance.GameLog.LoginLogs.InsertAsync(new LoginLogRow
+        DbGateway.Current.WriteLoginLog(new LoginLogRow
         {
             account_id  = player.AccountId,
             player_name = player.Name,
             ip_address  = ip,
             login_at    = loginAt
-        }).FireAndForget("Login");
+        });
     }
 
     /// <summary>
-    /// 계정 인증. 성공 시 AccountRow 반환, 실패 시 에러 응답 전송 후 null 반환.
+    /// 계정과 캐릭터 스냅샷을 읽은 뒤 비밀번호를 검증한다.
+    /// 실패 시 에러 응답을 보내고 null을 반환한다.
     /// username 없거나 password 불일치 → INVALID_CREDENTIALS (어느 쪽인지 노출 안 함).
     /// </summary>
     private const int MinLength = 4;
     private const int MaxLength = 16;
 
-    private static async Task<AccountRow?> AuthenticateAsync(SessionComponent session, string username, string password)
+    private static async Task<AuthenticateAndLoadResult?> AuthenticateAsync(SessionComponent session, string username, string password)
     {
+        if (DbGateway.Current.IsLoginBlocked)
+        {
+            GameLogger.Warn("Login", "DB 지속 장애로 신규 로그인을 거부합니다.");
+            await session.SendAsync(new GamePacket
+            {
+                ResLogin = new ResLogin { ErrorCode = ErrorCode.DbError }
+            });
+            return null;
+        }
+
         // 기본 길이 검증 — DB 조회 전에 차단 (RegisterProcessor와 동일 기준)
         if (username.Length < MinLength || username.Length > MaxLength ||
             password.Length < MinLength || password.Length > MaxLength)
@@ -245,10 +254,10 @@ internal static class LoginProcessor
             return null;
         }
 
-        AccountRow? account;
+        AuthenticateAndLoadResult? loaded;
         try
         {
-            account = await DatabaseSystem.Instance.Game.Accounts.SelectByUsernameAsync(username);
+            loaded = await DbGateway.Current.AuthenticateAndLoadAsync(username);
         }
         catch (Exception ex)
         {
@@ -262,9 +271,9 @@ internal static class LoginProcessor
 
         // Timing Attack 방어: username 미존재 시에도 더미 해시로 BCrypt.Verify 실행
         // account == null 일 때 응답이 빨라지면 username 존재 여부가 노출된다.
-        var hashToVerify = account?.password_hash ?? _dummyHash;
+        var hashToVerify = loaded?.Account.password_hash ?? _dummyHash;
         var hashMatches = await Task.Run(() => BCrypt.Net.BCrypt.Verify(password, hashToVerify));
-        if (account == null || !hashMatches)
+        if (loaded == null || !hashMatches)
         {
             GameLogger.Warn("Login", $"인증 실패: {username}");
             await session.SendAsync(new GamePacket
@@ -274,6 +283,6 @@ internal static class LoginProcessor
             return null;
         }
 
-        return account;
+        return loaded;
     }
 }

@@ -3,7 +3,7 @@ using Common.Logging;
 using Common.Server.Component;
 using GameServer.Component.Stage;
 using GameServer.Component.Player;
-using GameServer.Database;
+using GameServer.Database.Gateway;
 using GameServer.Database.Rows;
 using GameServer.Protocol;
 using GameServer.Systems;
@@ -111,13 +111,13 @@ public class RoomComponent : BaseComponent
 
         GameLogger.Info($"Room:{RoomId}", $"입장: {player.Name} ({_players.Count}/{_maxPlayers})");
 
-        DatabaseSystem.Instance.GameLog.RoomLogs.InsertAsync(new RoomLogRow
+        DbGateway.Current.WriteRoomLog(new RoomLogRow
         {
             account_id = player.AccountId,
             room_id    = RoomId,
             action     = "enter",
             created_at = DateTime.UtcNow
-        }).FireAndForget("Room");
+        });
 
         _ = player.Session.SendAsync(new GamePacket
             { ResRoomEnter = new ResRoomEnter { RoomId = RoomId, ErrorCode = ErrorCode.Success } });
@@ -192,13 +192,13 @@ public class RoomComponent : BaseComponent
 
         GameLogger.Info($"Room:{RoomId}", $"퇴장: {player.Name} (disconnect={isDisconnect}, 잔여 {_players.Count}명)");
 
-        DatabaseSystem.Instance.GameLog.RoomLogs.InsertAsync(new RoomLogRow
+        DbGateway.Current.WriteRoomLog(new RoomLogRow
         {
             account_id = player.AccountId,
             room_id    = RoomId,
             action     = isDisconnect ? "disconnect" : "exit",
             created_at = DateTime.UtcNow
-        }).FireAndForget("Room");
+        });
 
         if (!isDisconnect)
         {
