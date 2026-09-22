@@ -28,7 +28,7 @@ public class SessionComponentTests
 
         session.SetEntryHandshakeCompleted();
 
-        var packet = new GamePacket { ReqMove = new ReqMove { X = 10, Y = 20 } };
+        var packet = new GamePacket { ReqMove = new ReqMove { Seq = 1, Flags = 0, DtMs = 100 } };
         var result = session.ProcessPacket(packet);
 
         Assert.True(result, "큐가 비어있으면 패킷을 수락해야 함");
@@ -47,12 +47,12 @@ public class SessionComponentTests
 
         for (int i = 0; i < MaxPacketQueueSize; i++)
         {
-            var packet = new GamePacket { ReqMove = new ReqMove { X = i, Y = i } };
+            var packet = new GamePacket { ReqMove = new ReqMove { Seq = (uint)i, Flags = 0, DtMs = 100 } };
             var result = session.ProcessPacket(packet);
             Assert.True(result, $"패킷 {i}는 상한 이내이므로 수락되어야 함");
         }
 
-        var overLimitPacket = new GamePacket { ReqMove = new ReqMove { X = 999, Y = 999 } };
+        var overLimitPacket = new GamePacket { ReqMove = new ReqMove { Seq = 999, Flags = 0, DtMs = 100 } };
         var overLimitResult = session.ProcessPacket(overLimitPacket);
 
         Assert.False(overLimitResult, "큐 상한 초과 시 패킷을 거부해야 함");
@@ -75,7 +75,7 @@ public class SessionComponentTests
         const int packetCount = 10;
         for (int i = 0; i < packetCount; i++)
         {
-            var packet = new GamePacket { ReqMove = new ReqMove { X = i, Y = i } };
+            var packet = new GamePacket { ReqMove = new ReqMove { Seq = (uint)i, Flags = 0, DtMs = 100 } };
             session.ProcessPacket(packet);
         }
 
@@ -99,7 +99,7 @@ public class SessionComponentTests
 
         for (int i = 0; i < 5; i++)
         {
-            var packet = new GamePacket { ReqMove = new ReqMove { X = i, Y = i } };
+            var packet = new GamePacket { ReqMove = new ReqMove { Seq = (uint)i, Flags = 0, DtMs = 100 } };
             session.ProcessPacket(packet);
         }
 
@@ -124,13 +124,13 @@ public class SessionComponentTests
 
         for (int i = 0; i < MaxPacketQueueSize; i++)
         {
-            var packet = new GamePacket { ReqMove = new ReqMove { X = i, Y = i } };
+            var packet = new GamePacket { ReqMove = new ReqMove { Seq = (uint)i, Flags = 0, DtMs = 100 } };
             session.ProcessPacket(packet);
         }
 
         session.DrainPackets();
 
-        var newPacket = new GamePacket { ReqMove = new ReqMove { X = 100, Y = 100 } };
+        var newPacket = new GamePacket { ReqMove = new ReqMove { Seq = 100, Flags = 0, DtMs = 100 } };
         var result = session.ProcessPacket(newPacket);
 
         Assert.True(result, "드레인 후 새 패킷을 수락해야 함");
