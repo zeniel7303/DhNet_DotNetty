@@ -160,22 +160,25 @@ public class PlayerSystemLoginTests
         var session = new SessionComponent(channel);
         var player = new PlayerComponent(session, "testuser", accountId);
 
-        var reserveSuccess = false;
-        var reserveTask = Task.Run(() =>
-        {
-            Thread.Sleep(5);
-            reserveSuccess = PlayerSystem.Instance.TryReserveLogin(accountId);
-        });
+        var addStarted = new TaskCompletionSource();
+        var addCompleted = new TaskCompletionSource();
 
-        var addTask = Task.Run(() =>
+        var addTask = Task.Run(async () =>
         {
             PlayerSystem.Instance.TryReserveLogin(accountId);
+            addStarted.SetResult();
             PlayerSystem.Instance.Add(player);
+            addCompleted.SetResult();
         });
 
-        await Task.WhenAll(reserveTask, addTask);
+        await addStarted.Task;
 
-        Assert.False(reserveSuccess, "Add 완료 후 TryReserveLogin은 실패해야 함");
+        var reserveSuccess = PlayerSystem.Instance.TryReserveLogin(accountId);
+
+        await addCompleted.Task;
+        await addTask;
+
+        Assert.False(reserveSuccess, "Add 진행 중 TryReserveLogin은 실패해야 함");
 
         PlayerSystem.Instance.Remove(player);
     }
